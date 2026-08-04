@@ -1,15 +1,22 @@
 const auth = {
-    hasActiveShift: false,
+    session: null,
 
     checkShift() {
-        // Simulando validación en capa middleware contra la tabla `cash_shifts`
-        // En un entorno real se haría un fetch() a la API.
-        const confirmShift = confirm("Simulación de Middleware: ¿Tiene la cajera un turno activo en cash_shifts? (Aceptar = Sí)");
+        // Cargar sesión de localStorage
+        const stored = localStorage.getItem('raimen_session');
+        if (!stored) {
+            window.location.href = 'login.html';
+            return;
+        }
         
-        this.hasActiveShift = confirmShift;
+        this.session = JSON.parse(stored);
         
+        // El administrador tiene vista global
+        const branchText = this.session.role === 'admin' ? '(Vista Global)' : `(Sucursal: ${this.session.branch})`;
+        document.getElementById('branch-info').textContent = branchText;
+
         const statusEl = document.getElementById('shift-status');
-        if (this.hasActiveShift) {
+        if (this.session.hasActiveShift) {
             statusEl.textContent = "Turno Activo - Operaciones habilitadas";
             statusEl.style.color = "#d4edda";
         } else {
@@ -19,10 +26,15 @@ const auth = {
     },
 
     validateAction() {
-        if (!this.hasActiveShift) {
+        if (!this.session || !this.session.hasActiveShift) {
             alert("Operación denegada. La cajera en sesión carece de un turno activo en la tabla cash_shifts.");
             return false;
         }
         return true;
+    },
+    
+    logout() {
+        localStorage.removeItem('raimen_session');
+        window.location.href = 'login.html';
     }
 };

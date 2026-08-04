@@ -11,8 +11,11 @@
 </head>
 <body>
     <header>
-        <h1>RAIMEN POS</h1>
-        <div id="shift-status">Verificando turno...</div>
+        <h1>RAIMEN POS <span id="branch-info" style="font-size: 0.6em; color: #ccc;"></span></h1>
+        <div style="display: flex; gap: 10px; align-items: center;">
+            <div id="shift-status">Verificando turno...</div>
+            <a href="#" onclick="auth.logout()" style="color: white; text-decoration: underline; font-size: 0.8em;">Cerrar sesión</a>
+        </div>
     </header>
 
     <nav>

@@ -1,12 +1,14 @@
 -- Visor archivístico histórico de tickets
--- Permite consultar los registros inmutables de sales y sale_items
+-- Permite consultar los registros inmutables de sales y sale_items por sucursal
 
 WITH TicketDetails AS (
     SELECT 
         s.id AS ticket_id,
         s.ticket_number,
         s.created_at AS ticket_date,
-        s.channel, -- 'POS' o 'ML'
+        s.branch_id,
+        b.name AS branch_name,
+        b.is_virtual,
         s.customer_id,
         c.full_name AS customer_name,
         s.subtotal,
@@ -33,6 +35,8 @@ WITH TicketDetails AS (
         sales s
     LEFT JOIN 
         customers c ON s.customer_id = c.id
+    LEFT JOIN 
+        branches b ON s.branch_id = b.id
     JOIN 
         sale_items si ON s.id = si.sale_id
     JOIN 
@@ -41,13 +45,15 @@ WITH TicketDetails AS (
         -- Optional: Filter for specific time range or status for the archival view
         s.status IN ('completed', 'refunded')
     GROUP BY 
-        1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12
+        1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14
 )
 SELECT 
     ticket_id,
     ticket_number,
     ticket_date,
-    channel,
+    branch_id,
+    branch_name,
+    is_virtual,
     customer_name,
     total_items,
     subtotal,
@@ -57,9 +63,9 @@ SELECT
     payment_method,
     status,
     items_json,
-    -- Window functions to compare current ticket total against the daily average for archival context
-    AVG(total_amount) OVER (PARTITION BY DATE_TRUNC('day', ticket_date), channel) AS daily_avg_ticket_channel,
-    PERCENT_RANK() OVER (PARTITION BY DATE_TRUNC('day', ticket_date) ORDER BY total_amount) AS ticket_percentile_daily
+    -- Window functions to compare current ticket total against the daily average for archival context per branch
+    AVG(total_amount) OVER (PARTITION BY DATE_TRUNC('day', ticket_date), branch_id) AS daily_avg_ticket_branch,
+    PERCENT_RANK() OVER (PARTITION BY DATE_TRUNC('day', ticket_date), branch_id ORDER BY total_amount) AS ticket_percentile_daily_branch
 FROM 
     TicketDetails
 ORDER BY 

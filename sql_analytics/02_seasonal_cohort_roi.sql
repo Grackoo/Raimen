@@ -1,11 +1,14 @@
--- Cálculo de ROI y márgenes de cohorte estacional
--- Resta inversiones temporales de mercancía y gastos operativos fijos (financial_transactions) al ingreso (sales)
+-- Cálculo de ROI y márgenes de cohorte estacional por sucursal
+-- Resta inversiones temporales de mercancía y gastos operativos fijos (financial_transactions) al ingreso (sales) aislando por sucursal
 
 WITH CohortRevenue AS (
     SELECT 
         c.id AS campaign_id,
         c.name AS campaign_name,
         c.season,
+        s.branch_id,
+        b.name AS branch_name,
+        b.is_virtual,
         SUM(s.total_amount) AS total_gross_revenue,
         -- Calculate total cost of goods sold (COGS) if available via items, otherwise handle via financial_transactions
         SUM(si.quantity * si.unit_cost) AS total_cogs
@@ -15,14 +18,17 @@ WITH CohortRevenue AS (
         sales s ON s.campaign_id = c.id
     JOIN 
         sale_items si ON si.sale_id = s.id
+    LEFT JOIN 
+        branches b ON s.branch_id = b.id
     WHERE 
         s.status = 'completed'
     GROUP BY 
-        1, 2, 3
+        1, 2, 3, 4, 5, 6
 ),
 CohortExpenses AS (
     SELECT 
         ft.campaign_id,
+        ft.branch_id,
         SUM(CASE WHEN ft.transaction_category = 'merchandise_investment' THEN ft.amount ELSE 0 END) AS merchandise_investment,
         SUM(CASE WHEN ft.transaction_category = 'fixed_operational' THEN ft.amount ELSE 0 END) AS fixed_operational_costs,
         SUM(ft.amount) AS total_expenses
@@ -31,12 +37,15 @@ CohortExpenses AS (
     WHERE 
         ft.transaction_type = 'expense'
     GROUP BY 
-        ft.campaign_id
+        ft.campaign_id, ft.branch_id
 )
 SELECT 
     cr.campaign_id,
     cr.campaign_name,
     cr.season,
+    cr.branch_id,
+    cr.branch_name,
+    cr.is_virtual,
     cr.total_gross_revenue,
     cr.total_cogs,
     COALESCE(ce.merchandise_investment, 0) AS merchandise_investment,
@@ -56,10 +65,17 @@ SELECT
         WHEN (cr.total_cogs + COALESCE(ce.total_expenses, 0)) > 0 
         THEN ((cr.total_gross_revenue - (cr.total_cogs + COALESCE(ce.total_expenses, 0))) / (cr.total_cogs + COALESCE(ce.total_expenses, 0))) * 100
         ELSE 0 
-    END AS roi_pct
+    END AS roi_pct,
+    -- Ranking de ROI entre sucursales para la misma campaña estacional
+    RANK() OVER (PARTITION BY cr.campaign_id ORDER BY 
+        CASE 
+            WHEN (cr.total_cogs + COALESCE(ce.total_expenses, 0)) > 0 
+            THEN ((cr.total_gross_revenue - (cr.total_cogs + COALESCE(ce.total_expenses, 0))) / (cr.total_cogs + COALESCE(ce.total_expenses, 0))) * 100
+            ELSE 0 
+        END DESC) AS roi_rank_by_campaign
 FROM 
     CohortRevenue cr
 LEFT JOIN 
-    CohortExpenses ce ON cr.campaign_id = ce.campaign_id
+    CohortExpenses ce ON cr.campaign_id = ce.campaign_id AND cr.branch_id = ce.branch_id
 ORDER BY 
-    cr.season, cr.campaign_name;
+    cr.season, cr.campaign_name, roi_rank_by_campaign;
