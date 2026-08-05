@@ -148,7 +148,6 @@ export function InventoryView() {
             <span className="text-body-sm text-on-surface-variant">Showing 1 to 3 of 42 entries</span>
           </div>
         </div>
-      )}
 
       {/* QR Preview Sidebar */}
         <div className="w-full xl:w-80 shrink-0 bg-surface-container-lowest rounded-xl border border-outline-variant shadow-sm flex flex-col overflow-hidden">
@@ -187,6 +186,7 @@ export function InventoryView() {
           </div>
         </div>
       </div>
+      )}
     </main>
   );
 }
