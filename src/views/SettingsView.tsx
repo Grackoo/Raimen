@@ -59,7 +59,7 @@ export function SettingsView() {
       fetchData();
     } catch (err) {
       console.error(err);
-      alert('Error creando usuario');
+      alert(`Error creando usuario: ${err.message || 'Error desconocido'}`);
     } finally {
       setAddingUser(false);
     }
@@ -78,7 +78,7 @@ export function SettingsView() {
       fetchData();
     } catch (err) {
       console.error(err);
-      alert('Error creando sucursal');
+      alert(`Error creando sucursal: ${err.message || 'Error desconocido'}`);
     } finally {
       setAddingUser(false);
     }
