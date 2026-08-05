@@ -1,40 +1,43 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Download, Plus, ChevronDown, Filter, AlertTriangle, MoreVertical, Printer, QrCode } from 'lucide-react';
+import { supabase } from '../lib/supabase';
+
+interface Product {
+  id: string;
+  name: string;
+  category: string;
+  sku: string;
+  stock: number;
+  price: number;
+  ml_price: number;
+  active: boolean;
+  warning: boolean;
+  image: string;
+}
 
 export function InventoryView() {
-  const products = [
-    {
-      name: 'Alpha Puffer Jacket',
-      cat: 'Outerwear / Black',
-      sku: 'JKT-ALP-BLK-M',
-      stock: 45,
-      price: '$129.99',
-      mlPrice: '$135.00',
-      active: true,
-      image: 'https://images.unsplash.com/photo-1551028719-00167b16eac5?w=200&h=200&fit=crop'
-    },
-    {
-      name: 'Core Essentials Tee',
-      cat: 'Basics / Heather Grey',
-      sku: 'TEE-COR-GRY-L',
-      stock: 8,
-      price: '$24.99',
-      mlPrice: '$26.00',
-      active: false,
-      warning: true,
-      image: 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=200&h=200&fit=crop'
-    },
-    {
-      name: 'Selvedge Denim Regular',
-      cat: 'Pants / Indigo',
-      sku: 'DNM-SLV-IND-32',
-      stock: 112,
-      price: '$89.00',
-      mlPrice: '$95.00',
-      active: true,
-      image: 'https://images.unsplash.com/photo-1542272604-787c3835535d?w=200&h=200&fit=crop'
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchProducts() {
+      try {
+        const { data, error } = await supabase
+          .from('products')
+          .select('*')
+          .order('created_at', { ascending: false });
+        
+        if (error) throw error;
+        setProducts(data || []);
+      } catch (err) {
+        console.error('Error fetching products:', err);
+      } finally {
+        setLoading(false);
+      }
     }
-  ];
+    
+    fetchProducts();
+  }, []);
 
   return (
     <main className="flex-1 overflow-y-auto p-4 md:p-8 bg-background flex flex-col gap-6">
@@ -75,6 +78,11 @@ export function InventoryView() {
       </div>
 
       {/* Main Layout Grid */}
+      {loading ? (
+        <div className="flex-1 flex items-center justify-center min-h-[500px]">
+          <div className="text-title-md text-on-surface-variant animate-pulse">Loading inventory...</div>
+        </div>
+      ) : (
       <div className="flex flex-col xl:flex-row gap-6 h-full min-h-[500px]">
         
         {/* Table */}
@@ -108,7 +116,7 @@ export function InventoryView() {
                         </div>
                         <div>
                           <div className="text-title-md text-on-surface">{p.name}</div>
-                          <div className="text-body-sm text-on-surface-variant">{p.cat}</div>
+                          <div className="text-body-sm text-on-surface-variant">{p.category}</div>
                         </div>
                       </div>
                     </td>
@@ -119,8 +127,8 @@ export function InventoryView() {
                         {p.stock}
                       </span>
                     </td>
-                    <td className="p-4 text-right text-data-mono text-on-surface">{p.price}</td>
-                    <td className="p-4 text-right text-data-mono text-on-surface-variant">{p.mlPrice}</td>
+                    <td className="p-4 text-right text-data-mono text-on-surface">${p.price}</td>
+                    <td className="p-4 text-right text-data-mono text-on-surface-variant">${p.ml_price}</td>
                     <td className="p-4 text-center">
                       <div className={`inline-flex items-center w-8 h-4 rounded-full transition-colors ${p.active ? 'bg-secondary-fixed' : 'bg-surface-variant'}`}>
                         <span className={`w-3 h-3 rounded-full shadow-sm transition-transform ${p.active ? 'bg-secondary translate-x-[18px]' : 'bg-outline translate-x-[2px]'}`}></span>
@@ -140,8 +148,9 @@ export function InventoryView() {
             <span className="text-body-sm text-on-surface-variant">Showing 1 to 3 of 42 entries</span>
           </div>
         </div>
+      )}
 
-        {/* QR Preview Sidebar */}
+      {/* QR Preview Sidebar */}
         <div className="w-full xl:w-80 shrink-0 bg-surface-container-lowest rounded-xl border border-outline-variant shadow-sm flex flex-col overflow-hidden">
           <div className="p-4 border-b border-outline-variant bg-surface-container-low flex justify-between items-center">
             <h3 className="text-title-md text-on-surface">Label Preview</h3>

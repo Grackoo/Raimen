@@ -1,35 +1,103 @@
-import React, { useState } from 'react';
-import { Scan, Search, User, MoreVertical, Minus, Plus, Banknote, CreditCard, Landmark, Receipt, ShoppingBag } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Scan, Search, User, MoreVertical, Minus, Plus, Banknote, CreditCard, Landmark, Receipt, ShoppingBag, Loader2 } from 'lucide-react';
+import { supabase } from '../lib/supabase';
+
+interface Product {
+  id: string;
+  name: string;
+  sku: string;
+  price: number;
+  image: string;
+  stock: number;
+}
+
+interface CartItem extends Product {
+  qty: number;
+}
 
 export function POSView() {
-  const [cart, setCart] = useState([
-    {
-      id: 1,
-      name: 'Merino Wool Sweater',
-      price: 89.00,
-      qty: 1,
-      image: 'https://images.unsplash.com/photo-1620799140408-edc6dcb6d633?w=200&h=200&fit=crop'
-    },
-    {
-      id: 2,
-      name: 'Matte Ceramic Mug',
-      price: 24.00,
-      qty: 2,
-      image: 'https://images.unsplash.com/photo-1514228742587-6b1558fcca3d?w=200&h=200&fit=crop'
-    }
-  ]);
+  const [cart, setCart] = useState<CartItem[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [processingSale, setProcessingSale] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState('Efectivo');
 
-  const updateQty = (id: number, delta: number) => {
+  useEffect(() => {
+    async function fetchProducts() {
+      try {
+        const { data, error } = await supabase
+          .from('products')
+          .select('*')
+          .eq('active', true)
+          .order('name');
+        
+        if (error) throw error;
+        setProducts(data || []);
+      } catch (err) {
+        console.error('Error fetching products:', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchProducts();
+  }, []);
+
+  const updateQty = (id: string, delta: number) => {
     setCart(cart.map(c => c.id === id ? { ...c, qty: Math.max(0, c.qty + delta) } : c).filter(c => c.qty > 0));
   };
 
-  const products = [
-    { name: 'Merino Wool Sweater', sku: 'MW-001', price: '$89.00', image: 'https://images.unsplash.com/photo-1620799140408-edc6dcb6d633?w=200&h=200&fit=crop' },
-    { name: 'Matte Ceramic Mug', sku: 'CM-042', price: '$24.00', image: 'https://images.unsplash.com/photo-1514228742587-6b1558fcca3d?w=200&h=200&fit=crop' },
-    { name: 'Leather Slim Wallet', sku: 'LW-089', price: '$55.00', image: 'https://images.unsplash.com/photo-1627123424574-724758594e93?w=200&h=200&fit=crop' },
-    { name: 'Canvas Tote Bag', sku: 'TB-112', price: '$12.00', image: 'https://images.unsplash.com/photo-1597346146098-b8032dbe2c4f?w=200&h=200&fit=crop', placeholder: true },
-    { name: 'Minimalist Watch', sku: 'MW-002', outOfStock: true, image: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=200&h=200&fit=crop' }
-  ];
+  const addToCart = (product: Product) => {
+    if (product.stock <= 0) return;
+    const existing = cart.find(c => c.id === product.id);
+    if (existing) {
+      updateQty(product.id, 1);
+    } else {
+      setCart([...cart, { ...product, qty: 1 }]);
+    }
+  };
+
+  const handleCheckout = async () => {
+    if (cart.length === 0) return;
+    setProcessingSale(true);
+    
+    try {
+      // 1. Create Sale
+      const { data: saleData, error: saleError } = await supabase
+        .from('sales')
+        .insert({
+          total: total,
+          payment_method: paymentMethod
+        })
+        .select()
+        .single();
+        
+      if (saleError) throw saleError;
+      
+      // 2. Insert Sale Items
+      const saleItems = cart.map(item => ({
+        sale_id: saleData.id,
+        product_id: item.id,
+        quantity: item.qty,
+        price_at_time: item.price
+      }));
+      
+      const { error: itemsError } = await supabase
+        .from('sale_items')
+        .insert(saleItems);
+        
+      if (itemsError) throw itemsError;
+      
+      // Clear cart on success
+      setCart([]);
+      alert('Venta completada con éxito!');
+      
+    } catch (err) {
+      console.error('Error procesando venta:', err);
+      alert('Error al procesar la venta');
+    } finally {
+      setProcessingSale(false);
+    }
+  };
 
   const subtotal = cart.reduce((acc, item) => acc + (item.price * item.qty), 0);
   const taxes = subtotal * 0.16;
@@ -77,17 +145,21 @@ export function POSView() {
             </div>
           </div>
           <div className="flex-1 overflow-y-auto pr-2 pb-4 grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-4 content-start">
-            {products.map((p, i) => (
-              <div key={i} className={`bg-white/70 backdrop-blur-md rounded-xl p-3 flex flex-col cursor-pointer hover:shadow-md hover:-translate-y-1 transition-all border border-white/50 ${p.outOfStock ? 'opacity-60' : ''}`}>
+            {loading ? (
+              <div className="col-span-full flex justify-center items-center h-32 text-on-surface-variant">
+                <Loader2 className="animate-spin mr-2" size={24} /> Loading products...
+              </div>
+            ) : products.map((p, i) => (
+              <div key={p.id} onClick={() => addToCart(p)} className={`bg-white/70 backdrop-blur-md rounded-xl p-3 flex flex-col cursor-pointer hover:shadow-md hover:-translate-y-1 transition-all border border-white/50 ${p.stock <= 0 ? 'opacity-60' : ''}`}>
                 <div className="aspect-square bg-surface-variant rounded-lg mb-3 overflow-hidden relative flex items-center justify-center">
-                  {p.outOfStock && <span className="absolute inset-0 bg-white/50 z-10 flex items-center justify-center text-label-caps text-primary font-bold">OUT OF STOCK</span>}
-                  {p.placeholder ? (
-                    <ShoppingBag size={36} className="text-primary opacity-50" />
-                  ) : (
+                  {p.stock <= 0 && <span className="absolute inset-0 bg-white/50 z-10 flex items-center justify-center text-label-caps text-primary font-bold">OUT OF STOCK</span>}
+                  {p.image ? (
                     <img src={p.image} className="w-full h-full object-cover hover:scale-105 transition-transform duration-300" alt={p.name} />
+                  ) : (
+                    <ShoppingBag size={36} className="text-primary opacity-50" />
                   )}
-                  {!p.outOfStock && p.price && (
-                     <div className="absolute top-2 right-2 bg-surface/90 rounded-full px-2 py-0.5 text-label-caps text-[10px] text-primary shadow-sm">{p.price}</div>
+                  {p.stock > 0 && p.price && (
+                     <div className="absolute top-2 right-2 bg-surface/90 rounded-full px-2 py-0.5 text-label-caps text-[10px] text-primary shadow-sm">${p.price}</div>
                   )}
                 </div>
                 <h3 className="text-body-sm font-semibold text-on-surface truncate">{p.name}</h3>
@@ -157,23 +229,23 @@ export function POSView() {
           </div>
 
           <div className="grid grid-cols-3 gap-2 mb-4">
-            <button className="flex flex-col items-center justify-center py-3 rounded-lg border border-outline-variant bg-surface-container-lowest hover:bg-primary-fixed hover:border-primary hover:text-primary transition-all text-on-surface-variant h-16">
+            <button onClick={() => setPaymentMethod('Efectivo')} className={`flex flex-col items-center justify-center py-3 rounded-lg border transition-all h-16 ${paymentMethod === 'Efectivo' ? 'border-primary bg-primary-fixed text-primary ring-2 ring-primary ring-opacity-20' : 'border-outline-variant bg-surface-container-lowest hover:bg-primary-fixed hover:border-primary hover:text-primary text-on-surface-variant'}`}>
               <Banknote size={20} className="mb-1" />
               <span className="text-label-caps text-[10px]">Efectivo</span>
             </button>
-            <button className="flex flex-col items-center justify-center py-3 rounded-lg border border-primary bg-primary-fixed text-primary transition-all h-16 ring-2 ring-primary ring-opacity-20">
+            <button onClick={() => setPaymentMethod('Tarjeta')} className={`flex flex-col items-center justify-center py-3 rounded-lg border transition-all h-16 ${paymentMethod === 'Tarjeta' ? 'border-primary bg-primary-fixed text-primary ring-2 ring-primary ring-opacity-20' : 'border-outline-variant bg-surface-container-lowest hover:bg-primary-fixed hover:border-primary hover:text-primary text-on-surface-variant'}`}>
               <CreditCard size={20} className="mb-1" />
               <span className="text-label-caps text-[10px]">Tarjeta</span>
             </button>
-            <button className="flex flex-col items-center justify-center py-3 rounded-lg border border-outline-variant bg-surface-container-lowest hover:bg-primary-fixed hover:border-primary hover:text-primary transition-all text-on-surface-variant h-16">
+            <button onClick={() => setPaymentMethod('Transfer')} className={`flex flex-col items-center justify-center py-3 rounded-lg border transition-all h-16 ${paymentMethod === 'Transfer' ? 'border-primary bg-primary-fixed text-primary ring-2 ring-primary ring-opacity-20' : 'border-outline-variant bg-surface-container-lowest hover:bg-primary-fixed hover:border-primary hover:text-primary text-on-surface-variant'}`}>
               <Landmark size={20} className="mb-1" />
               <span className="text-label-caps text-[10px]">Transfer</span>
             </button>
           </div>
 
-          <button className="w-full bg-secondary text-on-secondary hover:bg-on-secondary-fixed-variant transition-colors rounded-xl py-4 text-title-md flex items-center justify-center gap-2 shadow-lg h-14">
-            <Receipt size={20} />
-            Cobrar e Imprimir
+          <button disabled={processingSale || cart.length === 0} onClick={handleCheckout} className="w-full bg-secondary text-on-secondary hover:bg-on-secondary-fixed-variant transition-colors rounded-xl py-4 text-title-md flex items-center justify-center gap-2 shadow-lg h-14 disabled:opacity-50 disabled:cursor-not-allowed">
+            {processingSale ? <Loader2 className="animate-spin" size={20} /> : <Receipt size={20} />}
+            {processingSale ? 'Procesando...' : 'Cobrar e Imprimir'}
           </button>
         </div>
       </section>

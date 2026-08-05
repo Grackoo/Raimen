@@ -1,14 +1,29 @@
 import React, { useState, useEffect } from 'react';
-import { Lock, Unlock, Monitor, Clock } from 'lucide-react';
+import { Lock, Unlock, Monitor, Clock, Loader2 } from 'lucide-react';
+import { supabase } from '../lib/supabase';
 
 interface POSLoginViewProps {
   onLogin: () => void;
+}
+
+interface User {
+  id: string;
+  username: string;
+  full_name: string;
+  role: string;
 }
 
 export function POSLoginView({ onLogin }: POSLoginViewProps) {
   const [timeStr, setTimeStr] = useState('');
   const [isOpening, setIsOpening] = useState(false);
   const [isOpened, setIsOpened] = useState(false);
+  const [users, setUsers] = useState<User[]>([]);
+  const [loadingUsers, setLoadingUsers] = useState(true);
+  
+  const [selectedUsername, setSelectedUsername] = useState('');
+  const [pin, setPin] = useState('');
+  const [initialAmount, setInitialAmount] = useState('');
+  const [errorMsg, setErrorMsg] = useState('');
 
   useEffect(() => {
     const updateTime = () => {
@@ -20,16 +35,53 @@ export function POSLoginView({ onLogin }: POSLoginViewProps) {
     return () => clearInterval(interval);
   }, []);
 
-  const handleOpen = (e: React.FormEvent) => {
+  useEffect(() => {
+    async function fetchUsers() {
+      try {
+        const { data, error } = await supabase.from('users').select('id, username, full_name, role');
+        if (error) throw error;
+        setUsers(data || []);
+        if (data && data.length > 0) {
+          setSelectedUsername(data[0].username);
+        }
+      } catch (err) {
+        console.error('Error fetching users:', err);
+      } finally {
+        setLoadingUsers(false);
+      }
+    }
+    fetchUsers();
+  }, []);
+
+  const handleOpen = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsOpening(true);
-    setTimeout(() => {
+    setErrorMsg('');
+
+    try {
+      // Validate with Supabase
+      const { data, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('username', selectedUsername)
+        .eq('pin', pin)
+        .single();
+
+      if (error || !data) {
+        throw new Error('PIN incorrecto o usuario no encontrado');
+      }
+
+      // Success
       setIsOpening(false);
       setIsOpened(true);
+      // In a real app we'd save the logged in user/cashier to a global state/context here.
       setTimeout(() => {
         onLogin();
       }, 1000);
-    }, 1500);
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Error de autenticación');
+      setIsOpening(false);
+    }
   };
 
   return (
@@ -56,12 +108,18 @@ export function POSLoginView({ onLogin }: POSLoginViewProps) {
             <div className="flex flex-col gap-2">
               <label className="text-label-caps text-on-surface-variant">Operador</label>
               <select 
-                disabled={isOpened}
+                disabled={isOpened || loadingUsers}
+                value={selectedUsername}
+                onChange={(e) => setSelectedUsername(e.target.value)}
                 className="w-full bg-surface border border-outline-variant rounded-lg h-12 px-4 text-on-surface focus:ring-primary focus:border-primary text-body-md outline-none"
               >
-                <option>Ana García - Cajero</option>
-                <option>Carlos López - Cajero</option>
-                <option>Admin - Supervisor</option>
+                {loadingUsers ? (
+                  <option>Cargando usuarios...</option>
+                ) : (
+                  users.map(u => (
+                    <option key={u.id} value={u.username}>{u.full_name || u.username} - {u.role}</option>
+                  ))
+                )}
               </select>
             </div>
 
@@ -71,7 +129,9 @@ export function POSLoginView({ onLogin }: POSLoginViewProps) {
                 type="password"
                 disabled={isOpened}
                 required
-                placeholder="••••••"
+                value={pin}
+                onChange={(e) => setPin(e.target.value)}
+                placeholder="••••"
                 className="w-full bg-surface border border-outline-variant rounded-lg h-12 px-4 text-on-surface focus:ring-primary focus:border-primary text-body-md outline-none"
               />
             </div>
@@ -84,12 +144,18 @@ export function POSLoginView({ onLogin }: POSLoginViewProps) {
                   type="number" 
                   disabled={isOpened}
                   required
+                  value={initialAmount}
+                  onChange={(e) => setInitialAmount(e.target.value)}
                   step="0.01"
                   placeholder="0.00"
                   className="w-full bg-surface border border-outline-variant rounded-lg h-16 pl-10 pr-4 text-on-surface focus:ring-primary focus:border-primary text-data-mono text-xl outline-none"
                 />
               </div>
             </div>
+
+            {errorMsg && (
+              <div className="text-error text-body-sm font-semibold">{errorMsg}</div>
+            )}
 
             <div className="flex items-center gap-2 text-on-surface-variant bg-surface-container-low p-3 rounded-lg">
               <Clock size={18} />
@@ -98,17 +164,17 @@ export function POSLoginView({ onLogin }: POSLoginViewProps) {
 
             <button 
               type="submit"
-              disabled={isOpening || isOpened}
+              disabled={isOpening || isOpened || loadingUsers}
               className={`w-full h-12 mt-2 rounded-lg text-title-md flex items-center justify-center gap-2 transition-all shadow-sm ${
                 isOpened 
                   ? 'bg-secondary text-on-secondary' 
                   : 'bg-primary text-on-primary hover:bg-on-surface active:scale-95'
-              }`}
+              } disabled:opacity-50`}
             >
               {isOpened ? (
                 <>Caja Abierta Exitosamente</>
               ) : isOpening ? (
-                <>Procesando...</>
+                <><Loader2 className="animate-spin" size={20} /> Procesando...</>
               ) : (
                 <>
                   <Monitor size={20} />
