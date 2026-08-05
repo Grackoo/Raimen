@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Scan, Search, User, MoreVertical, Minus, Plus, Banknote, CreditCard, Landmark, Receipt, ShoppingBag, Loader2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { Scanner } from '@yudiel/react-qr-scanner';
 
 interface Product {
   id: string;
@@ -53,6 +54,16 @@ export function POSView() {
       updateQty(product.id, 1);
     } else {
       setCart([...cart, { ...product, qty: 1 }]);
+    }
+  };
+
+  const handleScan = (detectedCodes: any[]) => {
+    if (detectedCodes && detectedCodes.length > 0) {
+      const sku = detectedCodes[0].rawValue;
+      const product = products.find(p => p.sku === sku);
+      if (product) {
+        addToCart(product);
+      }
     }
   };
 
@@ -117,11 +128,13 @@ export function POSView() {
               Escanear Producto
             </h2>
             <div className="flex-1 relative bg-surface-dim rounded-lg overflow-hidden border-2 border-dashed border-outline flex items-center justify-center min-h-[200px]">
-              <div className="absolute top-1/2 left-0 w-full h-0.5 bg-secondary-fixed shadow-[0_0_8px_rgba(111,251,190,0.8)] animate-pulse"></div>
-              <div className="text-center z-10 text-on-surface-variant">
-                <Scan className="mx-auto mb-2 opacity-50" size={36} />
-                <p className="text-body-sm">Cámara activa</p>
-              </div>
+              <Scanner 
+                onScan={handleScan}
+                allowMultiple={true}
+                scanDelay={2000}
+                styles={{ container: { width: '100%', height: '100%', position: 'absolute', inset: 0 } }}
+              />
+              <div className="absolute top-1/2 left-0 w-full h-0.5 bg-secondary-fixed shadow-[0_0_8px_rgba(111,251,190,0.8)] animate-pulse z-10 pointer-events-none"></div>
             </div>
             <div className="mt-4 relative">
               <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" />

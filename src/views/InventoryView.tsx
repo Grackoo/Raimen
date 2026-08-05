@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Download, Plus, ChevronDown, Filter, AlertTriangle, MoreVertical, Printer, QrCode } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import QRCode from 'react-qr-code';
 
 interface Product {
   id: string;
@@ -18,6 +19,7 @@ interface Product {
 export function InventoryView() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
   useEffect(() => {
     async function fetchProducts() {
@@ -105,9 +107,9 @@ export function InventoryView() {
               </thead>
               <tbody className="divide-y divide-outline-variant/30">
                 {products.map((p, i) => (
-                  <tr key={i} className={`hover:bg-surface-container-low transition-colors cursor-pointer group ${i === 0 ? 'bg-primary-fixed/20' : ''}`}>
-                    <td className="p-4 text-center">
-                      <input type="checkbox" defaultChecked={i === 0} className="rounded border-outline-variant text-primary focus:ring-primary" />
+                  <tr key={i} onClick={() => setSelectedProduct(p)} className={`hover:bg-surface-container-low transition-colors cursor-pointer group ${selectedProduct?.id === p.id ? 'bg-primary-fixed/20' : ''}`}>
+                    <td className="p-4 text-center" onClick={(e) => e.stopPropagation()}>
+                      <input type="checkbox" checked={selectedProduct?.id === p.id} onChange={() => setSelectedProduct(p)} className="rounded border-outline-variant text-primary focus:ring-primary" />
                     </td>
                     <td className="p-4">
                       <div className="flex items-center gap-3">
@@ -160,18 +162,22 @@ export function InventoryView() {
               <div className="text-center w-full">
                 <h4 className="text-title-md font-bold text-black tracking-tighter leading-none mb-1">RAIMEN</h4>
                 <div className="w-full h-px bg-black opacity-20 mb-1"></div>
-                <p className="text-[10px] text-black leading-tight truncate px-2">Alpha Puffer Jacket</p>
-                <p className="text-data-mono text-[9px] text-black/60 truncate">JKT-ALP-BLK-M</p>
+                <p className="text-[10px] text-black leading-tight truncate px-2">{selectedProduct ? selectedProduct.name : 'Selecciona un producto'}</p>
+                <p className="text-data-mono text-[9px] text-black/60 truncate">{selectedProduct ? selectedProduct.sku : '---'}</p>
               </div>
               <div className="w-20 h-20 bg-white p-1">
-                <QrCode className="w-full h-full text-black" />
+                {selectedProduct ? (
+                  <QRCode value={selectedProduct.sku} size={80} style={{ height: "auto", maxWidth: "100%", width: "100%" }} viewBox={`0 0 80 80`} />
+                ) : (
+                  <QrCode className="w-full h-full text-black/20" />
+                )}
               </div>
               <div className="text-data-mono text-title-md font-bold text-black leading-none mt-1">
-                $129.99
+                ${selectedProduct ? selectedProduct.price : '0.00'}
               </div>
             </div>
             <p className="text-body-sm text-on-surface-variant text-center mt-6">
-              Vista previa para 1 producto seleccionado.
+              Vista previa para {selectedProduct ? '1 producto seleccionado' : 'ningún producto seleccionado'}.
             </p>
           </div>
           <div className="p-4 border-t border-outline-variant bg-surface-container-lowest flex flex-col gap-3">
