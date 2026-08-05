@@ -16,6 +16,7 @@ export function SettingsView() {
   const [editBranchForm, setEditBranchForm] = useState({ name: '', location: '', type: '' });
 
   const [newUser, setNewUser] = useState({
+    username: '',
     name: '',
     pin: '',
     role: 'cashier',
@@ -61,7 +62,7 @@ export function SettingsView() {
       ]);
       if (error) throw error;
       alert('Usuario creado con éxito');
-      setNewUser({ name: '', pin: '', role: 'cashier', branch_id: branches[0]?.id || '' });
+      setNewUser({ username: '', name: '', pin: '', role: 'cashier', branch_id: branches[0]?.id || '' });
       fetchData();
     } catch (err) {
       console.error(err);
@@ -92,12 +93,13 @@ export function SettingsView() {
 
   const startEditUser = (user: any) => {
     setEditingUserId(user.id);
-    setEditUserForm({ name: user.name || '', role: user.role || 'cashier', branch_id: user.branch_id || '', pin: '', active: user.active });
+    setEditUserForm({ username: user.username || '', name: user.name || user.full_name || '', role: user.role || 'cashier', branch_id: user.branch_id || '', pin: '', active: user.active });
   };
 
   const handleUpdateUser = async () => {
     try {
       const updateData: any = { 
+        username: editUserForm.username,
         name: editUserForm.name, 
         role: editUserForm.role, 
         branch_id: editUserForm.branch_id,
@@ -207,6 +209,10 @@ export function SettingsView() {
                     <h4 className="text-title-md text-on-surface mb-4">Agregar Nuevo Usuario</h4>
                     <form onSubmit={handleAddUser} className="space-y-4">
                       <div>
+                        <label className="text-label-caps text-on-surface-variant block mb-1">Usuario (Alias / ID)</label>
+                        <input required value={newUser.username} onChange={e => setNewUser({...newUser, username: e.target.value.toLowerCase().replace(/\s+/g, '')})} type="text" placeholder="ej. juanperez" className="w-full bg-surface border border-outline-variant rounded-lg p-2 focus:ring-2 focus:ring-primary outline-none" />
+                      </div>
+                      <div>
                         <label className="text-label-caps text-on-surface-variant block mb-1">Nombre Completo</label>
                         <input required value={newUser.name} onChange={e => setNewUser({...newUser, name: e.target.value})} type="text" className="w-full bg-surface border border-outline-variant rounded-lg p-2 focus:ring-2 focus:ring-primary outline-none" />
                       </div>
@@ -245,7 +251,8 @@ export function SettingsView() {
                           <div key={u.id} className="p-3 bg-surface rounded-lg border border-outline-variant flex flex-col gap-2">
                             {editingUserId === u.id ? (
                               <div className="space-y-2">
-                                <input value={editUserForm.name} onChange={e => setEditUserForm({...editUserForm, name: e.target.value})} className="w-full bg-surface-container-lowest border border-outline-variant rounded p-1 text-sm outline-none" placeholder="Nombre" />
+                                <input value={editUserForm.username} onChange={e => setEditUserForm({...editUserForm, username: e.target.value.toLowerCase().replace(/\s+/g, '')})} className="w-full bg-surface-container-lowest border border-outline-variant rounded p-1 text-sm outline-none" placeholder="Usuario (Alias)" />
+                                <input value={editUserForm.name} onChange={e => setEditUserForm({...editUserForm, name: e.target.value})} className="w-full bg-surface-container-lowest border border-outline-variant rounded p-1 text-sm outline-none" placeholder="Nombre completo" />
                                 <input type="password" value={editUserForm.pin} onChange={e => setEditUserForm({...editUserForm, pin: e.target.value})} className="w-full bg-surface-container-lowest border border-outline-variant rounded p-1 text-sm outline-none" placeholder="Nuevo PIN (Opcional)" />
                                 <div className="flex gap-2">
                                   <select value={editUserForm.role} onChange={e => setEditUserForm({...editUserForm, role: e.target.value})} className="w-1/2 bg-surface-container-lowest border border-outline-variant rounded p-1 text-sm outline-none">
