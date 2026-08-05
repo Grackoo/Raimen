@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Download, Plus, ChevronDown, Filter, AlertTriangle, MoreVertical, Printer, QrCode } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import QRCode from 'react-qr-code';
+import { ProductModal } from '../components/ProductModal';
 
 interface Product {
   id: string;
@@ -20,24 +21,26 @@ export function InventoryView() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [showAddModal, setShowAddModal] = useState(false);
+
+  const fetchProducts = async () => {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('products')
+        .select('*')
+        .order('created_at', { ascending: false });
+      
+      if (error) throw error;
+      setProducts(data || []);
+    } catch (err) {
+      console.error('Error fetching products:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    async function fetchProducts() {
-      try {
-        const { data, error } = await supabase
-          .from('products')
-          .select('*')
-          .order('created_at', { ascending: false });
-        
-        if (error) throw error;
-        setProducts(data || []);
-      } catch (err) {
-        console.error('Error fetching products:', err);
-      } finally {
-        setLoading(false);
-      }
-    }
-    
     fetchProducts();
   }, []);
 
@@ -53,7 +56,7 @@ export function InventoryView() {
           <button className="flex-1 sm:flex-none flex items-center justify-center gap-2 h-10 px-4 bg-surface-container-lowest border border-outline-variant rounded-lg text-title-md text-primary hover:bg-surface-container-low transition-colors shadow-sm">
             <Download size={20} /> Exportar
           </button>
-          <button onClick={() => alert('Para agregar un producto, usa el panel de control o conecta esta vista al modal.')} className="flex-1 sm:flex-none flex items-center justify-center gap-2 h-10 px-4 bg-primary text-on-primary rounded-lg text-title-md hover:opacity-90 transition-opacity shadow-sm">
+          <button onClick={() => setShowAddModal(true)} className="flex-1 sm:flex-none flex items-center justify-center gap-2 h-10 px-4 bg-primary text-on-primary rounded-lg text-title-md hover:opacity-90 transition-opacity shadow-sm">
             <Plus size={20} /> Agregar Producto
           </button>
         </div>
@@ -192,6 +195,13 @@ export function InventoryView() {
           </div>
         </div>
       </div>
+      )}
+
+      {showAddModal && (
+        <ProductModal 
+          onClose={() => setShowAddModal(false)} 
+          onSuccess={() => fetchProducts()} 
+        />
       )}
     </main>
   );
