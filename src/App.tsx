@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { TopBar } from './components/TopBar';
 import { DashboardView } from './views/DashboardView';
@@ -7,10 +7,31 @@ import { POSLoginView } from './views/POSLoginView';
 import { POSView } from './views/POSView';
 import { SettingsView } from './views/SettingsView';
 import { OrdersView } from './views/OrdersView';
+import { StoreView } from './views/StoreView';
 import { Scan, Package, ShoppingBag, User } from 'lucide-react';
 
 export default function App() {
   const [currentView, setCurrentView] = useState('dashboard');
+
+  useEffect(() => {
+    const handleHashChange = () => {
+      if (window.location.hash === '#tienda') {
+        setCurrentView('store');
+      } else if (currentView === 'store') {
+        setCurrentView('pos-login');
+      }
+    };
+    
+    window.addEventListener('hashchange', handleHashChange);
+    // Initial check
+    handleHashChange();
+    
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
+
+  if (currentView === 'store') {
+    return <StoreView />;
+  }
 
   if (currentView === 'pos-login') {
     return <POSLoginView onLogin={() => setCurrentView('pos')} />;

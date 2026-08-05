@@ -189,6 +189,8 @@ export function POSLoginView({ onLogin }: POSLoginViewProps) {
           <button className="text-on-surface-variant text-label-caps hover:text-primary transition-colors">SOPORTE TÉCNICO</button>
           <span className="text-outline-variant">•</span>
           <button className="text-on-surface-variant text-label-caps hover:text-primary transition-colors">CAMBIAR TURNO</button>
+          <span className="text-outline-variant">•</span>
+          <button onClick={() => window.location.hash = 'tienda'} className="text-on-surface-variant text-label-caps hover:text-primary transition-colors font-bold">VISITAR TIENDA EN LÍNEA</button>
         </div>
       </div>
     </div>

@@ -12,7 +12,14 @@ export function DashboardView() {
         <div className="flex justify-between items-end mb-6">
           <div>
             <h2 className="text-headline-lg text-on-surface">Panel de Control</h2>
-            <p className="text-body-sm text-on-surface-variant mt-1">Métricas de rendimiento en tiempo real</p>
+            <div className="flex items-center gap-2 mt-2">
+              <span className="text-body-sm text-on-surface-variant">Viendo sucursal:</span>
+              <select className="bg-surface-container-low border border-outline-variant rounded-md text-body-sm px-2 py-1 outline-none focus:ring-1 focus:ring-primary">
+                <option>Todas las Sucursales</option>
+                <option>Local Centro</option>
+                <option>Tienda Web</option>
+              </select>
+            </div>
           </div>
           <div className="hidden sm:flex gap-2">
             <button onClick={() => setShowAddModal(true)} className="px-4 py-2 bg-surface-container-lowest border border-outline-variant text-on-surface rounded-lg text-title-md flex items-center gap-2 hover:bg-surface-variant transition-colors shadow-sm">

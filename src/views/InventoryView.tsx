@@ -22,17 +22,32 @@ export function InventoryView() {
   const [loading, setLoading] = useState(true);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [branches, setBranches] = useState<any[]>([]);
+  const [selectedBranch, setSelectedBranch] = useState<string>('all');
 
   const fetchProducts = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('products')
         .select('*')
         .order('created_at', { ascending: false });
+        
+      if (selectedBranch !== 'all') {
+        query = query.eq('branch_id', selectedBranch);
+      }
       
-      if (error) throw error;
-      setProducts(data || []);
+      const [productsRes, branchesRes] = await Promise.all([
+        query,
+        supabase.from('branches').select('id, name')
+      ]);
+      
+      if (productsRes.error) throw productsRes.error;
+      setProducts(productsRes.data || []);
+      
+      if (branchesRes.data) {
+        setBranches(branchesRes.data);
+      }
     } catch (err) {
       console.error('Error fetching products:', err);
     } finally {
@@ -42,7 +57,7 @@ export function InventoryView() {
 
   useEffect(() => {
     fetchProducts();
-  }, []);
+  }, [selectedBranch]);
 
   return (
     <main className="flex-1 overflow-y-auto p-4 md:p-8 bg-background flex flex-col gap-6">
@@ -64,7 +79,20 @@ export function InventoryView() {
 
       {/* Filters Bar */}
       <div className="bg-surface-container-lowest rounded-xl border border-outline-variant p-2 flex flex-wrap gap-2 items-center shadow-sm">
-        {['CATEGORÍA: Ropa', 'TEMPORADA: FW23', 'STOCK: Bajo (<10)'].map((filter, i) => (
+        <div className="flex items-center gap-2 px-3 py-1.5 bg-surface-container-low rounded-lg border border-transparent cursor-pointer transition-colors">
+          <span className="text-label-caps text-on-surface-variant">SUCURSAL:</span>
+          <select 
+            value={selectedBranch}
+            onChange={(e) => setSelectedBranch(e.target.value)}
+            className="bg-transparent text-body-sm font-semibold text-on-surface outline-none cursor-pointer"
+          >
+            <option value="all">Todas</option>
+            {branches.map(b => (
+              <option key={b.id} value={b.id}>{b.name}</option>
+            ))}
+          </select>
+        </div>
+        {['CATEGORÍA: Todas', 'STOCK: Bajo (<10)'].map((filter, i) => (
           <div key={i} className="flex items-center gap-2 px-3 py-1.5 bg-surface-container-low rounded-lg border border-transparent hover:border-outline-variant cursor-pointer transition-colors">
             <span className="text-label-caps text-on-surface-variant">{filter.split(':')[0]}:</span>
             <span className="text-body-sm font-semibold text-on-surface">{filter.split(':')[1].trim()}</span>
