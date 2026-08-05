@@ -1,0 +1,59 @@
+import React, { useState } from 'react';
+import { Sidebar } from './components/Sidebar';
+import { TopBar } from './components/TopBar';
+import { DashboardView } from './views/DashboardView';
+import { InventoryView } from './views/InventoryView';
+import { POSLoginView } from './views/POSLoginView';
+import { POSView } from './views/POSView';
+import { Scan, Package, ShoppingBag, User } from 'lucide-react';
+
+export default function App() {
+  const [currentView, setCurrentView] = useState('dashboard');
+
+  if (currentView === 'pos-login') {
+    return <POSLoginView onLogin={() => setCurrentView('pos')} />;
+  }
+
+  return (
+    <div className="flex h-screen overflow-hidden bg-background font-sans text-on-surface">
+      <Sidebar currentView={currentView} onViewChange={setCurrentView} />
+      
+      <div className="flex-1 flex flex-col md:ml-60 h-screen overflow-hidden">
+        {currentView !== 'pos' && (
+          <TopBar currentView={currentView} onViewChange={setCurrentView} />
+        )}
+        
+        {currentView === 'dashboard' && <DashboardView />}
+        {currentView === 'inventory' && <InventoryView />}
+        {currentView === 'pos' && <POSView />}
+        {(currentView === 'marketplace' || currentView === 'settings') && (
+          <div className="flex-1 flex items-center justify-center">
+            <h2 className="text-headline-lg text-on-surface-variant">Coming Soon</h2>
+          </div>
+        )}
+        
+        {/* Mobile bottom nav for specific views if needed, though most views manage their own */}
+        {currentView !== 'pos-login' && currentView !== 'pos' && (
+          <nav className="md:hidden bg-surface-container-highest docked full-width bottom-0 fixed z-50 rounded-t-xl shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] left-0 w-full flex justify-around items-center px-4 py-2">
+            <button onClick={() => setCurrentView('pos')} className="flex flex-col items-center justify-center bg-secondary-container text-on-secondary-container rounded-full p-2 transition-transform scale-95 active:scale-90 text-label-caps w-16">
+              <Scan className="mb-1" size={20} />
+              <span className="text-[10px]">POS</span>
+            </button>
+            <button onClick={() => setCurrentView('inventory')} className={`flex flex-col items-center justify-center p-2 rounded-xl transition-colors text-label-caps w-16 ${currentView === 'inventory' ? 'text-primary' : 'text-on-surface-variant'}`}>
+              <Package className="mb-1" size={20} />
+              <span className="text-[10px]">Inventory</span>
+            </button>
+            <button onClick={() => setCurrentView('marketplace')} className={`flex flex-col items-center justify-center p-2 rounded-xl transition-colors text-label-caps w-16 ${currentView === 'marketplace' ? 'text-primary' : 'text-on-surface-variant'}`}>
+              <ShoppingBag className="mb-1" size={20} />
+              <span className="text-[10px]">Orders</span>
+            </button>
+            <button onClick={() => setCurrentView('settings')} className={`flex flex-col items-center justify-center p-2 rounded-xl transition-colors text-label-caps w-16 ${currentView === 'settings' ? 'text-primary' : 'text-on-surface-variant'}`}>
+              <User className="mb-1" size={20} />
+              <span className="text-[10px]">Profile</span>
+            </button>
+          </nav>
+        )}
+      </div>
+    </div>
+  );
+}
