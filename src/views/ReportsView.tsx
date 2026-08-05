@@ -75,7 +75,7 @@ export function ReportsView() {
   }, []);
 
   return (
-    <main className="flex-1 overflow-y-auto p-4 md:p-8 bg-background flex flex-col gap-6">
+    <main className="flex-1 overflow-y-auto p-4 md:p-8 pb-24 md:pb-8 bg-background flex flex-col gap-6">
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-display-lg font-bold text-on-surface tracking-tight">Reportes y Estadísticas</h2>

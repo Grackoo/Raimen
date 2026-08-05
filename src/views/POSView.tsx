@@ -115,10 +115,10 @@ export function POSView() {
   const total = subtotal + taxes;
 
   return (
-    <main className="flex-1 flex flex-col lg:flex-row h-full overflow-hidden bg-surface-container-low p-4 lg:p-6 gap-6">
+    <main className="flex-1 flex flex-col lg:flex-row lg:h-full overflow-y-auto lg:overflow-hidden bg-surface-container-low p-4 lg:p-6 pb-24 lg:pb-6 gap-6">
       
       {/* Left panel & Grid */}
-      <div className="flex-1 flex flex-col xl:flex-row gap-6 min-h-0 overflow-y-auto lg:overflow-hidden pb-20 lg:pb-0">
+      <div className="flex flex-col xl:flex-row gap-6 lg:min-h-0 lg:flex-1 lg:overflow-hidden">
         
         {/* Scanner Panel */}
         <section className="w-full xl:w-1/3 flex flex-col gap-4 flex-shrink-0">
@@ -148,7 +148,7 @@ export function POSView() {
         </section>
 
         {/* Product Grid */}
-        <section className="w-full xl:w-2/3 flex flex-col h-full">
+        <section className="w-full xl:w-2/3 flex flex-col lg:h-full">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-title-md text-primary">Más Vendidos</h2>
             <div className="flex gap-2">
@@ -184,7 +184,7 @@ export function POSView() {
       </div>
 
       {/* Right Sidebar: Cart */}
-      <section className="w-full lg:w-96 bg-surface-container-lowest rounded-xl shadow-sm border border-outline-variant flex flex-col h-full flex-shrink-0 z-10">
+      <section className="w-full lg:w-96 bg-surface-container-lowest rounded-xl shadow-sm border border-outline-variant flex flex-col lg:h-full min-h-[500px] flex-shrink-0 z-10">
         <div className="p-4 border-b border-outline-variant flex items-center justify-between bg-surface/50 rounded-t-xl">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-primary-fixed flex items-center justify-center text-primary font-bold">

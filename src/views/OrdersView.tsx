@@ -35,7 +35,7 @@ export function OrdersView() {
   }, []);
 
   return (
-    <main className="flex-1 overflow-y-auto p-4 md:p-8 bg-background">
+    <main className="flex-1 overflow-y-auto p-4 md:p-8 pb-24 md:pb-8 bg-background">
       <div className="max-w-7xl mx-auto space-y-6">
         <div className="flex justify-between items-end mb-6">
           <div>

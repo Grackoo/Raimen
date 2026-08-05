@@ -169,7 +169,7 @@ export function ProductModal({ onClose, onSuccess, productToEdit }: ProductModal
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-      <div className="bg-surface-container-lowest rounded-xl shadow-lg border border-outline-variant w-full max-w-md overflow-hidden max-h-[90vh] flex flex-col">
+      <div className="bg-surface-container-lowest rounded-xl shadow-lg border border-outline-variant w-full max-w-md overflow-hidden max-h-[85vh] flex flex-col">
         <div className="flex justify-between items-center p-4 border-b border-outline-variant bg-surface-container-low shrink-0">
           <h3 className="text-title-md text-on-surface font-bold">{productToEdit ? 'Editar Producto' : 'Agregar Producto Nuevo'}</h3>
           <button onClick={onClose} className="text-on-surface-variant hover:bg-surface-variant p-1 rounded-full transition-colors">

@@ -159,27 +159,26 @@ export function SettingsView() {
   };
 
   return (
-    <main className="flex-1 overflow-y-auto p-4 md:p-8 bg-background">
-      <div className="max-w-7xl mx-auto space-y-6">
-        <div className="flex justify-between items-end mb-6">
-          <div>
-            <h2 className="text-headline-lg text-on-surface">Configuración del Sistema</h2>
+    <main className="flex-1 flex flex-col h-full bg-background overflow-hidden">
+      {/* Settings layout */}
+      <div className="flex-1 flex flex-col lg:flex-row min-h-0">
+        
+        {/* Sidebar */}
+        <div className="w-full lg:w-64 border-r border-outline-variant bg-surface-container-lowest shrink-0">
+          <div className="p-6 border-b border-outline-variant">
+            <h2 className="text-title-lg font-bold text-on-surface">Configuración del Sistema</h2>
             <p className="text-body-sm text-on-surface-variant mt-1">Administra usuarios, sucursales y preferencias</p>
           </div>
-        </div>
-
-        <div className="flex flex-col lg:flex-row gap-6">
-          {/* Tabs */}
-          <div className="w-full lg:w-64 shrink-0 flex flex-col gap-2">
+          <nav className="p-4 flex flex-row lg:flex-col gap-2 overflow-x-auto lg:overflow-visible">
             <button 
               onClick={() => setActiveTab('users')}
-              className={`flex items-center gap-3 p-3 rounded-lg text-left transition-colors ${activeTab === 'users' ? 'bg-primary-fixed text-on-primary-fixed' : 'hover:bg-surface-variant text-on-surface'}`}
+              className={`flex items-center gap-3 p-3 rounded-lg text-left transition-colors whitespace-nowrap ${activeTab === 'users' ? 'bg-primary-fixed text-on-primary-fixed' : 'hover:bg-surface-variant text-on-surface'}`}
             >
               <Users size={20} /> <span className="text-title-md font-medium">Usuarios y Cajeros</span>
             </button>
             <button 
               onClick={() => setActiveTab('branches')}
-              className={`flex items-center gap-3 p-3 rounded-lg text-left transition-colors ${activeTab === 'branches' ? 'bg-primary-fixed text-on-primary-fixed' : 'hover:bg-surface-variant text-on-surface'}`}
+              className={`flex items-center gap-3 p-3 rounded-lg text-left transition-colors whitespace-nowrap ${activeTab === 'branches' ? 'bg-primary-fixed text-on-primary-fixed' : 'hover:bg-surface-variant text-on-surface'}`}
             >
               <Store size={20} /> <span className="text-title-md font-medium">Sucursales</span>
             </button>
@@ -191,13 +190,15 @@ export function SettingsView() {
             </button>
             <button 
               onClick={() => setActiveTab('general')}
-              className={`flex items-center gap-3 p-3 rounded-lg text-left transition-colors ${activeTab === 'general' ? 'bg-primary-fixed text-on-primary-fixed' : 'hover:bg-surface-variant text-on-surface'}`}
+              className={`flex items-center gap-3 w-full p-3 rounded-lg text-left transition-colors ${activeTab === 'general' ? 'bg-primary-fixed text-on-primary-fixed' : 'hover:bg-surface-variant text-on-surface'}`}
             >
               <Settings size={20} /> <span className="text-title-md font-medium">General</span>
             </button>
-          </div>
+          </nav>
+        </div>
 
-          {/* Content */}
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto p-4 md:p-8 pb-24 lg:pb-8">
           <div className="flex-1 bg-surface-container-lowest border border-outline-variant rounded-xl p-6 shadow-sm min-h-[500px]">
             
             {activeTab === 'users' && (
