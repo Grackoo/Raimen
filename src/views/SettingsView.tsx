@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { Settings, Users, Store, Shield, Plus, Loader2 } from 'lucide-react';
+import { Settings, Users, Store, Shield, Plus, Loader2, Edit2, Trash2, Check, X } from 'lucide-react';
 
 export function SettingsView() {
   const [activeTab, setActiveTab] = useState('users');
@@ -8,6 +8,12 @@ export function SettingsView() {
   const [branches, setBranches] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [addingUser, setAddingUser] = useState(false);
+
+  const [editingUserId, setEditingUserId] = useState<string | null>(null);
+  const [editUserForm, setEditUserForm] = useState({ name: '', role: '', branch_id: '', pin: '', active: true });
+
+  const [editingBranchId, setEditingBranchId] = useState<string | null>(null);
+  const [editBranchForm, setEditBranchForm] = useState({ name: '', location: '', type: '' });
 
   const [newUser, setNewUser] = useState({
     name: '',
@@ -81,6 +87,72 @@ export function SettingsView() {
       alert(`Error creando sucursal: ${err.message || 'Error desconocido'}`);
     } finally {
       setAddingUser(false);
+    }
+  };
+
+  const startEditUser = (user: any) => {
+    setEditingUserId(user.id);
+    setEditUserForm({ name: user.name || '', role: user.role || 'cashier', branch_id: user.branch_id || '', pin: '', active: user.active });
+  };
+
+  const handleUpdateUser = async () => {
+    try {
+      const updateData: any = { 
+        name: editUserForm.name, 
+        role: editUserForm.role, 
+        branch_id: editUserForm.branch_id,
+        active: editUserForm.active
+      };
+      if (editUserForm.pin) updateData.pin = editUserForm.pin;
+      
+      const { error } = await supabase.from('users').update(updateData).eq('id', editingUserId);
+      if (error) throw error;
+      setEditingUserId(null);
+      fetchData();
+    } catch (err) {
+      console.error(err);
+      alert('Error actualizando usuario');
+    }
+  };
+
+  const handleDeleteUser = async (id: string) => {
+    if (!confirm('¿Estás seguro de eliminar este usuario?')) return;
+    try {
+      const { error } = await supabase.from('users').delete().eq('id', id);
+      if (error) throw error;
+      fetchData();
+    } catch (err) {
+      console.error(err);
+      alert('Error eliminando usuario. Es posible que tenga ventas asociadas.');
+    }
+  };
+
+  const startEditBranch = (branch: any) => {
+    setEditingBranchId(branch.id);
+    setEditBranchForm({ name: branch.name || '', location: branch.location || '', type: branch.type || 'physical' });
+  };
+
+  const handleUpdateBranch = async () => {
+    try {
+      const { error } = await supabase.from('branches').update(editBranchForm).eq('id', editingBranchId);
+      if (error) throw error;
+      setEditingBranchId(null);
+      fetchData();
+    } catch (err) {
+      console.error(err);
+      alert('Error actualizando sucursal');
+    }
+  };
+
+  const handleDeleteBranch = async (id: string) => {
+    if (!confirm('¿Estás seguro de eliminar esta sucursal?')) return;
+    try {
+      const { error } = await supabase.from('branches').delete().eq('id', id);
+      if (error) throw error;
+      fetchData();
+    } catch (err) {
+      console.error(err);
+      alert('Error eliminando sucursal. Es posible que tenga productos o ventas asociadas.');
     }
   };
 
@@ -170,12 +242,40 @@ export function SettingsView() {
                         <p className="text-on-surface-variant text-body-sm">Cargando...</p>
                       ) : (
                         users.map(u => (
-                          <div key={u.id} className="p-3 bg-surface rounded-lg border border-outline-variant flex justify-between items-center">
-                            <div>
-                              <p className="text-body-md font-bold text-on-surface">{u.name}</p>
-                              <p className="text-body-sm text-on-surface-variant uppercase text-[10px]">{u.role}</p>
-                            </div>
-                            <span className={`w-2 h-2 rounded-full ${u.active ? 'bg-green-500' : 'bg-red-500'}`}></span>
+                          <div key={u.id} className="p-3 bg-surface rounded-lg border border-outline-variant flex flex-col gap-2">
+                            {editingUserId === u.id ? (
+                              <div className="space-y-2">
+                                <input value={editUserForm.name} onChange={e => setEditUserForm({...editUserForm, name: e.target.value})} className="w-full bg-surface-container-lowest border border-outline-variant rounded p-1 text-sm outline-none" placeholder="Nombre" />
+                                <input type="password" value={editUserForm.pin} onChange={e => setEditUserForm({...editUserForm, pin: e.target.value})} className="w-full bg-surface-container-lowest border border-outline-variant rounded p-1 text-sm outline-none" placeholder="Nuevo PIN (Opcional)" />
+                                <div className="flex gap-2">
+                                  <select value={editUserForm.role} onChange={e => setEditUserForm({...editUserForm, role: e.target.value})} className="w-1/2 bg-surface-container-lowest border border-outline-variant rounded p-1 text-sm outline-none">
+                                    <option value="cashier">Cajero</option>
+                                    <option value="admin">Administrador</option>
+                                  </select>
+                                  <select value={editUserForm.branch_id} onChange={e => setEditUserForm({...editUserForm, branch_id: e.target.value})} className="w-1/2 bg-surface-container-lowest border border-outline-variant rounded p-1 text-sm outline-none">
+                                    {branches.map(b => (
+                                      <option key={b.id} value={b.id}>{b.name}</option>
+                                    ))}
+                                  </select>
+                                </div>
+                                <div className="flex justify-end gap-2 mt-2">
+                                  <button onClick={() => setEditingUserId(null)} className="p-1 text-on-surface-variant hover:bg-surface-variant rounded"><X size={16} /></button>
+                                  <button onClick={handleUpdateUser} className="p-1 text-primary hover:bg-primary-container rounded"><Check size={16} /></button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="flex justify-between items-center">
+                                <div>
+                                  <p className="text-body-md font-bold text-on-surface">{u.name}</p>
+                                  <p className="text-body-sm text-on-surface-variant uppercase text-[10px]">{u.role}</p>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <span className={`w-2 h-2 rounded-full ${u.active ? 'bg-green-500' : 'bg-red-500'} mr-2`}></span>
+                                  <button onClick={() => startEditUser(u)} className="p-1.5 text-on-surface-variant hover:text-primary hover:bg-surface-variant rounded-md transition-colors"><Edit2 size={16} /></button>
+                                  <button onClick={() => handleDeleteUser(u.id)} className="p-1.5 text-on-surface-variant hover:text-error hover:bg-error-container rounded-md transition-colors"><Trash2 size={16} /></button>
+                                </div>
+                              </div>
+                            )}
                           </div>
                         ))
                       )}
@@ -222,11 +322,33 @@ export function SettingsView() {
                         <p className="text-on-surface-variant text-body-sm">Cargando...</p>
                       ) : (
                         branches.map(b => (
-                          <div key={b.id} className="p-3 bg-surface rounded-lg border border-outline-variant flex justify-between items-center">
-                            <div>
-                              <p className="text-body-md font-bold text-on-surface">{b.name}</p>
-                              <p className="text-body-sm text-on-surface-variant">{b.location} &bull; <span className="uppercase text-[10px] text-primary">{b.type}</span></p>
-                            </div>
+                          <div key={b.id} className="p-3 bg-surface rounded-lg border border-outline-variant flex flex-col gap-2">
+                            {editingBranchId === b.id ? (
+                              <div className="space-y-2">
+                                <input value={editBranchForm.name} onChange={e => setEditBranchForm({...editBranchForm, name: e.target.value})} className="w-full bg-surface-container-lowest border border-outline-variant rounded p-1 text-sm outline-none" placeholder="Nombre de sucursal" />
+                                <input value={editBranchForm.location} onChange={e => setEditBranchForm({...editBranchForm, location: e.target.value})} className="w-full bg-surface-container-lowest border border-outline-variant rounded p-1 text-sm outline-none" placeholder="Ubicación" />
+                                <select value={editBranchForm.type} onChange={e => setEditBranchForm({...editBranchForm, type: e.target.value})} className="w-full bg-surface-container-lowest border border-outline-variant rounded p-1 text-sm outline-none">
+                                  <option value="physical">Física (Tienda)</option>
+                                  <option value="virtual">Virtual (E-commerce / ML)</option>
+                                  <option value="warehouse">Almacén Central</option>
+                                </select>
+                                <div className="flex justify-end gap-2 mt-2">
+                                  <button onClick={() => setEditingBranchId(null)} className="p-1 text-on-surface-variant hover:bg-surface-variant rounded"><X size={16} /></button>
+                                  <button onClick={handleUpdateBranch} className="p-1 text-primary hover:bg-primary-container rounded"><Check size={16} /></button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="flex justify-between items-center">
+                                <div>
+                                  <p className="text-body-md font-bold text-on-surface">{b.name}</p>
+                                  <p className="text-body-sm text-on-surface-variant">{b.location} &bull; <span className="uppercase text-[10px] text-primary">{b.type}</span></p>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <button onClick={() => startEditBranch(b)} className="p-1.5 text-on-surface-variant hover:text-primary hover:bg-surface-variant rounded-md transition-colors"><Edit2 size={16} /></button>
+                                  <button onClick={() => handleDeleteBranch(b.id)} className="p-1.5 text-on-surface-variant hover:text-error hover:bg-error-container rounded-md transition-colors"><Trash2 size={16} /></button>
+                                </div>
+                              </div>
+                            )}
                           </div>
                         ))
                       )}
