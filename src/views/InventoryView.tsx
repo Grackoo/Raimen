@@ -44,22 +44,22 @@ export function InventoryView() {
       {/* Header Section */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h2 className="text-display-lg font-bold text-on-surface tracking-tight">Inventory Management</h2>
-          <p className="text-body-md text-on-surface-variant mt-1">Manage stock, prices, and generate QR labels.</p>
+          <h2 className="text-display-lg font-bold text-on-surface tracking-tight">Gestión de Inventario</h2>
+          <p className="text-body-md text-on-surface-variant mt-1">Administra existencias, precios y genera etiquetas QR.</p>
         </div>
         <div className="flex gap-3 w-full sm:w-auto">
           <button className="flex-1 sm:flex-none flex items-center justify-center gap-2 h-10 px-4 bg-surface-container-lowest border border-outline-variant rounded-lg text-title-md text-primary hover:bg-surface-container-low transition-colors shadow-sm">
-            <Download size={20} /> Export
+            <Download size={20} /> Exportar
           </button>
-          <button className="flex-1 sm:flex-none flex items-center justify-center gap-2 h-10 px-4 bg-primary text-on-primary rounded-lg text-title-md hover:opacity-90 transition-opacity shadow-sm">
-            <Plus size={20} /> Add Product
+          <button onClick={() => alert('Para agregar un producto, usa el panel de control o conecta esta vista al modal.')} className="flex-1 sm:flex-none flex items-center justify-center gap-2 h-10 px-4 bg-primary text-on-primary rounded-lg text-title-md hover:opacity-90 transition-opacity shadow-sm">
+            <Plus size={20} /> Agregar Producto
           </button>
         </div>
       </div>
 
       {/* Filters Bar */}
       <div className="bg-surface-container-lowest rounded-xl border border-outline-variant p-2 flex flex-wrap gap-2 items-center shadow-sm">
-        {['CATEGORY: All Apparel', 'SEASON: FW23', 'STOCK: Low Stock (<10)'].map((filter, i) => (
+        {['CATEGORÍA: Ropa', 'TEMPORADA: FW23', 'STOCK: Bajo (<10)'].map((filter, i) => (
           <div key={i} className="flex items-center gap-2 px-3 py-1.5 bg-surface-container-low rounded-lg border border-transparent hover:border-outline-variant cursor-pointer transition-colors">
             <span className="text-label-caps text-on-surface-variant">{filter.split(':')[0]}:</span>
             <span className="text-body-sm font-semibold text-on-surface">{filter.split(':')[1].trim()}</span>
@@ -71,7 +71,7 @@ export function InventoryView() {
           <Filter size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" />
           <input 
             type="text" 
-            placeholder="Filter by SKU or Name..." 
+            placeholder="Filtrar por SKU o Nombre..." 
             className="w-full h-9 pl-9 pr-3 bg-surface border border-outline-variant rounded-lg text-body-sm text-on-surface focus:ring-1 focus:ring-primary focus:border-primary transition-all outline-none"
           />
         </div>
@@ -80,7 +80,7 @@ export function InventoryView() {
       {/* Main Layout Grid */}
       {loading ? (
         <div className="flex-1 flex items-center justify-center min-h-[500px]">
-          <div className="text-title-md text-on-surface-variant animate-pulse">Loading inventory...</div>
+          <div className="text-title-md text-on-surface-variant animate-pulse">Cargando inventario...</div>
         </div>
       ) : (
       <div className="flex flex-col xl:flex-row gap-6 h-full min-h-[500px]">
@@ -94,12 +94,12 @@ export function InventoryView() {
                   <th className="p-4 w-12 text-center">
                     <input type="checkbox" className="rounded border-outline-variant text-primary focus:ring-primary" />
                   </th>
-                  <th className="p-4 text-label-caps text-on-surface-variant tracking-wider">Product</th>
+                  <th className="p-4 text-label-caps text-on-surface-variant tracking-wider">Producto</th>
                   <th className="p-4 text-label-caps text-on-surface-variant tracking-wider">SKU</th>
                   <th className="p-4 text-label-caps text-on-surface-variant tracking-wider text-right">Stock</th>
-                  <th className="p-4 text-label-caps text-on-surface-variant tracking-wider text-right">Price (PVP)</th>
-                  <th className="p-4 text-label-caps text-on-surface-variant tracking-wider text-right">ML Price</th>
-                  <th className="p-4 text-label-caps text-on-surface-variant tracking-wider text-center">ML Sync</th>
+                  <th className="p-4 text-label-caps text-on-surface-variant tracking-wider text-right">Precio (Local)</th>
+                  <th className="p-4 text-label-caps text-on-surface-variant tracking-wider text-right">Precio ML</th>
+                  <th className="p-4 text-label-caps text-on-surface-variant tracking-wider text-center">Activo</th>
                   <th className="p-4 w-12"></th>
                 </tr>
               </thead>
@@ -145,14 +145,14 @@ export function InventoryView() {
             </table>
           </div>
           <div className="bg-surface-container-lowest border-t border-outline-variant p-3 flex justify-between items-center">
-            <span className="text-body-sm text-on-surface-variant">Showing 1 to 3 of 42 entries</span>
+            <span className="text-body-sm text-on-surface-variant">Mostrando {products.length} productos</span>
           </div>
         </div>
 
       {/* QR Preview Sidebar */}
         <div className="w-full xl:w-80 shrink-0 bg-surface-container-lowest rounded-xl border border-outline-variant shadow-sm flex flex-col overflow-hidden">
           <div className="p-4 border-b border-outline-variant bg-surface-container-low flex justify-between items-center">
-            <h3 className="text-title-md text-on-surface">Label Preview</h3>
+            <h3 className="text-title-md text-on-surface">Vista Previa de Etiqueta</h3>
             <span className="text-label-caps text-on-surface-variant bg-surface-variant px-2 py-1 rounded">3x3 cm</span>
           </div>
           <div className="p-6 flex-1 flex flex-col items-center justify-center bg-surface relative">
@@ -171,17 +171,17 @@ export function InventoryView() {
               </div>
             </div>
             <p className="text-body-sm text-on-surface-variant text-center mt-6">
-              Previewing label for 1 selected product.
+              Vista previa para 1 producto seleccionado.
             </p>
           </div>
           <div className="p-4 border-t border-outline-variant bg-surface-container-lowest flex flex-col gap-3">
             <button className="w-full bg-primary text-on-primary h-12 rounded-lg text-title-md flex items-center justify-center gap-2 hover:opacity-90 transition-opacity shadow-sm">
               <Printer size={20} />
-              Print Label
+              Imprimir Etiqueta
             </button>
             <button className="w-full bg-surface-container-lowest border border-outline-variant text-primary h-12 rounded-lg text-title-md flex items-center justify-center gap-2 hover:bg-surface-container-low transition-colors">
               <Download size={20} />
-              Download PDF
+              Descargar PDF
             </button>
           </div>
         </div>

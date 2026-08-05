@@ -8,11 +8,11 @@ interface SidebarProps {
 
 export function Sidebar({ currentView, onViewChange }: SidebarProps) {
   const navItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { id: 'inventory', label: 'Inventory', icon: Package },
-    { id: 'marketplace', label: 'Marketplace', icon: RefreshCw },
-    { id: 'pos', label: 'Sales', icon: Monitor },
-    { id: 'settings', label: 'Settings', icon: Settings },
+    { id: 'dashboard', label: 'Panel de Control', icon: LayoutDashboard },
+    { id: 'inventory', label: 'Inventario', icon: Package },
+    { id: 'orders', label: 'Historial de Ventas', icon: RefreshCw },
+    { id: 'pos', label: 'Ventas (Caja)', icon: Monitor },
+    { id: 'settings', label: 'Configuración', icon: Settings },
   ];
 
   return (
@@ -41,7 +41,7 @@ export function Sidebar({ currentView, onViewChange }: SidebarProps) {
           className="w-full bg-primary text-on-primary h-12 rounded-lg text-title-md flex items-center justify-center gap-2 mb-6 hover:opacity-90 transition-opacity"
         >
           <Plus size={20} />
-          New Sale
+          Nueva Venta
         </button>
 
         {/* Navigation */}
@@ -70,11 +70,15 @@ export function Sidebar({ currentView, onViewChange }: SidebarProps) {
         <div className="mt-auto flex flex-col gap-2 border-t border-outline-variant pt-4">
           <button className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-on-surface-variant hover:text-primary hover:bg-surface-container-high transition-all duration-200 ease-in-out text-body-sm group w-full text-left">
             <HelpCircle size={20} className="group-hover:scale-110 transition-transform" />
-            Support
+            Soporte
           </button>
-          <button className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-on-surface-variant hover:text-primary hover:bg-surface-container-high transition-all duration-200 ease-in-out text-body-sm group w-full text-left">
+          <button onClick={() => {
+            if(window.confirm('¿Seguro que deseas cerrar sesión?')) {
+              onViewChange('pos-login');
+            }
+          }} className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-error hover:text-error hover:bg-error-container transition-all duration-200 ease-in-out text-body-sm group w-full text-left mt-2">
             <LogOut size={20} className="group-hover:scale-110 transition-transform" />
-            Logout
+            Cerrar Sesión
           </button>
         </div>
       </div>

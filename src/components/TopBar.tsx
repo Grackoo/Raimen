@@ -19,15 +19,15 @@ export function TopBar({ currentView, onViewChange }: TopBarProps) {
           <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" />
           <input 
             type="text" 
-            placeholder="Search inventory, SKUs..." 
+            placeholder="Buscar inventario, SKUs..." 
             className="w-full h-10 pl-10 pr-4 bg-surface-container-low border-none rounded-lg text-body-sm text-on-surface focus:ring-2 focus:ring-primary focus:bg-surface-container-lowest transition-all outline-none" 
           />
         </div>
       </div>
 
       <div className="hidden lg:flex gap-6">
-        <button className="text-primary border-b-2 border-secondary text-title-md py-4">Overview</button>
-        <button className="text-on-surface-variant hover:text-primary transition-colors text-title-md py-4">Reports</button>
+        <button className="text-primary border-b-2 border-secondary text-title-md py-4">Resumen</button>
+        <button className="text-on-surface-variant hover:text-primary transition-colors text-title-md py-4">Reportes</button>
       </div>
 
       <div className="flex items-center gap-4">
@@ -35,14 +35,14 @@ export function TopBar({ currentView, onViewChange }: TopBarProps) {
           onClick={() => onViewChange('pos-login')}
           className="hidden sm:flex items-center justify-center h-10 px-4 bg-surface-container-lowest border border-outline-variant rounded-lg text-title-md text-primary hover:bg-surface-container-low transition-colors active:opacity-80 shadow-sm"
         >
-          Open Register
+          Abrir Caja
         </button>
         <div className="flex items-center gap-2">
           <button className="p-2 text-on-surface-variant hover:text-primary hover:bg-surface-container-low rounded-full transition-colors relative">
             <Bell size={20} />
             <span className="absolute top-2 right-2 w-2 h-2 bg-error rounded-full"></span>
           </button>
-          <button className="p-2 text-on-surface-variant hover:text-primary hover:bg-surface-container-low rounded-full transition-colors">
+          <button onClick={() => onViewChange('settings')} className="p-2 text-on-surface-variant hover:text-primary hover:bg-surface-container-low rounded-full transition-colors">
             <User size={20} />
           </button>
         </div>

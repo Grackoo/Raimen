@@ -114,20 +114,20 @@ export function POSView() {
           <div className="bg-surface-container-lowest rounded-xl p-4 shadow-sm border border-outline-variant flex-1 flex flex-col min-h-[300px]">
             <h2 className="text-title-md text-primary mb-4 flex items-center gap-2">
               <Scan size={24} />
-              Scan Item
+              Escanear Producto
             </h2>
             <div className="flex-1 relative bg-surface-dim rounded-lg overflow-hidden border-2 border-dashed border-outline flex items-center justify-center min-h-[200px]">
               <div className="absolute top-1/2 left-0 w-full h-0.5 bg-secondary-fixed shadow-[0_0_8px_rgba(111,251,190,0.8)] animate-pulse"></div>
               <div className="text-center z-10 text-on-surface-variant">
                 <Scan className="mx-auto mb-2 opacity-50" size={36} />
-                <p className="text-body-sm">Camera active</p>
+                <p className="text-body-sm">Cámara activa</p>
               </div>
             </div>
             <div className="mt-4 relative">
               <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" />
               <input 
                 type="text" 
-                placeholder="Search by SKU..." 
+                placeholder="Buscar por SKU..." 
                 className="w-full pl-10 pr-4 py-3 rounded-lg border border-outline-variant bg-surface focus:ring-2 focus:ring-primary outline-none" 
               />
             </div>
@@ -137,22 +137,22 @@ export function POSView() {
         {/* Product Grid */}
         <section className="w-full xl:w-2/3 flex flex-col h-full">
           <div className="flex justify-between items-center mb-4">
-            <h2 className="text-title-md text-primary">Best Sellers</h2>
+            <h2 className="text-title-md text-primary">Más Vendidos</h2>
             <div className="flex gap-2">
-              <button className="px-3 py-1 rounded-full bg-primary text-on-primary text-label-caps">All</button>
-              <button className="px-3 py-1 rounded-full bg-surface text-on-surface-variant border border-outline-variant text-label-caps hover:bg-surface-container-high transition-colors">Apparel</button>
-              <button className="px-3 py-1 rounded-full bg-surface text-on-surface-variant border border-outline-variant text-label-caps hover:bg-surface-container-high transition-colors hidden sm:block">Accessories</button>
+              <button className="px-3 py-1 rounded-full bg-primary text-on-primary text-label-caps">Todos</button>
+              <button className="px-3 py-1 rounded-full bg-surface text-on-surface-variant border border-outline-variant text-label-caps hover:bg-surface-container-high transition-colors">Ropa</button>
+              <button className="px-3 py-1 rounded-full bg-surface text-on-surface-variant border border-outline-variant text-label-caps hover:bg-surface-container-high transition-colors hidden sm:block">Accesorios</button>
             </div>
           </div>
           <div className="flex-1 overflow-y-auto pr-2 pb-4 grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-4 content-start">
             {loading ? (
               <div className="col-span-full flex justify-center items-center h-32 text-on-surface-variant">
-                <Loader2 className="animate-spin mr-2" size={24} /> Loading products...
+                <Loader2 className="animate-spin mr-2" size={24} /> Cargando productos...
               </div>
             ) : products.map((p, i) => (
               <div key={p.id} onClick={() => addToCart(p)} className={`bg-white/70 backdrop-blur-md rounded-xl p-3 flex flex-col cursor-pointer hover:shadow-md hover:-translate-y-1 transition-all border border-white/50 ${p.stock <= 0 ? 'opacity-60' : ''}`}>
                 <div className="aspect-square bg-surface-variant rounded-lg mb-3 overflow-hidden relative flex items-center justify-center">
-                  {p.stock <= 0 && <span className="absolute inset-0 bg-white/50 z-10 flex items-center justify-center text-label-caps text-primary font-bold">OUT OF STOCK</span>}
+                  {p.stock <= 0 && <span className="absolute inset-0 bg-white/50 z-10 flex items-center justify-center text-label-caps text-primary font-bold">SIN STOCK</span>}
                   {p.image ? (
                     <img src={p.image} className="w-full h-full object-cover hover:scale-105 transition-transform duration-300" alt={p.name} />
                   ) : (
@@ -178,8 +178,8 @@ export function POSView() {
               <User size={20} />
             </div>
             <div>
-              <p className="text-label-caps text-on-surface-variant">Walking Customer</p>
-              <button className="text-body-sm text-[12px] text-primary font-medium hover:underline">Add Details</button>
+              <p className="text-label-caps text-on-surface-variant">Cliente Mostrador</p>
+              <button className="text-body-sm text-[12px] text-primary font-medium hover:underline">Agregar Detalles</button>
             </div>
           </div>
           <button className="w-8 h-8 rounded-full hover:bg-surface-variant flex items-center justify-center text-on-surface-variant transition-colors">
@@ -219,7 +219,7 @@ export function POSView() {
               <span className="text-data-mono">${subtotal.toFixed(2)}</span>
             </div>
             <div className="flex justify-between text-body-sm text-on-surface-variant">
-              <span>Taxes (IVA 16%)</span>
+              <span>Impuestos (IVA 16%)</span>
               <span className="text-data-mono">${taxes.toFixed(2)}</span>
             </div>
             <div className="flex justify-between text-title-md mt-2 pt-2 border-t border-outline-variant">
@@ -239,7 +239,7 @@ export function POSView() {
             </button>
             <button onClick={() => setPaymentMethod('Transfer')} className={`flex flex-col items-center justify-center py-3 rounded-lg border transition-all h-16 ${paymentMethod === 'Transfer' ? 'border-primary bg-primary-fixed text-primary ring-2 ring-primary ring-opacity-20' : 'border-outline-variant bg-surface-container-lowest hover:bg-primary-fixed hover:border-primary hover:text-primary text-on-surface-variant'}`}>
               <Landmark size={20} className="mb-1" />
-              <span className="text-label-caps text-[10px]">Transfer</span>
+              <span className="text-label-caps text-[10px]">Transferencia</span>
             </button>
           </div>
 
