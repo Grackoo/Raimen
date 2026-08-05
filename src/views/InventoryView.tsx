@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Download, Plus, ChevronDown, Filter, AlertTriangle, MoreVertical, Printer, QrCode } from 'lucide-react';
+import { Download, Plus, ChevronDown, Filter, AlertTriangle, Edit2, Trash2, Printer, QrCode } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import QRCode from 'react-qr-code';
 import { ProductModal } from '../components/ProductModal';
@@ -22,6 +22,7 @@ export function InventoryView() {
   const [loading, setLoading] = useState(true);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [productToEdit, setProductToEdit] = useState<Product | null>(null);
   const [branches, setBranches] = useState<any[]>([]);
   const [selectedBranch, setSelectedBranch] = useState<string>('all');
 
@@ -58,6 +59,20 @@ export function InventoryView() {
   useEffect(() => {
     fetchProducts();
   }, [selectedBranch]);
+
+  const handleDeleteProduct = async (product: Product) => {
+    if (confirm(`¿Estás seguro de que deseas eliminar "${product.name}"?\nEl producto pasará a estar inactivo para no afectar el historial de ventas.`)) {
+      try {
+        const { error } = await supabase.from('products').update({ active: false }).eq('id', product.id);
+        if (error) throw error;
+        alert('Producto desactivado con éxito.');
+        fetchProducts();
+      } catch (err) {
+        console.error(err);
+        alert('Error al desactivar el producto.');
+      }
+    }
+  };
 
   return (
     <main className="flex-1 overflow-y-auto p-4 md:p-8 bg-background flex flex-col gap-6">
@@ -168,9 +183,20 @@ export function InventoryView() {
                       </div>
                     </td>
                     <td className="p-4 text-center">
-                      <button className="text-on-surface-variant hover:text-primary transition-colors opacity-0 group-hover:opacity-100">
-                        <MoreVertical size={20} />
-                      </button>
+                      <div className="flex justify-center gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); setProductToEdit(p); setShowAddModal(true); }}
+                          className="text-on-surface-variant hover:text-primary transition-colors"
+                        >
+                          <Edit2 size={18} />
+                        </button>
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); handleDeleteProduct(p); }}
+                          className="text-on-surface-variant hover:text-error transition-colors"
+                        >
+                          <Trash2 size={18} />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -227,7 +253,11 @@ export function InventoryView() {
 
       {showAddModal && (
         <ProductModal 
-          onClose={() => setShowAddModal(false)} 
+          productToEdit={productToEdit}
+          onClose={() => {
+            setShowAddModal(false);
+            setProductToEdit(null);
+          }} 
           onSuccess={() => fetchProducts()} 
         />
       )}

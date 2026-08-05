@@ -8,6 +8,7 @@ import { POSView } from './views/POSView';
 import { SettingsView } from './views/SettingsView';
 import { OrdersView } from './views/OrdersView';
 import { StoreView } from './views/StoreView';
+import { ReportsView } from './views/ReportsView';
 import { Scan, Package, ShoppingBag, User } from 'lucide-react';
 
 export default function App() {
@@ -51,6 +52,7 @@ export default function App() {
         {currentView === 'pos' && <POSView />}
         {currentView === 'settings' && <SettingsView />}
         {currentView === 'orders' && <OrdersView />}
+        {currentView === 'reports' && <ReportsView />}
         
         {/* Mobile bottom nav for specific views if needed, though most views manage their own */}
         {currentView !== 'pos-login' && currentView !== 'pos' && (

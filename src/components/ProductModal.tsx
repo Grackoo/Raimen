@@ -5,22 +5,29 @@ import { supabase } from '../lib/supabase';
 interface ProductModalProps {
   onClose: () => void;
   onSuccess?: () => void;
+  productToEdit?: any;
 }
 
-export function ProductModal({ onClose, onSuccess }: ProductModalProps) {
+export function ProductModal({ onClose, onSuccess, productToEdit }: ProductModalProps) {
   const [adding, setAdding] = useState(false);
   const [preview, setPreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [imageFile, setImageFile] = useState<File | Blob | null>(null);
 
   const [formData, setFormData] = useState({
-    name: '',
-    sku: '',
-    price: '',
-    cost: '',
-    stock: '',
-    category: ''
+    name: productToEdit?.name || '',
+    sku: productToEdit?.sku || '',
+    price: productToEdit?.price?.toString() || '',
+    cost: productToEdit?.cost?.toString() || '',
+    stock: productToEdit?.stock?.toString() || '',
+    category: productToEdit?.category || ''
   });
+
+  useEffect(() => {
+    if (productToEdit?.image) {
+      setPreview(productToEdit.image);
+    }
+  }, [productToEdit]);
 
   // Predefined seasonal categories
   const suggestedCategories = [
@@ -125,22 +132,31 @@ export function ProductModal({ onClose, onSuccess }: ProductModalProps) {
           const { data } = supabase.storage.from('product-images').getPublicUrl(fileName);
           imageUrl = data.publicUrl;
         }
+      } else if (productToEdit?.image) {
+        imageUrl = productToEdit.image;
       }
 
-      const { error } = await supabase.from('products').insert([
-        { 
-          name: formData.name, 
-          sku: formData.sku, 
-          price: parseFloat(formData.price), 
-          cost: parseFloat(formData.cost || '0'),
-          stock: parseInt(formData.stock), 
-          category: formData.category || 'General',
-          image: imageUrl,
-          active: true 
-        }
-      ]);
-      if (error) throw error;
-      alert('Producto agregado con éxito');
+      const productData = { 
+        name: formData.name, 
+        sku: formData.sku, 
+        price: parseFloat(formData.price), 
+        cost: parseFloat(formData.cost || '0'),
+        stock: parseInt(formData.stock), 
+        category: formData.category || 'General',
+        image: imageUrl,
+        active: productToEdit ? productToEdit.active : true 
+      };
+
+      if (productToEdit) {
+        const { error } = await supabase.from('products').update(productData).eq('id', productToEdit.id);
+        if (error) throw error;
+        alert('Producto actualizado con éxito');
+      } else {
+        const { error } = await supabase.from('products').insert([productData]);
+        if (error) throw error;
+        alert('Producto agregado con éxito');
+      }
+      
       if (onSuccess) onSuccess();
       onClose();
     } catch (err) {
@@ -155,7 +171,7 @@ export function ProductModal({ onClose, onSuccess }: ProductModalProps) {
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
       <div className="bg-surface-container-lowest rounded-xl shadow-lg border border-outline-variant w-full max-w-md overflow-hidden max-h-[90vh] flex flex-col">
         <div className="flex justify-between items-center p-4 border-b border-outline-variant bg-surface-container-low shrink-0">
-          <h3 className="text-title-md text-on-surface font-bold">Agregar Producto Nuevo</h3>
+          <h3 className="text-title-md text-on-surface font-bold">{productToEdit ? 'Editar Producto' : 'Agregar Producto Nuevo'}</h3>
           <button onClick={onClose} className="text-on-surface-variant hover:bg-surface-variant p-1 rounded-full transition-colors">
             <X size={20} />
           </button>

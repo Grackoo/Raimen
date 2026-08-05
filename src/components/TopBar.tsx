@@ -26,8 +26,8 @@ export function TopBar({ currentView, onViewChange }: TopBarProps) {
       </div>
 
       <div className="hidden lg:flex gap-6">
-        <button className="text-primary border-b-2 border-secondary text-title-md py-4">Resumen</button>
-        <button className="text-on-surface-variant hover:text-primary transition-colors text-title-md py-4">Reportes</button>
+        <button onClick={() => onViewChange('dashboard')} className={`${currentView === 'dashboard' ? 'text-primary border-b-2 border-secondary' : 'text-on-surface-variant hover:text-primary'} transition-colors text-title-md py-4`}>Resumen</button>
+        <button onClick={() => onViewChange('reports')} className={`${currentView === 'reports' ? 'text-primary border-b-2 border-secondary' : 'text-on-surface-variant hover:text-primary'} transition-colors text-title-md py-4`}>Reportes</button>
       </div>
 
       <div className="flex items-center gap-4">
