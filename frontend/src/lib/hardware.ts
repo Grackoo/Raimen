@@ -18,7 +18,7 @@ const ESC_POS = {
  */
 export async function printReceiptAndOpenDrawerUSB(text: string) {
   try {
-    const device = await navigator.usb.requestDevice({ filters: [] }); // User selects printer
+    const device = await (navigator as any).usb.requestDevice({ filters: [] }); // User selects printer
     await device.open();
     await device.selectConfiguration(1);
     await device.claimInterface(0);
@@ -55,7 +55,7 @@ export async function printReceiptAndOpenDrawerUSB(text: string) {
  */
 export async function printReceiptAndOpenDrawerSerial(text: string) {
   try {
-    const port = await navigator.serial.requestPort();
+    const port = await (navigator as any).serial.requestPort();
     await port.open({ baudRate: 9600 }); // Common default for serial printers
 
     const writer = port.writable?.getWriter();
@@ -93,7 +93,7 @@ export async function printReceiptAndOpenDrawerSerial(text: string) {
  */
 export async function openCashDrawerUSB() {
   try {
-    const device = await navigator.usb.requestDevice({ filters: [] });
+    const device = await (navigator as any).usb.requestDevice({ filters: [] });
     await device.open();
     await device.selectConfiguration(1);
     await device.claimInterface(0);

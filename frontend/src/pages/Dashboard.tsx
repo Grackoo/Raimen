@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 
 const Dashboard: React.FC = () => {
-  const [salesData, setSalesData] = useState([
+  const [salesData] = useState([
     { id: 1, item: 'Ramen Bowl A', localSales: 150, mlSales: 45, localPrice: 12.99 },
     { id: 2, item: 'Ramen Bowl B', localSales: 200, mlSales: 60, localPrice: 14.99 },
     { id: 3, item: 'Spicy Noodle', localSales: 120, mlSales: 80, localPrice: 11.99 },

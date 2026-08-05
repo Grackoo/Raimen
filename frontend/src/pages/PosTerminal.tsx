@@ -1,6 +1,7 @@
-import React, { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { Html5Qrcode } from 'html5-qrcode';
 import { printReceiptAndOpenDrawerUSB, openCashDrawerUSB } from '../lib/hardware';
+import { useNavigate } from 'react-router-dom';
 
 interface Product {
   id: string;
@@ -9,7 +10,6 @@ interface Product {
   stock: number;
 }
 
-// Mocked local stock
 const MOCK_LOCAL_STOCK: Record<string, Product> = {
   '123456': { id: '123456', name: 'Ramen Tonkotsu', price: 15.00, stock: 50 },
   '789012': { id: '789012', name: 'Gyoza', price: 8.50, stock: 30 },
@@ -19,10 +19,10 @@ export function PosTerminal() {
   const [cart, setCart] = useState<(Product & { quantity: number })[]>([]);
   const [isScanning, setIsScanning] = useState(false);
   const scannerRef = useRef<Html5Qrcode | null>(null);
+  const navigate = useNavigate();
 
   useEffect(() => {
     return () => {
-      // Cleanup scanner on unmount
       if (scannerRef.current && scannerRef.current.isScanning) {
         scannerRef.current.stop().catch(console.error);
       }
@@ -33,23 +33,15 @@ export function PosTerminal() {
     if (!scannerRef.current) {
       scannerRef.current = new Html5Qrcode("reader");
     }
-
     try {
       setIsScanning(true);
       await scannerRef.current.start(
         { facingMode: "environment" },
-        {
-          fps: 10,
-          qrbox: { width: 250, height: 250 }
-        },
-        (decodedText) => {
+        { fps: 10, qrbox: { width: 250, height: 250 } },
+        (decodedText: string) => {
           handleScan(decodedText);
-          // Optional: automatically stop scanning after successful scan
-          // stopScanner();
         },
-        (error) => {
-          // console.warn("QR Error:", error);
-        }
+        (_error: any) => { /* Ignore regular frame errors */ }
       );
     } catch (err) {
       console.error("Failed to start scanner:", err);
@@ -79,13 +71,10 @@ export function PosTerminal() {
           }
           return [...prev, { ...product, quantity: 1 }];
         });
-        // Decrease mock stock
         MOCK_LOCAL_STOCK[sku].stock -= 1;
       } else {
-        alert("Out of stock!");
+        alert("¡Agotado!");
       }
-    } else {
-      console.warn("Product not found:", sku);
     }
   };
 
@@ -94,131 +83,99 @@ export function PosTerminal() {
   const handleCheckout = async () => {
     if (cart.length === 0) return;
     
-    // Format receipt text
-    let receipt = `DATE: ${new Date().toLocaleString()}\n`;
+    let receipt = `FECHA: ${new Date().toLocaleString()}\n`;
     receipt += `--------------------------\n`;
     cart.forEach(item => {
       receipt += `${item.name} x${item.quantity}  $${(item.price * item.quantity).toFixed(2)}\n`;
     });
     receipt += `--------------------------\n`;
     receipt += `TOTAL: $${total.toFixed(2)}\n`;
-    receipt += `THANK YOU FOR YOUR PURCHASE!\n`;
+    receipt += `¡GRACIAS POR SU COMPRA!\n`;
 
     const success = await printReceiptAndOpenDrawerUSB(receipt);
     if (!success) {
-      alert("Failed to connect to printer. Trying to just open drawer via USB fallback, or simulate.");
-      // In a real app we might fallback or show instructions
+      alert("Terminal sin impresora USB detectada. Procesando venta lógicamente.");
     } else {
-      alert("Checkout successful! Drawer opened.");
+      alert("¡Venta completada! Gaveta abierta.");
     }
-    
     setCart([]);
   };
 
   return (
-    <div style={{
-      backgroundColor: '#121212', 
-      color: '#ffffff', 
-      minHeight: '100vh',
-      display: 'flex',
-      flexDirection: 'column',
-      padding: '1rem',
-      fontFamily: 'Inter, sans-serif'
-    }}>
-      <h1 style={{ fontFamily: '"Black Ops One", "Stardos Stencil", sans-serif', textAlign: 'center', marginBottom: '1rem' }}>
-        RAIMEN POS
-      </h1>
+    <div className="pos-container">
+      {/* Fondos */}
+      <div className="bg-blob cyan" style={{ top: '-10%', left: '-5%', width: '450px', height: '450px' }}></div>
+      <div className="bg-blob green" style={{ bottom: '-10%', right: '-5%', width: '350px', height: '350px' }}></div>
 
-      <div style={{
-        backgroundColor: '#ffffff',
-        color: '#121212',
-        borderRadius: '20px',
-        padding: '1rem',
-        flex: 1,
-        display: 'flex',
-        flexDirection: 'column',
-        boxShadow: '0 4px 10px rgba(0,0,0,0.5)'
-      }}>
+      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', zIndex: 1 }}>
+        <h1 style={{ fontSize: '2rem', color: 'var(--primary)' }}>RAIMEN POS</h1>
+        <button onClick={() => navigate('/login')} style={{ background: 'transparent', border: '1px solid var(--glass-border)', color: '#fff', padding: '8px 20px', borderRadius: '12px', cursor: 'pointer', fontFamily: 'var(--font-body)', fontWeight: 600 }}>Salir</button>
+      </header>
+
+      {/* Contenedor Principal Glass */}
+      <div className="glass-panel" style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '1.5rem', overflow: 'hidden', zIndex: 1 }}>
         
-        {/* Scanner Area */}
-        <div style={{ marginBottom: '1rem', textAlign: 'center' }}>
-          <div id="reader" style={{ width: '100%', maxWidth: '400px', margin: '0 auto', borderRadius: '10px', overflow: 'hidden' }}></div>
-          {!isScanning ? (
-            <button 
-              onClick={startScanner}
-              style={{ padding: '10px 20px', marginTop: '10px', backgroundColor: '#007bff', color: '#fff', border: 'none', borderRadius: '5px', fontWeight: 'bold' }}
-            >
-              Start Scanner
-            </button>
-          ) : (
-            <button 
-              onClick={stopScanner}
-              style={{ padding: '10px 20px', marginTop: '10px', backgroundColor: '#dc3545', color: '#fff', border: 'none', borderRadius: '5px', fontWeight: 'bold' }}
-            >
-              Stop Scanner
-            </button>
-          )}
+        {/* Zona del Escáner */}
+        <div style={{ marginBottom: '1.5rem', textAlign: 'center', position: 'relative' }}>
+          <div style={{ position: 'absolute', top: -3, left: -3, right: -3, bottom: -3, background: 'linear-gradient(45deg, var(--primary), transparent, var(--success))', zIndex: -1, borderRadius: '26px', opacity: isScanning ? 1 : 0.3, transition: 'opacity 0.3s' }}></div>
+          <div id="reader" style={{ width: '100%', maxWidth: '400px', margin: '0 auto', borderRadius: '24px', overflow: 'hidden', background: 'var(--bg-color)', border: '2px solid rgba(0,0,0,0.5)' }}></div>
+          
+          <button 
+            onClick={isScanning ? stopScanner : startScanner}
+            className={`glass-btn ${isScanning ? 'danger' : ''}`}
+            style={{ marginTop: '15px', maxWidth: '400px', padding: '12px' }}
+          >
+            {isScanning ? 'Detener Escáner' : 'Escanear Producto'}
+          </button>
         </div>
 
-        {/* Cart Area */}
-        <div style={{ flex: 1, overflowY: 'auto', marginBottom: '1rem', borderTop: '1px solid #ccc', paddingTop: '1rem' }}>
-          <h2 style={{ marginTop: 0, fontSize: '1.2rem' }}>Current Order</h2>
+        {/* Zona del Carrito */}
+        <div style={{ flex: 1, overflowY: 'auto', marginBottom: '1rem', padding: '0 5px' }}>
+          <h2 style={{ fontSize: '1.3rem', marginBottom: '15px', color: 'var(--text-muted)' }}>Ticket Actual</h2>
           {cart.length === 0 ? (
-            <p style={{ color: '#666' }}>No items scanned yet.</p>
+            <div style={{ textAlign: 'center', padding: '3rem 1rem', color: 'var(--glass-border)', fontSize: '1.2rem' }}>El carrito está vacío</div>
           ) : (
             <ul style={{ listStyle: 'none', padding: 0 }}>
               {cart.map(item => (
-                <li key={item.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderBottom: '1px dashed #eee' }}>
-                  <span>{item.name} (x{item.quantity})</span>
-                  <span>${(item.price * item.quantity).toFixed(2)}</span>
+                <li key={item.id} className="glass-panel" style={{ display: 'flex', justifyContent: 'space-between', padding: '15px 20px', marginBottom: '12px', background: 'rgba(255,255,255,0.06)' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column' }}>
+                    <span style={{ fontWeight: '600', fontSize: '1.1rem', letterSpacing: '0.5px' }}>{item.name}</span>
+                    <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: '4px' }}>SKU: {item.id}</span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+                    <span style={{ background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', padding: '4px 12px', borderRadius: '8px' }}>x{item.quantity}</span>
+                    <span style={{ fontWeight: '700', color: 'var(--primary)', fontSize: '1.3rem' }}>${(item.price * item.quantity).toFixed(2)}</span>
+                  </div>
                 </li>
               ))}
             </ul>
           )}
         </div>
 
-        {/* Total & Checkout */}
-        <div style={{ borderTop: '2px solid #333', paddingTop: '1rem' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '1.5rem', fontWeight: 'bold', marginBottom: '1rem' }}>
-            <span>Total:</span>
-            <span>${total.toFixed(2)}</span>
+        {/* Zona de Cobro */}
+        <div style={{ borderTop: '1px solid var(--glass-border)', paddingTop: '1.5rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+            <span style={{ fontSize: '1.5rem', color: 'var(--text-muted)' }}>TOTAL</span>
+            <span style={{ fontSize: '2.5rem', fontWeight: 'bold', color: 'var(--success)' }}>${total.toFixed(2)}</span>
           </div>
+          
           <button 
             onClick={handleCheckout}
             disabled={cart.length === 0}
-            style={{
-              width: '100%',
-              padding: '15px',
-              backgroundColor: cart.length === 0 ? '#ccc' : '#28a745',
-              color: '#fff',
-              border: 'none',
-              borderRadius: '10px',
-              fontSize: '1.2rem',
-              fontWeight: 'bold',
-              cursor: cart.length === 0 ? 'not-allowed' : 'pointer'
-            }}
+            className="glass-btn success"
+            style={{ padding: '20px', fontSize: '1.4rem' }}
           >
-            CHARGE & OPEN DRAWER
+            COBRAR Y ABRIR GAVETA
+          </button>
+          
+          <button 
+            onClick={openCashDrawerUSB}
+            className="glass-btn"
+            style={{ marginTop: '12px', padding: '12px', background: 'transparent', border: '1px solid var(--glass-border)', color: 'var(--text-muted)' }}
+          >
+            Gaveta Manual (WebUSB)
           </button>
         </div>
-        
-        {/* Drawer manual open */}
-        <button 
-          onClick={openCashDrawerUSB}
-          style={{
-            width: '100%',
-            padding: '10px',
-            marginTop: '10px',
-            backgroundColor: '#6c757d',
-            color: '#fff',
-            border: 'none',
-            borderRadius: '10px',
-            fontWeight: 'bold',
-            cursor: 'pointer'
-          }}
-        >
-          OPEN DRAWER (MANUAL)
-        </button>
       </div>
     </div>
   );
