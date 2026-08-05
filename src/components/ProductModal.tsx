@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { X, Plus, Loader2, Camera, UploadCloud } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
@@ -31,6 +31,35 @@ export function ProductModal({ onClose, onSuccess }: ProductModalProps) {
     "Botas para lluvia", 
     "Impermeables"
   ];
+
+  const [dbCategories, setDbCategories] = useState<string[]>([]);
+  const [manualSku, setManualSku] = useState(false);
+
+  useEffect(() => {
+    async function fetchCategories() {
+      const { data } = await supabase.from('products').select('category');
+      if (data) {
+        const unique = Array.from(new Set(data.map(d => d.category).filter(Boolean)));
+        setDbCategories(unique as string[]);
+      }
+    }
+    fetchCategories();
+  }, []);
+
+  useEffect(() => {
+    if (manualSku) return;
+    
+    if (formData.name) {
+      const nameParts = formData.name.trim().split(/\s+/).filter(Boolean).map(w => w.substring(0, 3).toUpperCase());
+      const catPart = formData.category ? formData.category.trim().split(/\s+/)[0].substring(0, 3).toUpperCase() : '';
+      const parts = [...nameParts];
+      if (catPart) parts.push(catPart);
+      
+      setFormData(prev => ({ ...prev, sku: parts.join('-') }));
+    }
+  }, [formData.name, formData.category, manualSku]);
+
+  const allCategories = Array.from(new Set([...suggestedCategories, ...dbCategories]));
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -171,7 +200,7 @@ export function ProductModal({ onClose, onSuccess }: ProductModalProps) {
               placeholder="Ej. Botas para lluvia" 
             />
             <datalist id="categories-list">
-              {suggestedCategories.map(cat => (
+              {allCategories.map(cat => (
                 <option key={cat} value={cat} />
               ))}
             </datalist>
@@ -183,7 +212,10 @@ export function ProductModal({ onClose, onSuccess }: ProductModalProps) {
           </div>
           <div>
             <label className="text-label-caps text-on-surface-variant mb-1 block">SKU</label>
-            <input required value={formData.sku} onChange={e => setFormData({...formData, sku: e.target.value})} type="text" className="w-full bg-surface border border-outline-variant rounded-lg h-10 px-3 text-body-sm focus:ring-2 focus:ring-primary outline-none text-data-mono uppercase" placeholder="ZAP-CAS-001" />
+            <input required value={formData.sku} onChange={e => {
+              setFormData({...formData, sku: e.target.value});
+              setManualSku(true);
+            }} type="text" className="w-full bg-surface border border-outline-variant rounded-lg h-10 px-3 text-body-sm focus:ring-2 focus:ring-primary outline-none text-data-mono uppercase" placeholder="ZAP-CAS-001" />
           </div>
           
           <div className="grid grid-cols-2 gap-4">
