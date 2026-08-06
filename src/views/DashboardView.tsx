@@ -23,6 +23,10 @@ export function DashboardView({ onViewChange }: DashboardProps) {
     stockActivo: 0,
     numVentas: 0
   });
+  
+  const [customStartDate, setCustomStartDate] = useState(new Date().toISOString().split('T')[0]);
+  const [customEndDate, setCustomEndDate] = useState(new Date().toISOString().split('T')[0]);
+  const [lowStockProducts, setLowStockProducts] = useState<any[]>([]);
 
   useEffect(() => {
     fetchBranches();
@@ -30,7 +34,7 @@ export function DashboardView({ onViewChange }: DashboardProps) {
 
   useEffect(() => {
     calculateDashboard();
-  }, [selectedBranch, dateFilter]);
+  }, [selectedBranch, dateFilter, customStartDate, customEndDate]);
 
   async function fetchBranches() {
     const { data } = await supabase.from('branches').select('id, name');
@@ -46,19 +50,31 @@ export function DashboardView({ onViewChange }: DashboardProps) {
     else if (dateFilter === 'quarter') startDate.setMonth(now.getMonth() - 3);
     else if (dateFilter === 'semester') startDate.setMonth(now.getMonth() - 6);
     else if (dateFilter === 'year') startDate.setFullYear(now.getFullYear() - 1);
+    else if (dateFilter === 'custom') return new Date(customStartDate + 'T00:00:00');
     return startDate;
+  }
+
+  function getEndDate() {
+    if (dateFilter === 'custom') return new Date(customEndDate + 'T23:59:59.999');
+    return new Date();
   }
 
   async function calculateDashboard() {
     setLoading(true);
     const startObj = getStartDate();
+    const endObj = getEndDate();
     const startDate = startObj.toISOString();
+    const endDate = endObj.toISOString();
 
-    let salesQuery = supabase.from('sales').select('id, total, created_at').gte('created_at', startDate);
+    let salesQuery = supabase.from('sales').select('id, total, created_at')
+      .gte('created_at', startDate)
+      .lte('created_at', endDate);
     if (selectedBranch !== 'all') salesQuery = salesQuery.eq('branch_id', selectedBranch);
     const { data: sales } = await salesQuery;
 
-    let expensesQuery = supabase.from('expenses').select('amount, date').gte('date', startDate);
+    let expensesQuery = supabase.from('expenses').select('amount, date')
+      .gte('date', startDate)
+      .lte('date', endDate);
     if (selectedBranch !== 'all') expensesQuery = expensesQuery.eq('branch_id', selectedBranch);
     const { data: expenses } = await expensesQuery;
 
@@ -76,9 +92,14 @@ export function DashboardView({ onViewChange }: DashboardProps) {
       });
     }
 
-    let stockQuery = supabase.from('products').select('stock').eq('active', true);
+    let stockQuery = supabase.from('products').select('id, name, sku, stock').eq('active', true);
+    if (selectedBranch !== 'all') stockQuery = stockQuery.eq('branch_id', selectedBranch);
     const { data: products } = await stockQuery;
     const stockActivo = products?.reduce((acc, p) => acc + p.stock, 0) || 0;
+    
+    // Low stock products (Alerts)
+    const lowStock = products?.filter(p => p.stock <= 5).sort((a, b) => a.stock - b.stock).slice(0, 5) || [];
+    setLowStockProducts(lowStock);
 
     const utilidad = ventasTotales - cogs - gastosTotales;
     setKpis({ ventasTotales, gastosTotales, utilidad, stockActivo, numVentas });
@@ -132,14 +153,34 @@ export function DashboardView({ onViewChange }: DashboardProps) {
             </div>
             <div className="flex flex-col gap-1">
               <span className="text-label-caps text-on-surface-variant">Periodo</span>
-              <select value={dateFilter} onChange={e => setDateFilter(e.target.value)} className="bg-white border border-outline-variant/30 rounded-lg h-10 px-3 text-title-md font-bold text-on-surface shadow-sm outline-none focus:border-primary transition-colors cursor-pointer">
-                <option value="today">Hoy</option>
-                <option value="week">Últimos 7 días</option>
-                <option value="month">Este Mes</option>
-                <option value="quarter">Este Trimestre</option>
-                <option value="semester">Este Semestre</option>
-                <option value="year">Este Año</option>
-              </select>
+              <div className="flex items-center gap-2">
+                <select value={dateFilter} onChange={e => setDateFilter(e.target.value)} className="bg-white border border-outline-variant/30 rounded-lg h-10 px-3 text-title-md font-bold text-on-surface shadow-sm outline-none focus:border-primary transition-colors cursor-pointer w-40">
+                  <option value="today">Hoy</option>
+                  <option value="week">Últimos 7 días</option>
+                  <option value="month">Este Mes</option>
+                  <option value="quarter">Este Trimestre</option>
+                  <option value="semester">Este Semestre</option>
+                  <option value="year">Este Año</option>
+                  <option value="custom">Personalizado</option>
+                </select>
+                {dateFilter === 'custom' && (
+                  <div className="flex items-center gap-2">
+                    <input 
+                      type="date" 
+                      value={customStartDate} 
+                      onChange={e => setCustomStartDate(e.target.value)}
+                      className="h-10 px-3 bg-white border border-outline-variant/30 rounded-lg text-body-sm outline-none focus:border-primary shadow-sm"
+                    />
+                    <span className="text-on-surface-variant">a</span>
+                    <input 
+                      type="date" 
+                      value={customEndDate} 
+                      onChange={e => setCustomEndDate(e.target.value)}
+                      className="h-10 px-3 bg-white border border-outline-variant/30 rounded-lg text-body-sm outline-none focus:border-primary shadow-sm"
+                    />
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -224,25 +265,28 @@ export function DashboardView({ onViewChange }: DashboardProps) {
                   </div>
                 </div>
                 <div className="flex-1 overflow-y-auto custom-scrollbar flex flex-col gap-3">
-                  {/* Fake data to show premium UI layout for alerts */}
-                  {[
-                    { name: 'Silla Eames Blanca', stock: 2, min: 5, sku: 'SL-EA-01' },
-                    { name: 'Mesa de Centro Roble', stock: 1, min: 3, sku: 'MS-RO-02' },
-                    { name: 'Lámpara de Pie', stock: 0, min: 4, sku: 'LM-PI-05' },
-                  ].map((item, i) => (
-                    <div key={i} className="p-4 rounded-xl border border-tertiary/20 bg-tertiary/5 flex justify-between items-center hover:bg-tertiary/10 transition-colors">
-                      <div>
-                        <h4 className="font-bold text-on-surface text-body-md">{item.name}</h4>
-                        <p className="text-label-caps text-on-surface-variant">SKU: {item.sku}</p>
+                  {lowStockProducts.length > 0 ? (
+                    lowStockProducts.map((item, i) => (
+                      <div key={i} className="p-4 rounded-xl border border-tertiary/20 bg-tertiary/5 flex justify-between items-center hover:bg-tertiary/10 transition-colors">
+                        <div>
+                          <h4 className="font-bold text-on-surface text-body-md">{item.name}</h4>
+                          <p className="text-label-caps text-on-surface-variant">SKU: {item.sku}</p>
+                        </div>
+                        <div className="text-right">
+                          <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-md text-label-caps font-bold ${item.stock === 0 ? 'bg-error/10 text-error' : 'bg-tertiary/10 text-tertiary'}`}>
+                            Stock: {item.stock}
+                          </span>
+                          <p className="text-label-caps text-on-surface-variant mt-1">Sugerido min: 5</p>
+                        </div>
                       </div>
-                      <div className="text-right">
-                        <span className="inline-flex items-center gap-1 px-2 py-1 bg-error/10 text-error rounded-md text-label-caps font-bold">
-                          Stock: {item.stock}
-                        </span>
-                        <p className="text-label-caps text-on-surface-variant mt-1">Min: {item.min}</p>
-                      </div>
+                    ))
+                  ) : (
+                    <div className="w-full h-full flex flex-col items-center justify-center text-on-surface-variant text-center p-4">
+                      <Box className="opacity-20 mb-2" size={32} />
+                      <p className="text-body-sm font-semibold">¡Todo en orden!</p>
+                      <p className="text-label-caps mt-1">No hay productos con stock bajo (≤ 5).</p>
                     </div>
-                  ))}
+                  )}
                 </div>
                 <button onClick={() => onViewChange && onViewChange('inventory')} className="mt-4 w-full h-10 bg-surface-container-high rounded-lg text-title-md font-bold text-on-surface hover:bg-surface-container-highest transition-colors">
                   Ir al Inventario
