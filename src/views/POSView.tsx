@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Scan, Search, User, MoreVertical, Minus, Plus, Banknote, CreditCard, Landmark, Receipt, ShoppingBag, Loader2 } from 'lucide-react';
+import { Scan, Search, User, MoreVertical, Minus, Plus, Banknote, CreditCard, Landmark, Receipt, ShoppingBag, Loader2, Trash2, X } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { Scanner } from '@yudiel/react-qr-scanner';
 
@@ -22,6 +22,7 @@ export function POSView() {
   const [loading, setLoading] = useState(true);
   const [processingSale, setProcessingSale] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState('Efectivo');
+  const [completedSale, setCompletedSale] = useState<any>(null);
 
   useEffect(() => {
     async function fetchProducts() {
@@ -55,6 +56,10 @@ export function POSView() {
     } else {
       setCart([...cart, { ...product, qty: 1 }]);
     }
+  };
+
+  const removeFromCart = (id: string) => {
+    setCart(cart.filter(c => c.id !== id));
   };
 
   const handleScan = (detectedCodes: any[]) => {
@@ -98,9 +103,19 @@ export function POSView() {
         
       if (itemsError) throw itemsError;
       
+      // Prepare ticket data
+      setCompletedSale({
+        id: saleData.id,
+        items: [...cart],
+        total: total,
+        subtotal: subtotal,
+        taxes: taxes,
+        payment_method: paymentMethod,
+        date: new Date().toLocaleString('es-MX')
+      });
+
       // Clear cart on success
       setCart([]);
-      alert('Venta completada con éxito!');
       
     } catch (err) {
       console.error('Error procesando venta:', err);
@@ -110,9 +125,9 @@ export function POSView() {
     }
   };
 
-  const subtotal = cart.reduce((acc, item) => acc + (item.price * item.qty), 0);
-  const taxes = subtotal * 0.16;
-  const total = subtotal + taxes;
+  const total = cart.reduce((acc, item) => acc + (item.price * item.qty), 0);
+  const subtotal = total / 1.16;
+  const taxes = total - subtotal;
 
   return (
     <main className="flex-1 flex flex-col lg:flex-row lg:h-full overflow-y-auto lg:overflow-hidden bg-surface-container-low p-4 lg:p-6 pb-24 lg:pb-6 gap-6">
@@ -214,7 +229,10 @@ export function POSView() {
                 </div>
               </div>
               <div className="flex flex-col items-end gap-1 flex-shrink-0">
-                <span className="text-data-mono font-bold text-primary">${(item.price * item.qty).toFixed(2)}</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-data-mono font-bold text-primary">${(item.price * item.qty).toFixed(2)}</span>
+                  <button onClick={() => removeFromCart(item.id)} className="text-error hover:bg-error-container p-1 rounded-md transition-colors"><Trash2 size={16} /></button>
+                </div>
                 <div className="flex items-center bg-surface-container rounded-full overflow-hidden border border-outline-variant">
                   <button onClick={() => updateQty(item.id, -1)} className="w-6 h-6 flex items-center justify-center hover:bg-surface-variant text-on-surface"><Minus size={14} /></button>
                   <span className="w-6 text-center text-body-sm text-[12px]">{item.qty}</span>
@@ -262,6 +280,66 @@ export function POSView() {
           </button>
         </div>
       </section>
+
+      {/* Ticket Modal */}
+      {completedSale && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
+          <div className="bg-surface-container-lowest w-full max-w-sm rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="p-4 bg-primary text-on-primary flex justify-between items-center shrink-0">
+              <h3 className="font-bold flex items-center gap-2"><Receipt size={20}/> Ticket de Venta</h3>
+              <button onClick={() => setCompletedSale(null)} className="hover:bg-primary-fixed hover:text-on-primary-fixed rounded-full p-1"><X size={20}/></button>
+            </div>
+            <div className="p-6 overflow-y-auto flex-1 font-mono text-sm bg-white text-black" id="printable-ticket">
+              <div className="text-center mb-6">
+                <h2 className="text-xl font-bold">RAIMEN STORE</h2>
+                <p>Sucursal Principal</p>
+                <p>Fecha: {completedSale.date}</p>
+                <p>Ticket: {completedSale.id.substring(0,8).toUpperCase()}</p>
+              </div>
+              <div className="border-t border-b border-black/20 py-2 mb-4">
+                <table className="w-full">
+                  <thead>
+                    <tr className="text-left"><th className="pb-2">Cant</th><th className="pb-2">Descripción</th><th className="text-right pb-2">Importe</th></tr>
+                  </thead>
+                  <tbody>
+                    {completedSale.items.map((item: any) => (
+                      <tr key={item.id}>
+                        <td className="align-top py-1 pr-2">{item.qty}</td>
+                        <td className="align-top py-1">{item.name}</td>
+                        <td className="align-top text-right py-1">${(item.price * item.qty).toFixed(2)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="flex justify-between mb-1"><span>SUBTOTAL:</span><span>${completedSale.subtotal.toFixed(2)}</span></div>
+              <div className="flex justify-between mb-1"><span>IVA (16% incl):</span><span>${completedSale.taxes.toFixed(2)}</span></div>
+              <div className="flex justify-between font-bold text-lg mt-2 pt-2 border-t border-black/20"><span>TOTAL:</span><span>${completedSale.total.toFixed(2)}</span></div>
+              <div className="text-center mt-6 text-xs text-black/60">
+                <p>PAGO EN: {completedSale.payment_method.toUpperCase()}</p>
+                <p className="mt-2">¡Gracias por su compra!</p>
+              </div>
+            </div>
+            <div className="p-4 bg-surface-container-low border-t border-outline-variant flex gap-3 shrink-0">
+              <button onClick={() => setCompletedSale(null)} className="flex-1 py-2 rounded-lg border border-outline-variant text-on-surface hover:bg-surface-variant transition-colors font-medium">Nueva Venta</button>
+              <button onClick={() => {
+                const printContent = document.getElementById('printable-ticket');
+                const win = window.open('', '', 'width=300,height=600');
+                if(win && printContent) {
+                  win.document.write('<html><head><title>Imprimir Ticket</title><style>body { font-family: monospace; font-size: 12px; margin: 0; padding: 10px; } table { width: 100%; border-collapse: collapse; } th { text-align: left; border-bottom: 1px dashed #000; } td { padding-top: 4px; } .text-right { text-align: right; } .text-center { text-align: center; } .font-bold { font-weight: bold; } .text-xl { font-size: 16px; } .text-lg { font-size: 14px; } .border-t { border-top: 1px dashed #000; } .border-b { border-bottom: 1px dashed #000; } .my-4 { margin: 10px 0; } .py-2 { padding: 5px 0; }</style></head><body>');
+                  win.document.write(printContent.innerHTML);
+                  win.document.write('</body></html>');
+                  win.document.close();
+                  win.focus();
+                  setTimeout(() => { win.print(); win.close(); }, 250);
+                }
+              }} className="flex-1 py-2 rounded-lg bg-primary text-on-primary hover:bg-primary/90 transition-colors font-medium flex justify-center items-center gap-2">
+                <Receipt size={18} /> Imprimir
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
