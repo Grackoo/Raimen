@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { ShoppingCart, ExternalLink, Box, Truck, User } from 'lucide-react';
+import { ShoppingCart, ExternalLink, Box, Truck, User, Receipt, X, Loader2, RefreshCw } from 'lucide-react';
+import { ExchangeModal } from '../components/ExchangeModal';
 
 interface Sale {
   id: string;
@@ -13,26 +14,71 @@ interface Sale {
 
 export function OrdersView() {
   const [sales, setSales] = useState<Sale[]>([]);
+  const [products, setProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingTicketId, setLoadingTicketId] = useState<string | null>(null);
+  const [completedSale, setCompletedSale] = useState<any>(null);
+  const [isExchangeOpen, setIsExchangeOpen] = useState(false);
 
   useEffect(() => {
-    async function fetchSales() {
+    async function fetchData() {
       try {
-        const { data, error } = await supabase
-          .from('sales')
-          .select('*')
-          .order('created_at', { ascending: false });
+        const [salesRes, productsRes] = await Promise.all([
+          supabase.from('sales').select('*').order('created_at', { ascending: false }),
+          supabase.from('products').select('*')
+        ]);
         
-        if (error) throw error;
-        setSales(data || []);
+        if (salesRes.error) throw salesRes.error;
+        if (productsRes.error) throw productsRes.error;
+        
+        setSales(salesRes.data || []);
+        setProducts(productsRes.data || []);
       } catch (err) {
-        console.error('Error fetching sales:', err);
+        console.error('Error fetching data:', err);
       } finally {
         setLoading(false);
       }
     }
-    fetchSales();
+    fetchData();
   }, []);
+
+  const handleViewTicket = async (sale: Sale) => {
+    if (loadingTicketId) return;
+    setLoadingTicketId(sale.id);
+    try {
+      const { data, error } = await supabase.from('sale_items').select('*').eq('sale_id', sale.id);
+      if (error) throw error;
+      
+      const items = (data || []).map(item => {
+        const product = products.find(p => p.id === item.product_id);
+        return {
+          id: item.id,
+          product_id: item.product_id,
+          name: product ? product.name : 'Producto Desconocido',
+          qty: item.quantity,
+          price: item.price_at_time
+        };
+      });
+
+      const subtotal = sale.total / 1.16;
+      const taxes = sale.total - subtotal;
+
+      setCompletedSale({
+        id: sale.id,
+        items,
+        total: sale.total,
+        subtotal,
+        taxes,
+        payment_method: sale.payment_method,
+        date: new Date(sale.created_at).toLocaleString('es-MX')
+      });
+    } catch (err) {
+      console.error(err);
+      alert('Error cargando los detalles de la venta');
+    } finally {
+      setLoadingTicketId(null);
+    }
+  };
 
   return (
     <main className="flex-1 overflow-y-auto p-4 md:p-8 pb-24 md:pb-8 bg-background">
@@ -68,11 +114,11 @@ export function OrdersView() {
                 </thead>
                 <tbody className="divide-y divide-outline-variant/30">
                   {sales.map((sale) => (
-                    <tr key={sale.id} className="hover:bg-surface-container-low transition-colors cursor-pointer group">
+                    <tr onClick={() => handleViewTicket(sale)} key={sale.id} className={`hover:bg-surface-container-low transition-colors cursor-pointer group ${loadingTicketId === sale.id ? 'opacity-50' : ''}`}>
                       <td className="p-4">
                         <div className="flex items-center gap-3">
                           <div className="w-10 h-10 rounded-full bg-surface-variant flex items-center justify-center text-on-surface shrink-0">
-                            <ShoppingCart size={18} />
+                            {loadingTicketId === sale.id ? <Loader2 size={18} className="animate-spin" /> : <ShoppingCart size={18} />}
                           </div>
                           <span className="text-data-mono text-on-surface font-medium truncate max-w-[120px]">{sale.id}</span>
                         </div>
@@ -106,6 +152,84 @@ export function OrdersView() {
           </div>
         )}
       </div>
+
+      {/* Ticket Modal */}
+      {completedSale && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
+          <div className="bg-surface-container-lowest w-full max-w-sm rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
+            <div className="p-4 bg-primary text-on-primary flex justify-between items-center shrink-0">
+              <h3 className="font-bold flex items-center gap-2"><Receipt size={20}/> Ticket de Venta</h3>
+              <button onClick={() => setCompletedSale(null)} className="hover:bg-primary-fixed hover:text-on-primary-fixed rounded-full p-1"><X size={20}/></button>
+            </div>
+            <div className="p-6 overflow-y-auto flex-1 font-mono text-sm bg-white text-black" id="printable-ticket">
+              <div className="text-center mb-6">
+                <h2 className="text-xl font-bold">RAIMEN STORE</h2>
+                <p>Sucursal Principal</p>
+                <p>Fecha: {completedSale.date}</p>
+                <p>Ticket: {completedSale.id.substring(0,8).toUpperCase()}</p>
+              </div>
+              <div className="border-t border-b border-black/20 py-2 mb-4">
+                <table className="w-full">
+                  <thead>
+                    <tr className="text-left"><th className="pb-2">Cant</th><th className="pb-2">Descripción</th><th className="text-right pb-2">Importe</th></tr>
+                  </thead>
+                  <tbody>
+                    {completedSale.items.map((item: any) => (
+                      <tr key={item.id}>
+                        <td className="align-top py-1 pr-2">{item.qty}</td>
+                        <td className="align-top py-1">{item.name}</td>
+                        <td className="align-top text-right py-1">${(item.price * item.qty).toFixed(2)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="flex justify-between mb-1"><span>SUBTOTAL:</span><span>${completedSale.subtotal.toFixed(2)}</span></div>
+              <div className="flex justify-between mb-1"><span>IVA (16% incl):</span><span>${completedSale.taxes.toFixed(2)}</span></div>
+              <div className="flex justify-between font-bold text-lg mt-2 pt-2 border-t border-black/20"><span>TOTAL:</span><span>${completedSale.total.toFixed(2)}</span></div>
+              <div className="text-center mt-6 text-xs text-black/60">
+                <p>PAGO EN: {completedSale.payment_method.toUpperCase()}</p>
+                <p className="mt-2">¡Gracias por su compra!</p>
+              </div>
+            </div>
+            <div className="p-4 bg-surface-container-low border-t border-outline-variant flex gap-3 shrink-0">
+              <button onClick={() => setCompletedSale(null)} className="flex-1 py-2 rounded-lg border border-outline-variant text-on-surface hover:bg-surface-variant transition-colors font-medium">Cerrar</button>
+              
+              <button onClick={() => setIsExchangeOpen(true)} className="flex-1 py-2 rounded-lg bg-secondary text-on-secondary hover:bg-on-secondary-fixed-variant transition-colors font-medium flex justify-center items-center gap-2">
+                <RefreshCw size={18} /> Efectuar Cambio
+              </button>
+
+              <button onClick={() => {
+                const printContent = document.getElementById('printable-ticket');
+                const win = window.open('', '', 'width=300,height=600');
+                if(win && printContent) {
+                  win.document.write('<html><head><title>Imprimir Ticket</title><style>body { font-family: monospace; font-size: 12px; margin: 0; padding: 10px; } table { width: 100%; border-collapse: collapse; } th { text-align: left; border-bottom: 1px dashed #000; } td { padding-top: 4px; } .text-right { text-align: right; } .text-center { text-align: center; } .font-bold { font-weight: bold; } .text-xl { font-size: 16px; } .text-lg { font-size: 14px; } .border-t { border-top: 1px dashed #000; } .border-b { border-bottom: 1px dashed #000; } .my-4 { margin: 10px 0; } .py-2 { padding: 5px 0; }</style></head><body>');
+                  win.document.write(printContent.innerHTML);
+                  win.document.write('</body></html>');
+                  win.document.close();
+                  win.focus();
+                  setTimeout(() => { win.print(); win.close(); }, 250);
+                }
+              }} className="flex-1 py-2 rounded-lg bg-primary text-on-primary hover:bg-primary/90 transition-colors font-medium flex justify-center items-center gap-2">
+                <Receipt size={18} /> Imprimir
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Exchange Modal */}
+      {isExchangeOpen && completedSale && (
+        <ExchangeModal
+          originalSale={completedSale}
+          onClose={() => setIsExchangeOpen(false)}
+          onSuccess={() => {
+            setIsExchangeOpen(false);
+            setCompletedSale(null);
+            // fetch data again to refresh sales list? It will refresh next time component mounts or we can call fetchData again, but it's fine for now.
+          }}
+        />
+      )}
     </main>
   );
 }
