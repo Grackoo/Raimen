@@ -76,7 +76,6 @@ export function InventoryView() {
         alert('Error al desactivar el producto.');
       }
     }
-    }
   };
 
   const exportToCSV = () => {
@@ -171,7 +170,7 @@ export function InventoryView() {
             className="bg-transparent text-body-sm font-semibold text-on-surface outline-none cursor-pointer"
           >
             <option value="all">Todos</option>
-            <option value="in">En Stock (>=10)</option>
+            <option value="in">En Stock (&gt;=10)</option>
             <option value="low">Bajo (&lt;10)</option>
             <option value="out">Agotado (0)</option>
           </select>
