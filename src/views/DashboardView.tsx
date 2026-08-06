@@ -4,7 +4,11 @@ import { supabase } from '../lib/supabase';
 import { ProductModal } from '../components/ProductModal';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Area, AreaChart } from 'recharts';
 
-export function DashboardView() {
+interface DashboardProps {
+  onViewChange?: (view: string) => void;
+}
+
+export function DashboardView({ onViewChange }: DashboardProps) {
   const [showAddModal, setShowAddModal] = useState(false);
   const [branches, setBranches] = useState<any[]>([]);
   const [selectedBranch, setSelectedBranch] = useState<string>('all');
@@ -240,7 +244,7 @@ export function DashboardView() {
                     </div>
                   ))}
                 </div>
-                <button className="mt-4 w-full h-10 bg-surface-container-high rounded-lg text-title-md font-bold text-on-surface hover:bg-surface-container-highest transition-colors">
+                <button onClick={() => onViewChange && onViewChange('inventory')} className="mt-4 w-full h-10 bg-surface-container-high rounded-lg text-title-md font-bold text-on-surface hover:bg-surface-container-highest transition-colors">
                   Ir al Inventario
                 </button>
               </div>

@@ -15,6 +15,8 @@ export function ReportsView() {
 
   // Balance General Data
   const [cash, setCash] = useState(0); // From cash registers
+  const [cardSales, setCardSales] = useState(0);
+  const [transferSales, setTransferSales] = useState(0);
   const [inventoryValue, setInventoryValue] = useState(0);
   const [accountsPayable, setAccountsPayable] = useState(0);
 
@@ -49,19 +51,32 @@ export function ReportsView() {
       const startDate = getStartDate();
 
       // 1. Ingresos por Ventas
-      let salesQ = supabase.from('sales').select('id, total').gte('created_at', startDate);
+      let salesQ = supabase.from('sales').select('id, total, payment_method').gte('created_at', startDate);
       if (selectedBranch !== 'all') salesQ = salesQ.eq('branch_id', selectedBranch);
       const { data: salesData } = await salesQ;
-      const totalSales = salesData?.reduce((acc, s) => acc + s.total, 0) || 0;
+      
+      let totalSales = 0;
+      let totalCard = 0;
+      let totalTransfer = 0;
+      
+      salesData?.forEach(s => {
+        totalSales += s.total;
+        if (s.payment_method === 'Tarjeta') totalCard += s.total;
+        if (s.payment_method === 'Transferencia') totalTransfer += s.total;
+      });
+      
       setIncome(totalSales);
+      setCardSales(totalCard);
+      setTransferSales(totalTransfer);
 
       // 2. Costo de Ventas (COGS)
       const saleIds = salesData?.map(s => s.id) || [];
       let totalCogs = 0;
       if (saleIds.length > 0) {
-        const { data: saleItems } = await supabase.from('sale_items').select('quantity, products(cost)').in('sale_id', saleIds);
+        const { data: saleItems } = await supabase.from('sale_items').select('quantity, cost_at_time, products(cost)').in('sale_id', saleIds);
         saleItems?.forEach(item => {
-          totalCogs += ((item.products as any)?.cost || 0) * item.quantity;
+          const unitCost = item.cost_at_time || ((item.products as any)?.cost || 0);
+          totalCogs += unitCost * item.quantity;
         });
       }
       setCogs(totalCogs);
@@ -101,7 +116,7 @@ export function ReportsView() {
 
   const grossProfit = income - cogs;
   const netProfit = grossProfit - expenses;
-  const totalAssets = cash + inventoryValue; // Simplified
+  const totalAssets = cash + cardSales + transferSales + inventoryValue; // Simplified
   const totalLiabilities = accountsPayable; // Simplified
   const equity = totalAssets - totalLiabilities; 
 
@@ -211,6 +226,14 @@ export function ReportsView() {
                     <div className="flex justify-between items-center">
                       <span className="text-on-surface">Efectivo Equivalente (Cajas)</span>
                       <span className="font-bold text-data-mono">${cash.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-on-surface-variant">
+                      <span className="text-sm pl-4">└ Ingresos por Tarjeta (Bancos)</span>
+                      <span className="font-bold text-data-mono text-sm">${cardSales.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-on-surface-variant">
+                      <span className="text-sm pl-4">└ Ingresos por Transferencia (Bancos)</span>
+                      <span className="font-bold text-data-mono text-sm">${transferSales.toFixed(2)}</span>
                     </div>
                     <div className="flex justify-between items-center">
                       <span className="text-on-surface">Inventarios (Valuación a Costo)</span>

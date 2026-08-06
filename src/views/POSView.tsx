@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Scan, Search, User, MoreVertical, Minus, Plus, Banknote, CreditCard, Landmark, Receipt, ShoppingBag, Loader2, Trash2, X } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { Scanner } from '@yudiel/react-qr-scanner';
+import { AdminOverrideModal } from '../components/AdminOverrideModal';
 
 interface Product {
   id: string;
@@ -10,6 +11,12 @@ interface Product {
   price: number;
   image: string;
   stock: number;
+  category: string;
+}
+
+interface Customer {
+  id: string;
+  name: string;
 }
 
 interface CartItem extends Product {
@@ -19,30 +26,55 @@ interface CartItem extends Product {
 export function POSView() {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
+  const [activeCategory, setActiveCategory] = useState<string>('Todos');
+  const [searchSku, setSearchSku] = useState('');
+  
   const [loading, setLoading] = useState(true);
   const [processingSale, setProcessingSale] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState('Efectivo');
   const [completedSale, setCompletedSale] = useState<any>(null);
 
+  const [adminAction, setAdminAction] = useState<{action: string, payload?: any} | null>(null);
+
+  const sessionUser = JSON.parse(localStorage.getItem('raimen_pos_user') || '{}');
+
   useEffect(() => {
-    async function fetchProducts() {
+    async function fetchData() {
       try {
-        const { data, error } = await supabase
-          .from('products')
-          .select('*')
-          .eq('active', true)
-          .order('name');
+        const [prodRes, custRes] = await Promise.all([
+          supabase.from('products').select('*').eq('active', true).order('name'),
+          supabase.from('customers').select('id, name').order('name')
+        ]);
         
-        if (error) throw error;
-        setProducts(data || []);
+        if (prodRes.error) throw prodRes.error;
+        if (custRes.error) throw custRes.error;
+        
+        setProducts(prodRes.data || []);
+        setCustomers(custRes.data || []);
+        
+        // Auto select Publico en general
+        const publico = custRes.data?.find(c => c.name.toLowerCase().includes('público en general'));
+        if (publico) setSelectedCustomerId(publico.id);
+        else if (custRes.data && custRes.data.length > 0) setSelectedCustomerId(custRes.data[0].id);
+
       } catch (err) {
-        console.error('Error fetching products:', err);
+        console.error('Error fetching data:', err);
       } finally {
         setLoading(false);
       }
     }
-    fetchProducts();
+    fetchData();
   }, []);
+
+  const categories = ['Todos', ...Array.from(new Set(products.map(p => p.category || 'General')))];
+  
+  const filteredProducts = products.filter(p => {
+    const matchCat = activeCategory === 'Todos' || p.category === activeCategory;
+    const matchSearch = !searchSku || p.sku.toLowerCase().includes(searchSku.toLowerCase()) || p.name.toLowerCase().includes(searchSku.toLowerCase());
+    return matchCat && matchSearch;
+  });
 
   const updateQty = (id: string, delta: number) => {
     setCart(cart.map(c => c.id === id ? { ...c, qty: Math.max(0, c.qty + delta) } : c).filter(c => c.qty > 0));
@@ -58,8 +90,13 @@ export function POSView() {
     }
   };
 
-  const removeFromCart = (id: string) => {
+  const requestRemoveFromCart = (id: string) => {
+    setAdminAction({ action: 'eliminar un producto del carrito', payload: id });
+  };
+
+  const executeRemoveFromCart = (id: string) => {
     setCart(cart.filter(c => c.id !== id));
+    setAdminAction(null);
   };
 
   const handleScan = (detectedCodes: any[]) => {
@@ -82,7 +119,10 @@ export function POSView() {
         .from('sales')
         .insert({
           total: total,
-          payment_method: paymentMethod
+          payment_method: paymentMethod,
+          cashier_id: sessionUser.id,
+          branch_id: sessionUser.branch_id,
+          customer_id: selectedCustomerId || null
         })
         .select()
         .single();
@@ -155,7 +195,9 @@ export function POSView() {
               <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" />
               <input 
                 type="text" 
-                placeholder="Buscar por SKU..." 
+                value={searchSku}
+                onChange={(e) => setSearchSku(e.target.value)}
+                placeholder="Buscar por SKU o Nombre..." 
                 className="w-full pl-10 pr-4 py-3 rounded-lg border border-outline-variant bg-surface focus:ring-2 focus:ring-primary outline-none" 
               />
             </div>
@@ -166,10 +208,16 @@ export function POSView() {
         <section className="w-full xl:w-2/3 flex flex-col lg:h-full">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-title-md text-primary">Más Vendidos</h2>
-            <div className="flex gap-2">
-              <button className="px-3 py-1 rounded-full bg-primary text-on-primary text-label-caps">Todos</button>
-              <button className="px-3 py-1 rounded-full bg-surface text-on-surface-variant border border-outline-variant text-label-caps hover:bg-surface-container-high transition-colors">Ropa</button>
-              <button className="px-3 py-1 rounded-full bg-surface text-on-surface-variant border border-outline-variant text-label-caps hover:bg-surface-container-high transition-colors hidden sm:block">Accesorios</button>
+            <div className="flex gap-2 overflow-x-auto custom-scrollbar pb-1">
+              {categories.map(cat => (
+                <button 
+                  key={cat}
+                  onClick={() => setActiveCategory(cat)}
+                  className={`px-4 py-1.5 rounded-full text-label-caps whitespace-nowrap transition-colors border ${activeCategory === cat ? 'bg-primary text-on-primary border-primary' : 'bg-surface text-on-surface-variant border-outline-variant hover:bg-surface-container-high'}`}
+                >
+                  {cat}
+                </button>
+              ))}
             </div>
           </div>
           <div className="flex-1 overflow-y-auto pr-2 pb-4 grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-4 content-start">
@@ -177,7 +225,11 @@ export function POSView() {
               <div className="col-span-full flex justify-center items-center h-32 text-on-surface-variant">
                 <Loader2 className="animate-spin mr-2" size={24} /> Cargando productos...
               </div>
-            ) : products.map((p, i) => (
+            ) : filteredProducts.length === 0 ? (
+              <div className="col-span-full flex justify-center items-center h-32 text-on-surface-variant">
+                No hay productos en esta categoría o búsqueda.
+              </div>
+            ) : filteredProducts.map((p, i) => (
               <div key={p.id} onClick={() => addToCart(p)} className={`bg-white/70 backdrop-blur-md rounded-xl p-3 flex flex-col cursor-pointer hover:shadow-md hover:-translate-y-1 transition-all border border-white/50 ${p.stock <= 0 ? 'opacity-60' : ''}`}>
                 <div className="aspect-square bg-surface-variant rounded-lg mb-3 overflow-hidden relative flex items-center justify-center">
                   {p.stock <= 0 && <span className="absolute inset-0 bg-white/50 z-10 flex items-center justify-center text-label-caps text-primary font-bold">SIN STOCK</span>}
@@ -205,9 +257,15 @@ export function POSView() {
             <div className="w-10 h-10 rounded-full bg-primary-fixed flex items-center justify-center text-primary font-bold">
               <User size={20} />
             </div>
-            <div>
-              <p className="text-label-caps text-on-surface-variant">Cliente Mostrador</p>
-              <button className="text-body-sm text-[12px] text-primary font-medium hover:underline">Agregar Detalles</button>
+            <div className="w-full">
+              <select 
+                value={selectedCustomerId} 
+                onChange={(e) => setSelectedCustomerId(e.target.value)}
+                className="w-full bg-transparent text-label-caps text-on-surface-variant font-bold outline-none cursor-pointer"
+              >
+                <option value="">Seleccionar Cliente...</option>
+                {customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
             </div>
           </div>
           <button className="w-8 h-8 rounded-full hover:bg-surface-variant flex items-center justify-center text-on-surface-variant transition-colors">
@@ -231,7 +289,7 @@ export function POSView() {
               <div className="flex flex-col items-end gap-1 flex-shrink-0">
                 <div className="flex items-center gap-2">
                   <span className="text-data-mono font-bold text-primary">${(item.price * item.qty).toFixed(2)}</span>
-                  <button onClick={() => removeFromCart(item.id)} className="text-error hover:bg-error-container p-1 rounded-md transition-colors"><Trash2 size={16} /></button>
+                  <button onClick={() => requestRemoveFromCart(item.id)} className="text-error hover:bg-error-container p-1 rounded-md transition-colors"><Trash2 size={16} /></button>
                 </div>
                 <div className="flex items-center bg-surface-container rounded-full overflow-hidden border border-outline-variant">
                   <button onClick={() => updateQty(item.id, -1)} className="w-6 h-6 flex items-center justify-center hover:bg-surface-variant text-on-surface"><Minus size={14} /></button>
@@ -339,6 +397,18 @@ export function POSView() {
             </div>
           </div>
         </div>
+      )}
+
+      {adminAction && (
+        <AdminOverrideModal 
+          actionName={adminAction.action}
+          onCancel={() => setAdminAction(null)}
+          onSuccess={() => {
+            if (adminAction.action === 'eliminar un producto del carrito') {
+              executeRemoveFromCart(adminAction.payload);
+            }
+          }}
+        />
       )}
     </main>
   );

@@ -51,7 +51,7 @@ export default function App() {
           <TopBar currentView={currentView} onViewChange={setCurrentView} />
         )}
         
-        {currentView === 'dashboard' && <DashboardView />}
+        {currentView === 'dashboard' && <DashboardView onViewChange={setCurrentView} />}
         {currentView === 'inventory' && <InventoryView />}
         {currentView === 'pos' && <POSView />}
         {currentView === 'settings' && <SettingsView />}

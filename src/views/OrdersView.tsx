@@ -20,27 +20,48 @@ export function OrdersView() {
   const [completedSale, setCompletedSale] = useState<any>(null);
   const [isExchangeOpen, setIsExchangeOpen] = useState(false);
 
-  useEffect(() => {
-    async function fetchData() {
-      try {
-        const [salesRes, productsRes] = await Promise.all([
-          supabase.from('sales').select('*').order('created_at', { ascending: false }),
-          supabase.from('products').select('*')
-        ]);
-        
-        if (salesRes.error) throw salesRes.error;
-        if (productsRes.error) throw productsRes.error;
-        
-        setSales(salesRes.data || []);
-        setProducts(productsRes.data || []);
-      } catch (err) {
-        console.error('Error fetching data:', err);
-      } finally {
-        setLoading(false);
-      }
+  const [startDate, setStartDate] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 7);
+    return d.toISOString().split('T')[0];
+  });
+  
+  const [endDate, setEndDate] = useState(() => {
+    return new Date().toISOString().split('T')[0];
+  });
+
+  const fetchSalesData = async () => {
+    setLoading(true);
+    try {
+      const s = new Date(startDate);
+      s.setHours(0,0,0,0);
+      const e = new Date(endDate);
+      e.setHours(23,59,59,999);
+
+      const [salesRes, productsRes] = await Promise.all([
+        supabase.from('sales').select('*')
+          .gte('created_at', s.toISOString())
+          .lte('created_at', e.toISOString())
+          .order('created_at', { ascending: false }),
+        supabase.from('products').select('*')
+      ]);
+      
+      if (salesRes.error) throw salesRes.error;
+      if (productsRes.error) throw productsRes.error;
+      
+      setSales(salesRes.data || []);
+      setProducts(productsRes.data || []);
+    } catch (err) {
+      console.error('Error fetching data:', err);
+    } finally {
+      setLoading(false);
     }
-    fetchData();
-  }, []);
+  };
+
+  useEffect(() => {
+    fetchSalesData();
+  }, [startDate, endDate]);
+
 
   const handleViewTicket = async (sale: Sale) => {
     if (loadingTicketId) return;
@@ -80,6 +101,29 @@ export function OrdersView() {
     }
   };
 
+  const exportToCSV = () => {
+    if (sales.length === 0) return;
+    const headers = ['ID Venta', 'Fecha', 'Tipo', 'Pago', 'Total'];
+    const rows = sales.map(s => [
+      s.id,
+      new Date(s.created_at).toLocaleString('es-MX'),
+      'Local',
+      s.payment_method,
+      s.total.toFixed(2)
+    ]);
+    
+    const csvContent = "data:text/csv;charset=utf-8," 
+      + [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
+      
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `ventas_${startDate}_al_${endDate}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <main className="flex-1 overflow-y-auto p-4 md:p-8 pb-24 md:pb-8 bg-background">
       <div className="max-w-7xl mx-auto space-y-6">
@@ -88,9 +132,29 @@ export function OrdersView() {
             <h2 className="text-headline-lg text-on-surface">Historial de Ventas</h2>
             <p className="text-body-sm text-on-surface-variant mt-1">Registro de todas las transacciones locales y en línea</p>
           </div>
-          <div className="hidden sm:flex gap-2">
-            <button className="px-4 py-2 bg-primary text-on-primary rounded-lg text-title-md flex items-center gap-2 hover:opacity-90 transition-opacity shadow-sm">
-              <ExternalLink size={18} /> Exportar Reporte
+          <div className="flex flex-col sm:flex-row gap-4 items-end">
+            <div className="flex gap-2">
+              <div className="flex flex-col gap-1">
+                <label className="text-label-caps text-on-surface-variant">Desde</label>
+                <input 
+                  type="date" 
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="bg-surface border border-outline-variant rounded-lg px-3 py-2 outline-none focus:border-primary text-body-sm"
+                />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-label-caps text-on-surface-variant">Hasta</label>
+                <input 
+                  type="date" 
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="bg-surface border border-outline-variant rounded-lg px-3 py-2 outline-none focus:border-primary text-body-sm"
+                />
+              </div>
+            </div>
+            <button onClick={exportToCSV} className="h-[42px] px-4 bg-primary text-on-primary rounded-lg text-title-md flex items-center gap-2 hover:opacity-90 transition-opacity shadow-sm">
+              <ExternalLink size={18} /> Exportar CSV
             </button>
           </div>
         </div>

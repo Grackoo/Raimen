@@ -8,8 +8,8 @@ interface CashRegister {
   user_id: string;
   opening_amount: number;
   expected_closing_amount: number;
-  actual_closing_amount: number;
   difference: number;
+  notes?: string;
   status: string;
   opened_at: string;
   closed_at: string;
@@ -22,6 +22,10 @@ export function CashRegisterView() {
   
   const [openingAmount, setOpeningAmount] = useState('');
   const [closingAmount, setClosingAmount] = useState('');
+  
+  const [showCloseModal, setShowCloseModal] = useState(false);
+  const [closingNotes, setClosingNotes] = useState('');
+  const [calculatedDiff, setCalculatedDiff] = useState(0);
   
   // Realtime calculated values
   const [cashSales, setCashSales] = useState(0);
@@ -125,7 +129,7 @@ export function CashRegisterView() {
     fetchRegisters();
   };
 
-  const handleCloseRegister = async (e: React.FormEvent) => {
+  const handlePreClose = (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentRegister || !closingAmount) return;
 
@@ -133,16 +137,29 @@ export function CashRegisterView() {
     const actual = parseFloat(closingAmount);
     const difference = actual - expected;
 
+    setCalculatedDiff(difference);
+    setShowCloseModal(true);
+  };
+
+  const executeCloseRegister = async () => {
+    if (!currentRegister || !closingAmount) return;
+
+    const expected = currentRegister.opening_amount + cashSales - cashExpenses;
+    const actual = parseFloat(closingAmount);
+
     const payload = {
       expected_closing_amount: expected,
       actual_closing_amount: actual,
-      difference: difference,
+      difference: calculatedDiff,
+      notes: closingNotes,
       status: 'closed',
       closed_at: new Date().toISOString()
     };
 
     await supabase.from('cash_registers').update(payload).eq('id', currentRegister.id);
     setClosingAmount('');
+    setClosingNotes('');
+    setShowCloseModal(false);
     fetchRegisters();
   };
 
@@ -206,7 +223,7 @@ export function CashRegisterView() {
                     </div>
                   </div>
 
-                  <form onSubmit={handleCloseRegister} className="mt-4 pt-4 border-t border-outline-variant flex flex-col gap-4">
+                  <form onSubmit={handlePreClose} className="mt-4 pt-4 border-t border-outline-variant flex flex-col gap-4">
                     <div>
                       <label className="text-label-caps text-on-surface-variant mb-1 block">Conteo Físico Real (Dinero en Cajón) *</label>
                       <input required value={closingAmount} onChange={e => setClosingAmount(e.target.value)} type="number" step="0.01" min="0" className="w-full bg-surface border border-outline-variant rounded-lg h-12 px-3 text-title-md outline-none focus:border-primary text-data-mono font-bold" placeholder="0.00" />
@@ -280,6 +297,54 @@ export function CashRegisterView() {
           </div>
         )}
       </div>
+
+      {showCloseModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
+          <div className="bg-surface-container-lowest w-full max-w-sm rounded-xl shadow-2xl overflow-hidden flex flex-col">
+            <div className="p-4 bg-error text-on-error flex justify-between items-center">
+              <h3 className="font-bold flex items-center gap-2"><Lock size={20} /> Confirmar Corte de Caja</h3>
+            </div>
+            <div className="p-6">
+              {calculatedDiff !== 0 ? (
+                <>
+                  <p className="text-body-sm text-on-surface-variant mb-4">
+                    Se detectó una diferencia en el corte de caja. Es obligatorio justificar el motivo antes de proceder.
+                  </p>
+                  <div className="bg-error-container text-on-error-container p-3 rounded-lg mb-4 text-center">
+                    <p className="text-label-caps font-bold">{calculatedDiff > 0 ? 'SOBRANTE' : 'FALTANTE'}</p>
+                    <p className="text-headline-sm font-bold">${Math.abs(calculatedDiff).toFixed(2)}</p>
+                  </div>
+                  <div className="flex flex-col gap-2 mb-6">
+                    <label className="text-label-caps text-on-surface-variant">Justificación / Notas</label>
+                    <textarea 
+                      required
+                      value={closingNotes}
+                      onChange={(e) => setClosingNotes(e.target.value)}
+                      placeholder="Escribe el motivo del descuadre..."
+                      className="w-full bg-surface border border-outline-variant rounded-lg p-3 text-body-sm focus:ring-2 focus:ring-error focus:border-error outline-none min-h-[80px]"
+                    />
+                  </div>
+                </>
+              ) : (
+                <p className="text-body-md text-on-surface-variant mb-6 text-center">
+                  El corte cuadra perfectamente. ¿Deseas confirmar el cierre de caja?
+                </p>
+              )}
+              
+              <div className="flex gap-3">
+                <button type="button" onClick={() => setShowCloseModal(false)} className="flex-1 py-3 rounded-lg border border-outline-variant text-on-surface hover:bg-surface-variant transition-colors font-medium">Cancelar</button>
+                <button 
+                  onClick={executeCloseRegister} 
+                  disabled={calculatedDiff !== 0 && closingNotes.trim().length < 5}
+                  className="flex-1 py-3 rounded-lg bg-error text-on-error hover:bg-error/90 transition-colors font-medium flex justify-center items-center gap-2 disabled:opacity-50"
+                >
+                  Confirmar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

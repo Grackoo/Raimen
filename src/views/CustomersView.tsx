@@ -9,6 +9,9 @@ interface Customer {
   phone: string;
   address: string;
   rfc: string;
+  regimen_fiscal: string;
+  codigo_postal: string;
+  uso_cfdi: string;
   branch_id: string;
 }
 
@@ -22,7 +25,7 @@ export function CustomersView() {
   const [searchTerm, setSearchTerm] = useState('');
 
   const [formData, setFormData] = useState({
-    name: '', email: '', phone: '', address: '', rfc: ''
+    name: '', email: '', phone: '', address: '', rfc: '', regimen_fiscal: '', codigo_postal: '', uso_cfdi: ''
   });
 
   useEffect(() => {
@@ -83,14 +86,17 @@ export function CustomersView() {
       email: customer.email || '',
       phone: customer.phone || '',
       address: customer.address || '',
-      rfc: customer.rfc || ''
+      rfc: customer.rfc || '',
+      regimen_fiscal: customer.regimen_fiscal || '',
+      codigo_postal: customer.codigo_postal || '',
+      uso_cfdi: customer.uso_cfdi || ''
     });
     setShowModal(true);
   };
 
   const openNew = () => {
     setEditingCustomer(null);
-    setFormData({ name: '', email: '', phone: '', address: '', rfc: '' });
+    setFormData({ name: '', email: '', phone: '', address: '', rfc: '', regimen_fiscal: '', codigo_postal: '', uso_cfdi: '' });
     setShowModal(true);
   };
 
@@ -209,9 +215,36 @@ export function CustomersView() {
                   <input value={formData.rfc} onChange={e => setFormData({...formData, rfc: e.target.value})} type="text" className="w-full bg-surface border border-outline-variant rounded-lg h-10 px-3 text-body-sm outline-none focus:border-primary text-data-mono uppercase" />
                 </div>
               </div>
-              <div>
-                <label className="text-label-caps text-on-surface-variant mb-1 block">Correo Electrónico</label>
-                <input value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} type="email" className="w-full bg-surface border border-outline-variant rounded-lg h-10 px-3 text-body-sm outline-none focus:border-primary" />
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-label-caps text-on-surface-variant mb-1 block">Régimen Fiscal</label>
+                  <select value={formData.regimen_fiscal} onChange={e => setFormData({...formData, regimen_fiscal: e.target.value})} className="w-full bg-surface border border-outline-variant rounded-lg h-10 px-3 text-body-sm outline-none focus:border-primary">
+                    <option value="">Seleccione Régimen</option>
+                    <option value="601">601 - General de Ley Personas Morales</option>
+                    <option value="612">612 - Personas Físicas con Actividades Empresariales</option>
+                    <option value="616">616 - Sin obligaciones fiscales</option>
+                    <option value="626">626 - RESICO</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-label-caps text-on-surface-variant mb-1 block">Uso CFDI</label>
+                  <select value={formData.uso_cfdi} onChange={e => setFormData({...formData, uso_cfdi: e.target.value})} className="w-full bg-surface border border-outline-variant rounded-lg h-10 px-3 text-body-sm outline-none focus:border-primary">
+                    <option value="">Seleccione Uso</option>
+                    <option value="G01">G01 - Adquisición de mercancias</option>
+                    <option value="G03">G03 - Gastos en general</option>
+                    <option value="S01">S01 - Sin efectos fiscales</option>
+                  </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-label-caps text-on-surface-variant mb-1 block">Código Postal</label>
+                  <input value={formData.codigo_postal} onChange={e => setFormData({...formData, codigo_postal: e.target.value})} type="text" className="w-full bg-surface border border-outline-variant rounded-lg h-10 px-3 text-body-sm outline-none focus:border-primary text-data-mono" maxLength={5} />
+                </div>
+                <div>
+                  <label className="text-label-caps text-on-surface-variant mb-1 block">Correo Electrónico</label>
+                  <input value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} type="email" className="w-full bg-surface border border-outline-variant rounded-lg h-10 px-3 text-body-sm outline-none focus:border-primary" />
+                </div>
               </div>
               <div>
                 <label className="text-label-caps text-on-surface-variant mb-1 block">Dirección de Facturación</label>

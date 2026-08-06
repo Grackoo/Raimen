@@ -62,7 +62,9 @@ export function AccountsPayableView() {
       supplier: formData.supplier,
       description: formData.description,
       amount: parseFloat(formData.amount),
+      paid_amount: 0,
       due_date: formData.due_date,
+      status: 'pending',
       branch_id: selectedBranch === 'all' ? (branches[0]?.id || null) : selectedBranch,
     };
 

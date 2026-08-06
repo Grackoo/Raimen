@@ -60,21 +60,55 @@ export function POSLoginView({ onLogin }: POSLoginViewProps) {
 
     try {
       // Validate with Supabase
-      const { data, error } = await supabase
+      const { data: user, error } = await supabase
         .from('users')
         .select('*')
         .eq('username', selectedUsername)
         .eq('pin', pin)
         .single();
 
-      if (error || !data) {
+      if (error || !user) {
         throw new Error('PIN incorrecto o usuario no encontrado');
       }
+
+      // Check if there is already an open register for this branch (assuming user.branch_id)
+      if (user.branch_id) {
+        const { data: activeRegister } = await supabase
+          .from('cash_registers')
+          .select('id')
+          .eq('branch_id', user.branch_id)
+          .eq('status', 'open')
+          .maybeSingle();
+
+        if (!activeRegister) {
+          if (!initialAmount || isNaN(parseFloat(initialAmount))) {
+             throw new Error('Se requiere un Monto Inicial válido para abrir la caja en este turno.');
+          }
+          
+          // Open new register
+          const payload = {
+            branch_id: user.branch_id,
+            user_id: user.id,
+            opening_amount: parseFloat(initialAmount),
+            status: 'open'
+          };
+          
+          const { error: regError } = await supabase.from('cash_registers').insert([payload]);
+          if (regError) throw new Error('Error al abrir la caja: ' + regError.message);
+        }
+      }
+
+      // Save user session in localStorage for POSView to use
+      localStorage.setItem('raimen_pos_user', JSON.stringify({
+        id: user.id,
+        name: user.full_name || user.username,
+        branch_id: user.branch_id,
+        role: user.role
+      }));
 
       // Success
       setIsOpening(false);
       setIsOpened(true);
-      // In a real app we'd save the logged in user/cashier to a global state/context here.
       setTimeout(() => {
         onLogin();
       }, 1000);
@@ -143,7 +177,6 @@ export function POSLoginView({ onLogin }: POSLoginViewProps) {
                 <input 
                   type="number" 
                   disabled={isOpened}
-                  required
                   value={initialAmount}
                   onChange={(e) => setInitialAmount(e.target.value)}
                   step="0.01"

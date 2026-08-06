@@ -26,6 +26,9 @@ export function InventoryView() {
   const [productToEdit, setProductToEdit] = useState<Product | null>(null);
   const [branches, setBranches] = useState<any[]>([]);
   const [selectedBranch, setSelectedBranch] = useState<string>('all');
+  const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  const [stockFilter, setStockFilter] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = useState('');
 
   const fetchProducts = async () => {
     setLoading(true);
@@ -73,7 +76,48 @@ export function InventoryView() {
         alert('Error al desactivar el producto.');
       }
     }
+    }
   };
+
+  const exportToCSV = () => {
+    if (products.length === 0) return;
+    const headers = ['ID', 'Producto', 'SKU', 'Categoría', 'Stock', 'Costo', 'Precio', 'Precio ML', 'Activo'];
+    const rows = filteredProducts.map(p => [
+      p.id,
+      `"${p.name}"`,
+      p.sku,
+      `"${p.category}"`,
+      p.stock,
+      p.cost,
+      p.price,
+      p.ml_price,
+      p.active ? 'Si' : 'No'
+    ]);
+    
+    const csvContent = "data:text/csv;charset=utf-8," 
+      + [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
+      
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `inventario.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const categories = Array.from(new Set(products.map(p => p.category || 'General')));
+
+  const filteredProducts = products.filter(p => {
+    const matchCat = categoryFilter === 'all' || p.category === categoryFilter;
+    const matchSearch = !searchQuery || p.sku.toLowerCase().includes(searchQuery.toLowerCase()) || p.name.toLowerCase().includes(searchQuery.toLowerCase());
+    let matchStock = true;
+    if (stockFilter === 'low') matchStock = p.stock > 0 && p.stock < 10;
+    if (stockFilter === 'out') matchStock = p.stock <= 0;
+    if (stockFilter === 'in') matchStock = p.stock >= 10;
+    
+    return matchCat && matchSearch && matchStock;
+  });
 
   return (
     <main className="flex-1 overflow-y-auto p-4 md:p-8 pb-24 md:pb-8 bg-background flex flex-col gap-6">
@@ -84,8 +128,8 @@ export function InventoryView() {
           <p className="text-body-md text-on-surface-variant mt-1">Administra existencias, precios y genera etiquetas QR.</p>
         </div>
         <div className="flex gap-3 w-full sm:w-auto">
-          <button className="flex-1 sm:flex-none flex items-center justify-center gap-2 h-10 px-4 bg-surface-container-lowest border border-outline-variant rounded-lg text-title-md text-primary hover:bg-surface-container-low transition-colors shadow-sm">
-            <Download size={20} /> Exportar
+          <button onClick={exportToCSV} className="flex-1 sm:flex-none flex items-center justify-center gap-2 h-10 px-4 bg-surface-container-lowest border border-outline-variant rounded-lg text-title-md text-primary hover:bg-surface-container-low transition-colors shadow-sm">
+            <Download size={20} /> Exportar CSV
           </button>
           <button onClick={() => setShowAddModal(true)} className="flex-1 sm:flex-none flex items-center justify-center gap-2 h-10 px-4 bg-primary text-on-primary rounded-lg text-title-md hover:opacity-90 transition-opacity shadow-sm">
             <Plus size={20} /> Agregar Producto
@@ -108,18 +152,37 @@ export function InventoryView() {
             ))}
           </select>
         </div>
-        {['CATEGORÍA: Todas', 'STOCK: Bajo (<10)'].map((filter, i) => (
-          <div key={i} className="flex items-center gap-2 px-3 py-1.5 bg-surface-container-low rounded-lg border border-transparent hover:border-outline-variant cursor-pointer transition-colors">
-            <span className="text-label-caps text-on-surface-variant">{filter.split(':')[0]}:</span>
-            <span className="text-body-sm font-semibold text-on-surface">{filter.split(':')[1].trim()}</span>
-            <ChevronDown size={16} className="text-on-surface-variant" />
-          </div>
-        ))}
+        <div className="flex items-center gap-2 px-3 py-1.5 bg-surface-container-low rounded-lg border border-transparent cursor-pointer transition-colors">
+          <span className="text-label-caps text-on-surface-variant">CATEGORÍA:</span>
+          <select 
+            value={categoryFilter}
+            onChange={(e) => setCategoryFilter(e.target.value)}
+            className="bg-transparent text-body-sm font-semibold text-on-surface outline-none cursor-pointer"
+          >
+            <option value="all">Todas</option>
+            {categories.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+        </div>
+        <div className="flex items-center gap-2 px-3 py-1.5 bg-surface-container-low rounded-lg border border-transparent cursor-pointer transition-colors">
+          <span className="text-label-caps text-on-surface-variant">STOCK:</span>
+          <select 
+            value={stockFilter}
+            onChange={(e) => setStockFilter(e.target.value)}
+            className="bg-transparent text-body-sm font-semibold text-on-surface outline-none cursor-pointer"
+          >
+            <option value="all">Todos</option>
+            <option value="in">En Stock (>=10)</option>
+            <option value="low">Bajo (&lt;10)</option>
+            <option value="out">Agotado (0)</option>
+          </select>
+        </div>
         <div className="flex-1"></div>
         <div className="relative w-full sm:w-64 mt-2 sm:mt-0">
           <Filter size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" />
           <input 
             type="text" 
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
             placeholder="Filtrar por SKU o Nombre..." 
             className="w-full h-9 pl-9 pr-3 bg-surface border border-outline-variant rounded-lg text-body-sm text-on-surface focus:ring-1 focus:ring-primary focus:border-primary transition-all outline-none"
           />
@@ -154,7 +217,7 @@ export function InventoryView() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-outline-variant/30">
-                {products.map((p, i) => (
+                {filteredProducts.map((p, i) => (
                   <tr key={i} onClick={() => setSelectedProduct(p)} className={`hover:bg-surface-container-low transition-colors cursor-pointer group ${selectedProduct?.id === p.id ? 'bg-primary-fixed/20' : ''}`}>
                     <td className="p-4 text-center" onClick={(e) => e.stopPropagation()}>
                       <input type="checkbox" checked={selectedProduct?.id === p.id} onChange={() => setSelectedProduct(p)} className="rounded border-outline-variant text-primary focus:ring-primary" />
@@ -207,7 +270,7 @@ export function InventoryView() {
             </table>
           </div>
           <div className="bg-surface-container-lowest border-t border-outline-variant p-3 flex justify-between items-center">
-            <span className="text-body-sm text-on-surface-variant">Mostrando {products.length} productos</span>
+            <span className="text-body-sm text-on-surface-variant">Mostrando {filteredProducts.length} productos</span>
           </div>
         </div>
 
@@ -218,7 +281,7 @@ export function InventoryView() {
             <span className="text-label-caps text-on-surface-variant bg-surface-variant px-2 py-1 rounded">3x3 cm</span>
           </div>
           <div className="p-6 flex-1 flex flex-col items-center justify-center bg-surface relative">
-            <div className="w-48 h-48 bg-white border border-outline shadow-md p-3 flex flex-col items-center justify-between">
+            <div id="qr-preview-container" className="w-48 h-48 bg-white border border-outline shadow-md p-3 flex flex-col items-center justify-between">
               <div className="text-center w-full">
                 <h4 className="text-title-md font-bold text-black tracking-tighter leading-none mb-1">RAIMEN</h4>
                 <div className="w-full h-px bg-black opacity-20 mb-1"></div>
@@ -241,7 +304,20 @@ export function InventoryView() {
             </p>
           </div>
           <div className="p-4 border-t border-outline-variant bg-surface-container-lowest flex flex-col gap-3">
-            <button className="w-full bg-primary text-on-primary h-12 rounded-lg text-title-md flex items-center justify-center gap-2 hover:opacity-90 transition-opacity shadow-sm">
+            <button onClick={() => {
+              if (selectedProduct) {
+                const printContent = document.getElementById('qr-preview-container');
+                const win = window.open('', '', 'width=400,height=400');
+                if(win && printContent) {
+                  win.document.write(`<html><head><title>Imprimir Etiqueta</title><style>body { font-family: monospace; font-size: 12px; margin: 0; display:flex; justify-content:center; align-items:center; height:100vh; } .w-48 { width: 192px; } .h-48 { height: 192px; } .bg-white { background: white; } .border { border: 1px solid #000; } .p-3 { padding: 12px; } .flex { display: flex; } .flex-col { flex-direction: column; } .items-center { align-items: center; } .justify-between { justify-content: space-between; } .text-center { text-align: center; } .w-full { width: 100%; } .font-bold { font-weight: bold; } .text-black { color: black; } .mb-1 { margin-bottom: 4px; } .h-px { height: 1px; } .opacity-20 { opacity: 0.2; } .text-\\[10px\\] { font-size: 10px; } .leading-tight { line-height: 1.25; } .truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .text-\\[9px\\] { font-size: 9px; } .w-20 { width: 80px; } .h-20 { height: 80px; } .p-1 { padding: 4px; } .mt-1 { margin-top: 4px; }</style></head><body>`);
+                  win.document.write(printContent.innerHTML);
+                  win.document.write('</body></html>');
+                  win.document.close();
+                  win.focus();
+                  setTimeout(() => { win.print(); win.close(); }, 250);
+                }
+              }
+            }} disabled={!selectedProduct} className="w-full bg-primary text-on-primary h-12 rounded-lg text-title-md flex items-center justify-center gap-2 hover:opacity-90 transition-opacity shadow-sm disabled:opacity-50">
               <Printer size={20} />
               Imprimir Etiqueta
             </button>

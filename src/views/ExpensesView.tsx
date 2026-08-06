@@ -9,6 +9,7 @@ interface Expense {
   category: string;
   date: string;
   branch_id: string;
+  user_id: string;
 }
 
 export function ExpensesView() {
@@ -20,10 +21,13 @@ export function ExpensesView() {
   const [dateFilter, setDateFilter] = useState('month'); // today, week, month, year
 
   const [formData, setFormData] = useState({
-    description: '', amount: '', category: 'Operativo'
+    description: '', amount: '', category: 'Operativo', customCategory: ''
   });
 
-  const categories = ['Operativo', 'Administrativo', 'Nómina', 'Marketing', 'Mantenimiento', 'Insumos', 'Otro'];
+  const sessionUser = JSON.parse(localStorage.getItem('raimen_pos_user') || '{}');
+
+  const baseCategories = ['Operativo', 'Administrativo', 'Nómina', 'Marketing', 'Mantenimiento', 'Insumos', 'Otro'];
+  const dynamicCategories = Array.from(new Set([...baseCategories, ...expenses.map(e => e.category).filter(Boolean)]));
 
   useEffect(() => {
     fetchBranches();
@@ -65,17 +69,19 @@ export function ExpensesView() {
     e.preventDefault();
     if (!formData.description || !formData.amount) return;
 
+    const finalCategory = formData.category === 'NEW' ? formData.customCategory : formData.category;
+
     const payload = {
       description: formData.description,
       amount: parseFloat(formData.amount),
-      category: formData.category,
+      category: finalCategory || 'Otro',
       branch_id: selectedBranch === 'all' ? (branches[0]?.id || null) : selectedBranch,
-      user_id: 'default-user' // would be from auth
+      user_id: sessionUser.id || null
     };
 
     await supabase.from('expenses').insert([payload]);
     setShowModal(false);
-    setFormData({ description: '', amount: '', category: 'Operativo' });
+    setFormData({ description: '', amount: '', category: 'Operativo', customCategory: '' });
     fetchExpenses();
   };
 
@@ -185,9 +191,20 @@ export function ExpensesView() {
                 </div>
                 <div>
                   <label className="text-label-caps text-on-surface-variant mb-1 block">Categoría</label>
-                  <select value={formData.category} onChange={e => setFormData({...formData, category: e.target.value})} className="w-full bg-surface border border-outline-variant rounded-lg h-10 px-3 text-body-sm outline-none focus:border-primary">
-                    {categories.map(c => <option key={c} value={c}>{c}</option>)}
+                  <select value={formData.category} onChange={e => setFormData({...formData, category: e.target.value})} className="w-full bg-surface border border-outline-variant rounded-lg h-10 px-3 text-body-sm outline-none focus:border-primary mb-2">
+                    {dynamicCategories.map(c => <option key={c} value={c}>{c}</option>)}
+                    <option value="NEW">+ Nueva Categoría...</option>
                   </select>
+                  {formData.category === 'NEW' && (
+                    <input 
+                      type="text" 
+                      required
+                      placeholder="Escribe la categoría..."
+                      value={formData.customCategory} 
+                      onChange={e => setFormData({...formData, customCategory: e.target.value})} 
+                      className="w-full bg-surface border border-outline-variant rounded-lg h-10 px-3 text-body-sm outline-none focus:border-primary" 
+                    />
+                  )}
                 </div>
               </div>
               <div className="flex justify-end gap-3 mt-4">
