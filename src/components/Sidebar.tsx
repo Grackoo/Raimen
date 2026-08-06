@@ -21,7 +21,7 @@ export function Sidebar({ currentView, onViewChange }: SidebarProps) {
   ];
 
   return (
-    <aside className="bg-surface-container-lowest h-screen w-60 fixed left-0 top-0 hidden md:flex flex-col border-r border-outline-variant shadow-sm z-40">
+    <aside className="bg-surface-container-low h-screen w-64 fixed left-0 top-0 hidden md:flex flex-col border-r border-outline-variant/30 shadow-[4px_0_24px_-12px_rgba(0,0,0,0.1)] z-40">
       <div className="flex flex-col h-full py-6 px-4">
         {/* Header */}
         <div className="mb-8 px-2 flex items-center gap-3">
@@ -58,13 +58,16 @@ export function Sidebar({ currentView, onViewChange }: SidebarProps) {
               <button
                 key={item.id}
                 onClick={() => onViewChange(item.id)}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-body-sm w-full text-left transition-all duration-200 ease-in-out group ${
+                className={`flex items-center gap-3 px-3 py-3 rounded-xl text-body-sm w-full text-left transition-all duration-300 ease-out group relative ${
                   isActive
-                    ? 'text-primary font-bold border-r-4 border-secondary bg-surface-container-high'
-                    : 'text-on-surface-variant hover:text-primary hover:bg-surface-container-high'
+                    ? 'text-primary font-bold bg-white shadow-sm ring-1 ring-outline-variant/30'
+                    : 'text-on-surface-variant hover:text-primary hover:bg-white/50'
                 }`}
               >
-                <Icon size={20} className={!isActive ? 'group-hover:scale-110 transition-transform' : ''} />
+                {isActive && (
+                  <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-primary rounded-r-full"></div>
+                )}
+                <Icon size={20} className={!isActive ? 'group-hover:scale-110 transition-transform duration-300' : ''} />
                 {item.label}
               </button>
             );
