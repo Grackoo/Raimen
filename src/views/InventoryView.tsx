@@ -10,6 +10,7 @@ interface Product {
   category: string;
   sku: string;
   stock: number;
+  cost: number;
   price: number;
   ml_price: number;
   active: boolean;
@@ -145,6 +146,7 @@ export function InventoryView() {
                   <th className="p-4 text-label-caps text-on-surface-variant tracking-wider">Producto</th>
                   <th className="p-4 text-label-caps text-on-surface-variant tracking-wider">SKU</th>
                   <th className="p-4 text-label-caps text-on-surface-variant tracking-wider text-right">Stock</th>
+                  <th className="p-4 text-label-caps text-on-surface-variant tracking-wider text-right">Costo</th>
                   <th className="p-4 text-label-caps text-on-surface-variant tracking-wider text-right">Precio (Local)</th>
                   <th className="p-4 text-label-caps text-on-surface-variant tracking-wider text-right">Precio ML</th>
                   <th className="p-4 text-label-caps text-on-surface-variant tracking-wider text-center">Activo</th>
@@ -175,6 +177,7 @@ export function InventoryView() {
                         {p.stock}
                       </span>
                     </td>
+                    <td className="p-4 text-right text-data-mono text-on-surface-variant">${p.cost || 0}</td>
                     <td className="p-4 text-right text-data-mono text-on-surface">${p.price}</td>
                     <td className="p-4 text-right text-data-mono text-on-surface-variant">${p.ml_price}</td>
                     <td className="p-4 text-center">

@@ -1,5 +1,5 @@
 import React from 'react';
-import { LayoutDashboard, Package, RefreshCw, Monitor, Settings, HelpCircle, LogOut, Plus } from 'lucide-react';
+import { LayoutDashboard, Package, RefreshCw, Monitor, Settings, HelpCircle, LogOut, Plus, Users, Wallet, FileText, Lock, LineChart } from 'lucide-react';
 
 interface SidebarProps {
   currentView: string;
@@ -9,9 +9,14 @@ interface SidebarProps {
 export function Sidebar({ currentView, onViewChange }: SidebarProps) {
   const navItems = [
     { id: 'dashboard', label: 'Panel de Control', icon: LayoutDashboard },
-    { id: 'inventory', label: 'Inventario', icon: Package },
-    { id: 'orders', label: 'Historial de Ventas', icon: RefreshCw },
     { id: 'pos', label: 'Ventas (Caja)', icon: Monitor },
+    { id: 'orders', label: 'Historial de Ventas', icon: RefreshCw },
+    { id: 'inventory', label: 'Inventario', icon: Package },
+    { id: 'customers', label: 'Clientes', icon: Users },
+    { id: 'expenses', label: 'Control de Gastos', icon: Wallet },
+    { id: 'accounts_payable', label: 'Cuentas por Pagar', icon: FileText },
+    { id: 'cash_register', label: 'Corte de Caja', icon: Lock },
+    { id: 'reports', label: 'Reportes Financieros', icon: LineChart },
     { id: 'settings', label: 'Configuración', icon: Settings },
   ];
 
