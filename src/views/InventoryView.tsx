@@ -131,10 +131,10 @@ export function InventoryView() {
           <div className="text-title-md text-on-surface-variant animate-pulse">Cargando inventario...</div>
         </div>
       ) : (
-      <div className="flex flex-col xl:flex-row gap-6 h-full min-h-[500px]">
+      <div className="flex-1 flex flex-col xl:flex-row gap-6">
         
         {/* Table */}
-        <div className="flex-1 bg-surface-container-lowest rounded-xl border border-outline-variant shadow-sm overflow-hidden flex flex-col">
+        <div className="flex-1 bg-surface-container-lowest rounded-xl border border-outline-variant shadow-sm overflow-hidden flex flex-col min-h-[400px] xl:min-h-0">
           <div className="overflow-x-auto flex-1 custom-scrollbar">
             <table className="w-full text-left border-collapse whitespace-nowrap min-w-[800px]">
               <thead className="bg-surface-container-low sticky top-0 z-10 border-b border-outline-variant">
