@@ -26,11 +26,14 @@ export function ExpensesView() {
 
   const sessionUser = JSON.parse(localStorage.getItem('raimen_pos_user') || '{}');
 
-  const baseCategories = ['Operativo', 'Administrativo', 'Nómina', 'Marketing', 'Mantenimiento', 'Insumos', 'Otro'];
-  const dynamicCategories = Array.from(new Set([...baseCategories, ...expenses.map(e => e.category).filter(Boolean)]));
+  const baseCategories = ['Operativo', 'Administrativo', 'Nómina', 'Marketing', 'Mantenimiento', 'Insumos', 'Renta', 'Luz', 'Agua', 'Internet', 'Teléfono', 'Impuestos', 'Otro'];
+  const dynamicCategories = Array.from(new Set([...baseCategories, ...allCategories, ...expenses.map(e => e.category).filter(Boolean)]));
+
+  const [allCategories, setAllCategories] = useState<string[]>([]);
 
   useEffect(() => {
     fetchBranches();
+    fetchAllCategories();
   }, []);
 
   useEffect(() => {
@@ -40,6 +43,14 @@ export function ExpensesView() {
   async function fetchBranches() {
     const { data } = await supabase.from('branches').select('id, name');
     if (data) setBranches(data);
+  }
+
+  async function fetchAllCategories() {
+    const { data } = await supabase.from('expenses').select('category');
+    if (data) {
+      const unique = Array.from(new Set(data.map(d => d.category).filter(Boolean)));
+      setAllCategories(unique);
+    }
   }
 
   async function fetchExpenses() {
