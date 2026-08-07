@@ -256,26 +256,52 @@ export function OrdersView() {
                 <p className="mt-2">¡Gracias por su compra!</p>
               </div>
             </div>
-            <div className="p-4 bg-surface-container-low border-t border-outline-variant flex gap-3 shrink-0">
-              <button onClick={() => setCompletedSale(null)} className="flex-1 py-2 rounded-lg border border-outline-variant text-on-surface hover:bg-surface-variant transition-colors font-medium">Cerrar</button>
-              
-              <button onClick={() => setIsExchangeOpen(true)} className="flex-1 py-2 rounded-lg bg-secondary text-on-secondary hover:bg-on-secondary-fixed-variant transition-colors font-medium flex justify-center items-center gap-2">
-                <RefreshCw size={18} /> Efectuar Cambio
-              </button>
+            <div className="p-4 bg-surface-container-low border-t border-outline-variant flex flex-col gap-3 shrink-0">
+              <div className="flex gap-3">
+                <button onClick={() => setCompletedSale(null)} className="flex-1 py-2 rounded-lg border border-outline-variant text-on-surface hover:bg-surface-variant transition-colors font-medium">Cerrar</button>
+                
+                <button onClick={() => setIsExchangeOpen(true)} className="flex-1 py-2 rounded-lg bg-secondary text-on-secondary hover:bg-on-secondary-fixed-variant transition-colors font-medium flex justify-center items-center gap-2">
+                  <RefreshCw size={18} /> Efectuar Cambio
+                </button>
 
+                <button onClick={() => {
+                  const printContent = document.getElementById('printable-ticket');
+                  const win = window.open('', '', 'width=300,height=600');
+                  if(win && printContent) {
+                    win.document.write('<html><head><title>Imprimir Ticket</title><style>body { font-family: monospace; font-size: 12px; margin: 0; padding: 10px; } table { width: 100%; border-collapse: collapse; } th { text-align: left; border-bottom: 1px dashed #000; } td { padding-top: 4px; } .text-right { text-align: right; } .text-center { text-align: center; } .font-bold { font-weight: bold; } .text-xl { font-size: 16px; } .text-lg { font-size: 14px; } .border-t { border-top: 1px dashed #000; } .border-b { border-bottom: 1px dashed #000; } .my-4 { margin: 10px 0; } .py-2 { padding: 5px 0; }</style></head><body>');
+                    win.document.write(printContent.innerHTML);
+                    win.document.write('</body></html>');
+                    win.document.close();
+                    win.focus();
+                    setTimeout(() => { win.print(); win.close(); }, 250);
+                  }
+                }} className="flex-1 py-2 rounded-lg bg-primary text-on-primary hover:bg-primary/90 transition-colors font-medium flex justify-center items-center gap-2">
+                  <Receipt size={18} /> Imprimir
+                </button>
+              </div>
               <button onClick={() => {
-                const printContent = document.getElementById('printable-ticket');
-                const win = window.open('', '', 'width=300,height=600');
-                if(win && printContent) {
-                  win.document.write('<html><head><title>Imprimir Ticket</title><style>body { font-family: monospace; font-size: 12px; margin: 0; padding: 10px; } table { width: 100%; border-collapse: collapse; } th { text-align: left; border-bottom: 1px dashed #000; } td { padding-top: 4px; } .text-right { text-align: right; } .text-center { text-align: center; } .font-bold { font-weight: bold; } .text-xl { font-size: 16px; } .text-lg { font-size: 14px; } .border-t { border-top: 1px dashed #000; } .border-b { border-bottom: 1px dashed #000; } .my-4 { margin: 10px 0; } .py-2 { padding: 5px 0; }</style></head><body>');
-                  win.document.write(printContent.innerHTML);
-                  win.document.write('</body></html>');
-                  win.document.close();
-                  win.focus();
-                  setTimeout(() => { win.print(); win.close(); }, 250);
-                }
-              }} className="flex-1 py-2 rounded-lg bg-primary text-on-primary hover:bg-primary/90 transition-colors font-medium flex justify-center items-center gap-2">
-                <Receipt size={18} /> Imprimir
+                let text = "RAIMEN STORE\n";
+                text += "Sucursal Principal\n";
+                text += `Fecha: ${completedSale.date}\n`;
+                text += `Ticket: ${completedSale.id.substring(0,8).toUpperCase()}\n`;
+                text += "--------------------------------\n";
+                text += "Cant | Descripcion | Importe\n";
+                text += "--------------------------------\n";
+                completedSale.items.forEach((item: any) => {
+                  text += `${item.qty}x ${item.name}\n$${(item.price * item.qty).toFixed(2)}\n`;
+                });
+                text += "--------------------------------\n";
+                text += `SUBTOTAL: $${completedSale.subtotal.toFixed(2)}\n`;
+                text += `IVA (16%): $${completedSale.taxes.toFixed(2)}\n`;
+                text += `TOTAL: $${completedSale.total.toFixed(2)}\n`;
+                text += "--------------------------------\n";
+                text += `PAGO EN: ${completedSale.payment_method.toUpperCase()}\n`;
+                text += "Gracias por su compra!\n\n\n";
+
+                const encoded = encodeURI(text);
+                window.location.href = `intent:${encoded}#Intent;scheme=rawbt;package=ru.a402d.rawbtprinter;end;`;
+              }} className="w-full py-2 rounded-lg bg-secondary text-on-secondary hover:bg-on-secondary-fixed-variant transition-colors font-medium flex justify-center items-center gap-2">
+                <Receipt size={18} /> Imprimir Bluetooth (Móvil)
               </button>
             </div>
           </div>
