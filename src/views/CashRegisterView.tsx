@@ -186,10 +186,19 @@ export function CashRegisterView() {
       difference: calculatedDiff,
       notes: closingNotes,
       status: 'closed',
-      closed_at: new Date().toISOString()
+      closed_at: new Date().toISOString(),
+      cash_sales: cashSales,
+      cash_expenses: cashExpenses
     };
 
-    await supabase.from('cash_registers').update(payload).eq('id', currentRegister.id);
+    const { error } = await supabase.from('cash_registers').update(payload).eq('id', currentRegister.id);
+    
+    if (error) {
+      console.error('Error closing register:', error);
+      alert('Error al cerrar caja: ' + error.message);
+      return;
+    }
+
     setClosingAmount('');
     setClosingNotes('');
     setShowCloseModal(false);
