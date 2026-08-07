@@ -17,6 +17,9 @@ interface Product {
 interface Customer {
   id: string;
   name: string;
+  rfc?: string;
+  email?: string;
+  phone?: string;
 }
 
 interface CartItem extends Product {
@@ -45,7 +48,7 @@ export function POSView() {
       try {
         const [prodRes, custRes] = await Promise.all([
           supabase.from('products').select('*').eq('active', true).order('name'),
-          supabase.from('customers').select('id, name').order('name')
+          supabase.from('customers').select('id, name, rfc, email, phone').order('name')
         ]);
         
         if (prodRes.error) throw prodRes.error;
@@ -151,7 +154,8 @@ export function POSView() {
         subtotal: subtotal,
         taxes: taxes,
         payment_method: paymentMethod,
-        date: new Date().toLocaleString('es-MX')
+        date: new Date().toLocaleString('es-MX'),
+        customer: customers.find(c => c.id === selectedCustomerId)
       });
 
       // Clear cart on success
@@ -348,11 +352,23 @@ export function POSView() {
               <button onClick={() => setCompletedSale(null)} className="hover:bg-primary-fixed hover:text-on-primary-fixed rounded-full p-1"><X size={20}/></button>
             </div>
             <div className="p-6 overflow-y-auto flex-1 font-mono text-sm bg-white text-black" id="printable-ticket">
-              <div className="text-center mb-6">
+              <div className="text-center mb-4 pb-4 border-b border-black/20">
                 <h2 className="text-xl font-bold">RAIMEN STORE</h2>
                 <p>Sucursal Principal</p>
                 <p>Fecha: {completedSale.date}</p>
                 <p>Ticket: {completedSale.id.substring(0,8).toUpperCase()}</p>
+              </div>
+              <div className="mb-4 pb-4 border-b border-black/20">
+                <p><span className="font-bold">Cliente:</span> {completedSale.customer?.name || 'Público en General'}</p>
+                {completedSale.customer?.rfc && completedSale.customer.rfc !== 'XAXX010101000' && (
+                  <p>RFC: {completedSale.customer.rfc}</p>
+                )}
+                {completedSale.customer?.email && (
+                  <p>Email: {completedSale.customer.email}</p>
+                )}
+                {completedSale.customer?.phone && (
+                  <p>Tel: {completedSale.customer.phone}</p>
+                )}
               </div>
               <div className="border-t border-b border-black/20 py-2 mb-4">
                 <table className="w-full">
