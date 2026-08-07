@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Scan, Search, User, MoreVertical, Minus, Plus, Banknote, CreditCard, Landmark, Receipt, ShoppingBag, Loader2, Trash2, X } from 'lucide-react';
+import { Scan, Search, User, MoreVertical, Minus, Plus, Banknote, CreditCard, Landmark, Receipt, ShoppingBag, Loader2, Trash2, X, Calendar } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { Scanner } from '@yudiel/react-qr-scanner';
 import { AdminOverrideModal } from '../components/AdminOverrideModal';
@@ -38,6 +38,7 @@ export function POSView() {
   const [processingSale, setProcessingSale] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState('Efectivo');
   const [completedSale, setCompletedSale] = useState<any>(null);
+  const [customDate, setCustomDate] = useState('');
 
   const [adminAction, setAdminAction] = useState<{action: string, payload?: any} | null>(null);
 
@@ -118,15 +119,21 @@ export function POSView() {
     
     try {
       // 1. Create Sale
+      const salePayload: any = {
+        total: total,
+        payment_method: paymentMethod,
+        cashier_id: sessionUser.id,
+        branch_id: sessionUser.branch_id,
+        customer_id: selectedCustomerId || null
+      };
+
+      if (customDate) {
+        salePayload.created_at = new Date(customDate).toISOString();
+      }
+
       const { data: saleData, error: saleError } = await supabase
         .from('sales')
-        .insert({
-          total: total,
-          payment_method: paymentMethod,
-          cashier_id: sessionUser.id,
-          branch_id: sessionUser.branch_id,
-          customer_id: selectedCustomerId || null
-        })
+        .insert(salePayload)
         .select()
         .single();
         
@@ -256,25 +263,42 @@ export function POSView() {
 
       {/* Right Sidebar: Cart */}
       <section className="w-full lg:w-96 bg-surface-container-lowest rounded-xl shadow-sm border border-outline-variant flex flex-col lg:h-full min-h-[500px] flex-shrink-0 z-10">
-        <div className="p-4 border-b border-outline-variant flex items-center justify-between bg-surface/50 rounded-t-xl">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-primary-fixed flex items-center justify-center text-primary font-bold">
-              <User size={20} />
+        <div className="p-4 border-b border-outline-variant flex flex-col gap-3 bg-surface/50 rounded-t-xl">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3 flex-1">
+              <div className="w-10 h-10 rounded-full bg-primary-fixed flex items-center justify-center text-primary font-bold">
+                <User size={20} />
+              </div>
+              <div className="w-full">
+                <select 
+                  value={selectedCustomerId} 
+                  onChange={(e) => setSelectedCustomerId(e.target.value)}
+                  className="w-full bg-transparent text-label-caps text-on-surface-variant font-bold outline-none cursor-pointer"
+                >
+                  <option value="">Seleccionar Cliente...</option>
+                  {customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </div>
             </div>
-            <div className="w-full">
-              <select 
-                value={selectedCustomerId} 
-                onChange={(e) => setSelectedCustomerId(e.target.value)}
-                className="w-full bg-transparent text-label-caps text-on-surface-variant font-bold outline-none cursor-pointer"
-              >
-                <option value="">Seleccionar Cliente...</option>
-                {customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
+            <button className="w-8 h-8 rounded-full hover:bg-surface-variant flex items-center justify-center text-on-surface-variant transition-colors shrink-0">
+              <MoreVertical size={20} />
+            </button>
+          </div>
+          
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-secondary-container flex items-center justify-center text-on-secondary-container font-bold shrink-0">
+              <Calendar size={18} />
+            </div>
+            <div className="w-full flex flex-col">
+              <label className="text-[10px] text-on-surface-variant font-semibold">Fecha (opcional)</label>
+              <input
+                type="datetime-local"
+                value={customDate}
+                onChange={(e) => setCustomDate(e.target.value)}
+                className="w-full bg-transparent text-body-sm text-on-surface-variant font-medium outline-none cursor-pointer"
+              />
             </div>
           </div>
-          <button className="w-8 h-8 rounded-full hover:bg-surface-variant flex items-center justify-center text-on-surface-variant transition-colors">
-            <MoreVertical size={20} />
-          </button>
         </div>
 
         <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-3">
