@@ -17,6 +17,8 @@ import { Scan, Package, ShoppingBag, User } from 'lucide-react';
 
 export default function App() {
   const [currentView, setCurrentView] = useState('dashboard');
+  const sessionUser = JSON.parse(localStorage.getItem('raimen_pos_user') || '{}');
+  const userRole = sessionUser.role || 'admin';
 
   useEffect(() => {
     const handleHashChange = () => {
@@ -69,18 +71,34 @@ export default function App() {
               <Scan className="mb-1" size={20} />
               <span className="text-[10px]">Caja</span>
             </button>
-            <button onClick={() => setCurrentView('inventory')} className={`flex flex-col items-center justify-center p-2 rounded-xl transition-colors text-label-caps w-16 ${currentView === 'inventory' ? 'text-primary' : 'text-on-surface-variant'}`}>
-              <Package className="mb-1" size={20} />
-              <span className="text-[10px]">Inv</span>
-            </button>
-            <button onClick={() => setCurrentView('orders')} className={`flex flex-col items-center justify-center p-2 rounded-xl transition-colors text-label-caps w-16 ${currentView === 'orders' ? 'text-primary' : 'text-on-surface-variant'}`}>
-              <ShoppingBag className="mb-1" size={20} />
-              <span className="text-[10px]">Ventas</span>
-            </button>
-            <button onClick={() => setCurrentView('settings')} className={`flex flex-col items-center justify-center p-2 rounded-xl transition-colors text-label-caps w-16 ${currentView === 'settings' ? 'text-primary' : 'text-on-surface-variant'}`}>
-              <User className="mb-1" size={20} />
-              <span className="text-[10px]">Perfil</span>
-            </button>
+            
+            {userRole !== 'cajero' && (
+              <button onClick={() => setCurrentView('inventory')} className={`flex flex-col items-center justify-center p-2 rounded-xl transition-colors text-label-caps w-16 ${currentView === 'inventory' ? 'text-primary' : 'text-on-surface-variant'}`}>
+                <Package className="mb-1" size={20} />
+                <span className="text-[10px]">Inv</span>
+              </button>
+            )}
+            
+            {userRole !== 'cajero' && (
+              <button onClick={() => setCurrentView('orders')} className={`flex flex-col items-center justify-center p-2 rounded-xl transition-colors text-label-caps w-16 ${currentView === 'orders' ? 'text-primary' : 'text-on-surface-variant'}`}>
+                <ShoppingBag className="mb-1" size={20} />
+                <span className="text-[10px]">Ventas</span>
+              </button>
+            )}
+
+            {userRole === 'cajero' && (
+              <button onClick={() => setCurrentView('expenses')} className={`flex flex-col items-center justify-center p-2 rounded-xl transition-colors text-label-caps w-16 ${currentView === 'expenses' ? 'text-primary' : 'text-on-surface-variant'}`}>
+                <ShoppingBag className="mb-1" size={20} />
+                <span className="text-[10px]">Gastos</span>
+              </button>
+            )}
+            
+            {userRole !== 'cajero' && (
+              <button onClick={() => setCurrentView('settings')} className={`flex flex-col items-center justify-center p-2 rounded-xl transition-colors text-label-caps w-16 ${currentView === 'settings' ? 'text-primary' : 'text-on-surface-variant'}`}>
+                <User className="mb-1" size={20} />
+                <span className="text-[10px]">Perfil</span>
+              </button>
+            )}
           </nav>
         )}
       </div>

@@ -7,7 +7,10 @@ interface SidebarProps {
 }
 
 export function Sidebar({ currentView, onViewChange }: SidebarProps) {
-  const navItems = [
+  const sessionUser = JSON.parse(localStorage.getItem('raimen_pos_user') || '{}');
+  const userRole = sessionUser.role || 'admin'; // default to admin if not set
+
+  const allNavItems = [
     { id: 'dashboard', label: 'Panel de Control', icon: LayoutDashboard },
     { id: 'pos', label: 'Ventas (Caja)', icon: Monitor },
     { id: 'orders', label: 'Historial de Ventas', icon: RefreshCw },
@@ -19,6 +22,10 @@ export function Sidebar({ currentView, onViewChange }: SidebarProps) {
     { id: 'reports', label: 'Reportes Financieros', icon: LineChart },
     { id: 'settings', label: 'Configuración', icon: Settings },
   ];
+
+  const navItems = userRole === 'cajero' 
+    ? allNavItems.filter(item => ['pos', 'expenses', 'cash_register', 'customers'].includes(item.id))
+    : allNavItems;
 
   return (
     <aside className="bg-surface-container-low h-screen w-64 fixed left-0 top-0 hidden md:flex flex-col border-r border-outline-variant/30 shadow-[4px_0_24px_-12px_rgba(0,0,0,0.1)] z-40">
