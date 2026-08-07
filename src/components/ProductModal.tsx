@@ -20,7 +20,8 @@ export function ProductModal({ onClose, onSuccess, productToEdit }: ProductModal
     price: productToEdit?.price?.toString() || '',
     cost: productToEdit?.cost?.toString() || '',
     stock: productToEdit?.stock?.toString() || '',
-    category: productToEdit?.category || ''
+    category: productToEdit?.category || '',
+    branch_id: productToEdit?.branch_id || ''
   });
 
   useEffect(() => {
@@ -40,17 +41,26 @@ export function ProductModal({ onClose, onSuccess, productToEdit }: ProductModal
   ];
 
   const [dbCategories, setDbCategories] = useState<string[]>([]);
+  const [branches, setBranches] = useState<any[]>([]);
   const [manualSku, setManualSku] = useState(false);
 
   useEffect(() => {
-    async function fetchCategories() {
-      const { data } = await supabase.from('products').select('category');
-      if (data) {
-        const unique = Array.from(new Set(data.map(d => d.category).filter(Boolean)));
+    async function fetchCategoriesAndBranches() {
+      const [catRes, branchRes] = await Promise.all([
+        supabase.from('products').select('category'),
+        supabase.from('branches').select('id, name')
+      ]);
+
+      if (catRes.data) {
+        const unique = Array.from(new Set(catRes.data.map(d => d.category).filter(Boolean)));
         setDbCategories(unique as string[]);
       }
+
+      if (branchRes.data) {
+        setBranches(branchRes.data);
+      }
     }
-    fetchCategories();
+    fetchCategoriesAndBranches();
   }, []);
 
   useEffect(() => {
@@ -144,7 +154,8 @@ export function ProductModal({ onClose, onSuccess, productToEdit }: ProductModal
         stock: parseInt(formData.stock), 
         category: formData.category || 'General',
         image: imageUrl,
-        active: productToEdit ? productToEdit.active : true 
+        active: productToEdit ? productToEdit.active : true,
+        branch_id: formData.branch_id || (branches.length > 0 ? branches[0].id : null)
       };
 
       if (productToEdit) {
@@ -222,10 +233,22 @@ export function ProductModal({ onClose, onSuccess, productToEdit }: ProductModal
             </datalist>
           </div>
 
-          <div>
-            <label className="text-label-caps text-on-surface-variant mb-1 block">Nombre</label>
-            <input required value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} type="text" className="w-full bg-surface border border-outline-variant rounded-lg h-10 px-3 text-body-sm focus:ring-2 focus:ring-primary outline-none" placeholder="Ej. Zapatos Casuales" />
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-label-caps text-on-surface-variant mb-1 block">Nombre</label>
+              <input required value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} type="text" className="w-full bg-surface border border-outline-variant rounded-lg h-10 px-3 text-body-sm focus:ring-2 focus:ring-primary outline-none" placeholder="Ej. Zapatos Casuales" />
+            </div>
+            <div>
+              <label className="text-label-caps text-on-surface-variant mb-1 block">Sucursal</label>
+              <select required value={formData.branch_id} onChange={e => setFormData({...formData, branch_id: e.target.value})} className="w-full bg-surface border border-outline-variant rounded-lg h-10 px-3 text-body-sm focus:ring-2 focus:ring-primary outline-none cursor-pointer">
+                <option value="" disabled>Selecciona una sucursal</option>
+                {branches.map(b => (
+                  <option key={b.id} value={b.id}>{b.name}</option>
+                ))}
+              </select>
+            </div>
           </div>
+
           <div>
             <label className="text-label-caps text-on-surface-variant mb-1 block">SKU</label>
             <input required value={formData.sku} onChange={e => {
