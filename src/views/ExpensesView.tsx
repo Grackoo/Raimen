@@ -26,10 +26,9 @@ export function ExpensesView() {
 
   const sessionUser = JSON.parse(localStorage.getItem('raimen_pos_user') || '{}');
 
+  const [allCategories, setAllCategories] = useState<string[]>([]);
   const baseCategories = ['Operativo', 'Administrativo', 'Nómina', 'Marketing', 'Mantenimiento', 'Insumos', 'Renta', 'Luz', 'Agua', 'Internet', 'Teléfono', 'Impuestos', 'Otro'];
   const dynamicCategories = Array.from(new Set([...baseCategories, ...allCategories, ...expenses.map(e => e.category).filter(Boolean)]));
-
-  const [allCategories, setAllCategories] = useState<string[]>([]);
 
   useEffect(() => {
     fetchBranches();
