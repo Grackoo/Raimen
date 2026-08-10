@@ -124,7 +124,11 @@ export function InventoryView() {
       const imgData = canvas.toDataURL('image/png');
       
       win.document.open();
-      win.document.write(`<html><head><title>Imprimir Etiqueta</title><style>body{margin:0;display:flex;justify-content:center;align-items:center;height:100vh;}img{width:113px;height:113px;}</style></head><body><img src="${imgData}" /></body></html>`);
+      win.document.write(`<html><head><title>Imprimir Etiqueta</title><style>
+        @page { size: 30mm 30mm; margin: 0; }
+        body { margin: 0; width: 30mm; height: 30mm; display: flex; justify-content: center; align-items: center; background-color: white; }
+        img { width: 100%; height: 100%; object-fit: contain; }
+      </style></head><body><img src="${imgData}" /></body></html>`);
       win.document.close();
       win.focus();
       setTimeout(() => { win.print(); win.close(); }, 250);
