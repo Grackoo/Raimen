@@ -329,21 +329,21 @@ export function InventoryView() {
             <span className="text-label-caps text-on-surface-variant bg-surface-variant px-2 py-1 rounded">3x3 cm</span>
           </div>
           <div className="p-6 flex-1 flex flex-col items-center justify-center bg-surface relative">
-            <div id="qr-preview-container" className="w-48 h-48 bg-white border border-outline shadow-md p-3 flex flex-col items-center justify-between">
+            <div id="qr-preview-container" className="w-48 h-48 shadow-md p-3 flex flex-col items-center justify-between" style={{ backgroundColor: '#ffffff', borderColor: '#76777d', borderWidth: '1px', borderStyle: 'solid' }}>
               <div className="text-center w-full">
-                <h4 className="text-title-md font-bold text-black tracking-tighter leading-none mb-1">RAIMEN</h4>
-                <div className="w-full h-px bg-black opacity-20 mb-1"></div>
-                <p className="text-[10px] text-black leading-tight truncate px-2">{selectedProduct ? selectedProduct.name : 'Selecciona un producto'}</p>
-                <p className="text-data-mono text-[9px] text-black/60 truncate">{selectedProduct ? selectedProduct.sku : '---'}</p>
+                <h4 className="text-title-md font-bold tracking-tighter leading-none mb-1" style={{ color: '#000000' }}>RAIMEN</h4>
+                <div className="w-full h-px mb-1" style={{ backgroundColor: '#000000', opacity: 0.2 }}></div>
+                <p className="text-[10px] leading-tight truncate px-2" style={{ color: '#000000' }}>{selectedProduct ? selectedProduct.name : 'Selecciona un producto'}</p>
+                <p className="text-data-mono text-[9px] truncate" style={{ color: 'rgba(0, 0, 0, 0.6)' }}>{selectedProduct ? selectedProduct.sku : '---'}</p>
               </div>
-              <div className="w-20 h-20 bg-white p-1">
+              <div className="w-20 h-20 p-1" style={{ backgroundColor: '#ffffff' }}>
                 {selectedProduct ? (
                   <QRCode value={selectedProduct.sku} size={80} style={{ height: "auto", maxWidth: "100%", width: "100%" }} viewBox={`0 0 80 80`} />
                 ) : (
-                  <QrCode className="w-full h-full text-black/20" />
+                  <QrCode className="w-full h-full" style={{ color: 'rgba(0, 0, 0, 0.2)' }} />
                 )}
               </div>
-              <div className="text-data-mono text-title-md font-bold text-black leading-none mt-1">
+              <div className="text-data-mono text-title-md font-bold leading-none mt-1" style={{ color: '#000000' }}>
                 ${selectedProduct ? selectedProduct.price : '0.00'}
               </div>
             </div>
