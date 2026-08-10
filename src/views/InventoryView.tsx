@@ -334,11 +334,17 @@ export function InventoryView() {
           </div>
           <div className="p-6 flex-1 flex flex-col items-center justify-center bg-surface relative">
             <div id="qr-preview-container" className="w-48 h-48 shadow-md p-3 flex flex-col items-center justify-between" style={{ backgroundColor: '#ffffff', borderColor: '#76777d', borderWidth: '1px', borderStyle: 'solid' }}>
-              <div className="text-center w-full">
+              <div className="text-center w-full" style={{ padding: '2px 0' }}>
                 <h4 className="text-title-md font-bold tracking-tighter leading-none mb-1" style={{ color: '#000000' }}>RAIMEN</h4>
                 <div className="w-full h-px mb-1" style={{ backgroundColor: '#000000', opacity: 0.2 }}></div>
-                <p className="text-[10px] leading-tight truncate px-2" style={{ color: '#000000' }}>{selectedProduct ? selectedProduct.name : 'Selecciona un producto'}</p>
-                <p className="text-data-mono text-[9px] truncate" style={{ color: 'rgba(0, 0, 0, 0.6)' }}>{selectedProduct ? selectedProduct.sku : '---'}</p>
+                <div style={{ width: '100%', overflow: 'hidden' }}>
+                  <p style={{ color: '#000000', fontSize: '10px', lineHeight: '14px', whiteSpace: 'nowrap', padding: '1px 0' }}>
+                    {selectedProduct ? selectedProduct.name : 'Selecciona un producto'}
+                  </p>
+                  <p style={{ color: 'rgba(0, 0, 0, 0.6)', fontSize: '9px', fontFamily: 'monospace', lineHeight: '12px', whiteSpace: 'nowrap', padding: '1px 0' }}>
+                    {selectedProduct ? selectedProduct.sku : '---'}
+                  </p>
+                </div>
               </div>
               <div className="w-20 h-20 p-1" style={{ backgroundColor: '#ffffff' }}>
                 {selectedProduct ? (
