@@ -15,6 +15,11 @@ export function SettingsView() {
   const [editingBranchId, setEditingBranchId] = useState<string | null>(null);
   const [editBranchForm, setEditBranchForm] = useState({ name: '', location: '', type: '' });
 
+  const [motives, setMotives] = useState<any[]>([]);
+  const [newMotive, setNewMotive] = useState('');
+  const [editingMotiveId, setEditingMotiveId] = useState<string | null>(null);
+  const [editMotiveName, setEditMotiveName] = useState('');
+
   const [newUser, setNewUser] = useState({
     username: '',
     name: '',
@@ -36,12 +41,14 @@ export function SettingsView() {
   async function fetchData() {
     setLoading(true);
     try {
-      const [usersRes, branchesRes] = await Promise.all([
+      const [usersRes, branchesRes, motivesRes] = await Promise.all([
         supabase.from('users').select('*'),
-        supabase.from('branches').select('*')
+        supabase.from('branches').select('*'),
+        supabase.from('expense_categories').select('*').order('name')
       ]);
       if (usersRes.data) setUsers(usersRes.data);
       if (branchesRes.data) setBranches(branchesRes.data);
+      if (motivesRes.data) setMotives(motivesRes.data);
       
       if (branchesRes.data && branchesRes.data.length > 0) {
         setNewUser(prev => ({ ...prev, branch_id: branchesRes.data[0].id }));
@@ -158,6 +165,45 @@ export function SettingsView() {
     }
   };
 
+  const handleAddMotive = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newMotive.trim()) return;
+    try {
+      const { error } = await supabase.from('expense_categories').insert([{ name: newMotive.trim() }]);
+      if (error) throw error;
+      setNewMotive('');
+      fetchData();
+    } catch (err) {
+      console.error(err);
+      alert('Error agregando motivo (puede que ya exista)');
+    }
+  };
+
+  const handleUpdateMotive = async () => {
+    if (!editMotiveName.trim()) return;
+    try {
+      const { error } = await supabase.from('expense_categories').update({ name: editMotiveName.trim() }).eq('id', editingMotiveId);
+      if (error) throw error;
+      setEditingMotiveId(null);
+      fetchData();
+    } catch (err) {
+      console.error(err);
+      alert('Error actualizando motivo');
+    }
+  };
+
+  const handleDeleteMotive = async (id: string) => {
+    if (!confirm('¿Estás seguro de eliminar este motivo?')) return;
+    try {
+      const { error } = await supabase.from('expense_categories').delete().eq('id', id);
+      if (error) throw error;
+      fetchData();
+    } catch (err) {
+      console.error(err);
+      alert('Error eliminando motivo');
+    }
+  };
+
   return (
     <main className="flex-1 flex flex-col h-full bg-background overflow-hidden">
       {/* Settings layout */}
@@ -189,6 +235,12 @@ export function SettingsView() {
               <Shield size={20} /> <span className="text-title-md font-medium">Seguridad</span>
             </button>
             <button 
+              onClick={() => setActiveTab('motives')}
+              className={`flex items-center gap-3 w-full p-3 rounded-lg text-left transition-colors ${activeTab === 'motives' ? 'bg-primary-fixed text-on-primary-fixed' : 'hover:bg-surface-variant text-on-surface'}`}
+            >
+              <Settings size={20} /> <span className="text-title-md font-medium">Motivos de Gasto</span>
+            </button>
+            <button 
               onClick={() => setActiveTab('general')}
               className={`flex items-center gap-3 w-full p-3 rounded-lg text-left transition-colors ${activeTab === 'general' ? 'bg-primary-fixed text-on-primary-fixed' : 'hover:bg-surface-variant text-on-surface'}`}
             >
@@ -201,6 +253,60 @@ export function SettingsView() {
         <div className="flex-1 overflow-y-auto p-4 md:p-8 pb-24 lg:pb-8">
           <div className="flex-1 bg-surface-container-lowest border border-outline-variant rounded-xl p-6 shadow-sm min-h-[500px]">
             
+            {activeTab === 'motives' && (
+              <div className="space-y-6">
+                <h3 className="text-title-lg text-on-surface border-b border-outline-variant pb-2">Motivos de Gasto</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  <div>
+                    <h4 className="text-title-md text-on-surface mb-4">Agregar Nuevo Motivo</h4>
+                    <form onSubmit={handleAddMotive} className="space-y-4">
+                      <div>
+                        <label className="text-label-caps text-on-surface-variant block mb-1">Nombre del Motivo</label>
+                        <input required value={newMotive} onChange={e => setNewMotive(e.target.value)} type="text" className="w-full bg-surface border border-outline-variant rounded-lg p-2 focus:ring-2 focus:ring-primary outline-none" />
+                      </div>
+                      <button type="submit" className="bg-primary text-on-primary px-4 py-2 rounded-lg flex items-center justify-center gap-2 w-full hover:opacity-90">
+                        <Plus size={18} /> Guardar Motivo
+                      </button>
+                    </form>
+                  </div>
+                  <div>
+                    <h4 className="text-title-md text-on-surface mb-4">Motivos Actuales</h4>
+                    <div className="space-y-3">
+                      {loading ? (
+                        <p className="text-on-surface-variant text-body-sm">Cargando...</p>
+                      ) : (
+                        motives.map(m => (
+                          <div key={m.id} className="flex items-center justify-between p-3 border border-outline-variant rounded-lg bg-surface">
+                            {editingMotiveId === m.id ? (
+                              <input value={editMotiveName} onChange={e => setEditMotiveName(e.target.value)} className="bg-surface-container border border-outline-variant rounded p-1 flex-1 mr-2 text-on-surface outline-none" />
+                            ) : (
+                              <div className="flex-1">
+                                <p className="font-bold text-on-surface">{m.name}</p>
+                              </div>
+                            )}
+                            
+                            <div className="flex gap-2">
+                              {editingMotiveId === m.id ? (
+                                <>
+                                  <button onClick={handleUpdateMotive} className="text-primary hover:bg-surface-variant p-2 rounded-lg transition-colors"><Check size={18} /></button>
+                                  <button onClick={() => setEditingMotiveId(null)} className="text-error hover:bg-error/10 p-2 rounded-lg transition-colors"><X size={18} /></button>
+                                </>
+                              ) : (
+                                <>
+                                  <button onClick={() => { setEditingMotiveId(m.id); setEditMotiveName(m.name); }} className="text-on-surface-variant hover:bg-surface-variant p-2 rounded-lg transition-colors"><Edit2 size={18} /></button>
+                                  <button onClick={() => handleDeleteMotive(m.id)} className="text-error hover:bg-error/10 p-2 rounded-lg transition-colors"><Trash2 size={18} /></button>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {activeTab === 'users' && (
               <div className="space-y-6">
                 <h3 className="text-title-lg text-on-surface border-b border-outline-variant pb-2">Gestión de Usuarios</h3>

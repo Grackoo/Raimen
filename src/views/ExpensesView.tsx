@@ -28,7 +28,7 @@ export function ExpensesView() {
 
   const [allCategories, setAllCategories] = useState<string[]>([]);
   const baseCategories = ['Operativo', 'Administrativo', 'Nómina', 'Marketing', 'Mantenimiento', 'Insumos', 'Renta', 'Luz', 'Agua', 'Internet', 'Teléfono', 'Impuestos', 'Otro'];
-  const dynamicCategories = Array.from(new Set([...baseCategories, ...allCategories, ...expenses.map(e => e.category).filter(Boolean)]));
+  const dynamicCategories = allCategories.length > 0 ? allCategories : baseCategories;
 
   useEffect(() => {
     fetchBranches();
@@ -45,10 +45,9 @@ export function ExpensesView() {
   }
 
   async function fetchAllCategories() {
-    const { data } = await supabase.from('expenses').select('category');
-    if (data) {
-      const unique = Array.from(new Set(data.map(d => d.category).filter(Boolean)));
-      setAllCategories(unique);
+    const { data } = await supabase.from('expense_categories').select('name').eq('active', true).order('name');
+    if (data && data.length > 0) {
+      setAllCategories(data.map(d => d.name));
     }
   }
 

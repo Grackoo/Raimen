@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Download, Plus, ChevronDown, Filter, AlertTriangle, Edit2, Trash2, Printer, QrCode } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import QRCode from 'react-qr-code';
+import { jsPDF } from 'jspdf';
+import html2canvas from 'html2canvas';
 import { ProductModal } from '../components/ProductModal';
 
 interface Product {
@@ -103,6 +105,45 @@ export function InventoryView() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  const handlePrint = async () => {
+    if (!selectedProduct) return;
+    const element = document.getElementById('qr-preview-container');
+    if (!element) return;
+    try {
+      const canvas = await html2canvas(element, { scale: 2, backgroundColor: '#ffffff' });
+      const imgData = canvas.toDataURL('image/png');
+      const win = window.open('', '', 'width=400,height=400');
+      if (win) {
+        win.document.write(`<html><head><title>Imprimir Etiqueta</title><style>body{margin:0;display:flex;justify-content:center;align-items:center;height:100vh;}img{width:113px;height:113px;}</style></head><body><img src="${imgData}" /></body></html>`);
+        win.document.close();
+        win.focus();
+        setTimeout(() => { win.print(); win.close(); }, 250);
+      }
+    } catch (err) {
+      console.error('Error al imprimir etiqueta:', err);
+    }
+  };
+
+  const handleDownloadPDF = async () => {
+    if (!selectedProduct) return;
+    const element = document.getElementById('qr-preview-container');
+    if (!element) return;
+    try {
+      const canvas = await html2canvas(element, { scale: 2, backgroundColor: '#ffffff' });
+      const imgData = canvas.toDataURL('image/jpeg', 1.0);
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: [30, 30] // 30x30 mm
+      });
+      pdf.addImage(imgData, 'JPEG', 0, 0, 30, 30);
+      pdf.save(`etiqueta-${selectedProduct.sku}.pdf`);
+    } catch (err) {
+      console.error('Error generando PDF:', err);
+      alert('Error generando el PDF');
+    }
   };
 
   const categories = Array.from(new Set(products.map(p => p.category || 'General')));
@@ -303,24 +344,11 @@ export function InventoryView() {
             </p>
           </div>
           <div className="p-4 border-t border-outline-variant bg-surface-container-lowest flex flex-col gap-3">
-            <button onClick={() => {
-              if (selectedProduct) {
-                const printContent = document.getElementById('qr-preview-container');
-                const win = window.open('', '', 'width=400,height=400');
-                if(win && printContent) {
-                  win.document.write(`<html><head><title>Imprimir Etiqueta</title><style>body { font-family: monospace; font-size: 12px; margin: 0; display:flex; justify-content:center; align-items:center; height:100vh; } .w-48 { width: 192px; } .h-48 { height: 192px; } .bg-white { background: white; } .border { border: 1px solid #000; } .p-3 { padding: 12px; } .flex { display: flex; } .flex-col { flex-direction: column; } .items-center { align-items: center; } .justify-between { justify-content: space-between; } .text-center { text-align: center; } .w-full { width: 100%; } .font-bold { font-weight: bold; } .text-black { color: black; } .mb-1 { margin-bottom: 4px; } .h-px { height: 1px; } .opacity-20 { opacity: 0.2; } .text-\\[10px\\] { font-size: 10px; } .leading-tight { line-height: 1.25; } .truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .text-\\[9px\\] { font-size: 9px; } .w-20 { width: 80px; } .h-20 { height: 80px; } .p-1 { padding: 4px; } .mt-1 { margin-top: 4px; }</style></head><body>`);
-                  win.document.write(printContent.innerHTML);
-                  win.document.write('</body></html>');
-                  win.document.close();
-                  win.focus();
-                  setTimeout(() => { win.print(); win.close(); }, 250);
-                }
-              }
-            }} disabled={!selectedProduct} className="w-full bg-primary text-on-primary h-12 rounded-lg text-title-md flex items-center justify-center gap-2 hover:opacity-90 transition-opacity shadow-sm disabled:opacity-50">
+            <button onClick={handlePrint} disabled={!selectedProduct} className="w-full bg-primary text-on-primary h-12 rounded-lg text-title-md flex items-center justify-center gap-2 hover:opacity-90 transition-opacity shadow-sm disabled:opacity-50">
               <Printer size={20} />
               Imprimir Etiqueta
             </button>
-            <button className="w-full bg-surface-container-lowest border border-outline-variant text-primary h-12 rounded-lg text-title-md flex items-center justify-center gap-2 hover:bg-surface-container-low transition-colors">
+            <button onClick={handleDownloadPDF} disabled={!selectedProduct} className="w-full bg-surface-container-lowest border border-outline-variant text-primary h-12 rounded-lg text-title-md flex items-center justify-center gap-2 hover:bg-surface-container-low transition-colors disabled:opacity-50">
               <Download size={20} />
               Descargar PDF
             </button>

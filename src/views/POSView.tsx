@@ -410,8 +410,6 @@ export function POSView() {
                   </tbody>
                 </table>
               </div>
-              <div className="flex justify-between mb-1"><span>SUBTOTAL:</span><span>${completedSale.subtotal.toFixed(2)}</span></div>
-              <div className="flex justify-between mb-1"><span>IVA (16% incl):</span><span>${completedSale.taxes.toFixed(2)}</span></div>
               <div className="flex justify-between font-bold text-lg mt-2 pt-2 border-t border-black/20"><span>TOTAL:</span><span>${completedSale.total.toFixed(2)}</span></div>
               <div className="text-center mt-6 text-xs text-black/60">
                 <p>PAGO EN: {completedSale.payment_method.toUpperCase()}</p>
@@ -448,8 +446,6 @@ export function POSView() {
                   text += `${item.qty}x ${item.name}\n$${(item.price * item.qty).toFixed(2)}\n`;
                 });
                 text += "--------------------------------\n";
-                text += `SUBTOTAL: $${completedSale.subtotal.toFixed(2)}\n`;
-                text += `IVA (16%): $${completedSale.taxes.toFixed(2)}\n`;
                 text += `TOTAL: $${completedSale.total.toFixed(2)}\n`;
                 text += "--------------------------------\n";
                 text += `PAGO EN: ${completedSale.payment_method.toUpperCase()}\n`;

@@ -92,6 +92,13 @@ export function CashRegisterView() {
       .limit(10);
 
     setHistory(hist || []);
+    
+    if (!active && hist && hist.length > 0) {
+      setOpeningAmount(hist[0].actual_closing_amount.toString());
+    } else if (!active) {
+      setOpeningAmount('');
+    }
+    
     setLoading(false);
   }
 
@@ -159,6 +166,18 @@ export function CashRegisterView() {
       setAdminPin('');
       setCurrentRegister(null);
       fetchRegisters();
+    }
+  };
+
+  const handleDeleteClosedRegister = async (id: string) => {
+    if (!confirm('¿Estás seguro de eliminar este corte de caja del historial?')) return;
+    try {
+      const { error } = await supabase.from('cash_registers').delete().eq('id', id);
+      if (error) throw error;
+      fetchRegisters();
+    } catch (err) {
+      console.error(err);
+      alert('Error al eliminar el registro.');
     }
   };
 
@@ -317,11 +336,20 @@ export function CashRegisterView() {
               <h3 className="text-title-md font-bold text-on-surface mb-4">Últimos Cortes Realizados</h3>
               <div className="flex-1 overflow-y-auto custom-scrollbar flex flex-col gap-3">
                 {history.map((reg) => (
-                  <div key={reg.id} className="p-3 border border-outline-variant rounded-lg bg-surface-container-low flex flex-col gap-2">
-                    <div className="flex justify-between items-center text-label-caps text-on-surface-variant">
+                  <div key={reg.id} className="p-3 border border-outline-variant rounded-lg bg-surface-container-low flex flex-col gap-2 relative">
+                    <div className="flex justify-between items-center text-label-caps text-on-surface-variant pr-8">
                       <span>{new Date(reg.closed_at).toLocaleDateString()}</span>
                       <span>{new Date(reg.closed_at).toLocaleTimeString()}</span>
                     </div>
+                    {sessionUser?.role === 'admin' && (
+                      <button 
+                        onClick={() => handleDeleteClosedRegister(reg.id)}
+                        className="absolute top-2 right-2 text-on-surface-variant hover:text-error hover:bg-error/10 p-1.5 rounded-lg transition-colors"
+                        title="Eliminar registro"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path></svg>
+                      </button>
+                    )}
                     <div className="grid grid-cols-2 gap-2 text-body-sm">
                       <div className="flex justify-between">
                         <span className="text-on-surface-variant">Fondo:</span>

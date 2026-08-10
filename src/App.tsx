@@ -16,8 +16,12 @@ import { CashRegisterView } from './views/CashRegisterView';
 import { Scan, Package, ShoppingBag, User } from 'lucide-react';
 
 export default function App() {
-  const [currentView, setCurrentView] = useState('dashboard');
   const sessionUser = JSON.parse(localStorage.getItem('raimen_pos_user') || '{}');
+  const [currentView, setCurrentView] = useState(() => {
+    if (window.location.hash === '#tienda') return 'store';
+    if (!sessionUser || !sessionUser.id) return 'pos-login';
+    return 'dashboard';
+  });
   const userRole = sessionUser.role || 'admin';
 
   useEffect(() => {
@@ -25,7 +29,8 @@ export default function App() {
       if (window.location.hash === '#tienda') {
         setCurrentView('store');
       } else if (currentView === 'store') {
-        setCurrentView('pos-login');
+        const user = JSON.parse(localStorage.getItem('raimen_pos_user') || '{}');
+        setCurrentView(user.id ? 'dashboard' : 'pos-login');
       }
     };
     

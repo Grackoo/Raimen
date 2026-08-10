@@ -21,7 +21,8 @@ export function ProductModal({ onClose, onSuccess, productToEdit }: ProductModal
     cost: productToEdit?.cost?.toString() || '',
     stock: productToEdit?.stock?.toString() || '',
     category: productToEdit?.category || '',
-    branch_id: productToEdit?.branch_id || ''
+    branch_id: productToEdit?.branch_id || '',
+    created_at: ''
   });
 
   useEffect(() => {
@@ -158,6 +159,10 @@ export function ProductModal({ onClose, onSuccess, productToEdit }: ProductModal
         branch_id: formData.branch_id || (branches.length > 0 ? branches[0].id : null)
       };
 
+      if (formData.created_at) {
+        (productData as any).created_at = new Date(formData.created_at).toISOString();
+      }
+
       if (productToEdit) {
         const { error } = await supabase.from('products').update(productData).eq('id', productToEdit.id);
         if (error) throw error;
@@ -249,12 +254,18 @@ export function ProductModal({ onClose, onSuccess, productToEdit }: ProductModal
             </div>
           </div>
 
-          <div>
-            <label className="text-label-caps text-on-surface-variant mb-1 block">SKU</label>
-            <input required value={formData.sku} onChange={e => {
-              setFormData({...formData, sku: e.target.value});
-              setManualSku(true);
-            }} type="text" className="w-full bg-surface border border-outline-variant rounded-lg h-10 px-3 text-body-sm focus:ring-2 focus:ring-primary outline-none text-data-mono uppercase" placeholder="ZAP-CAS-001" />
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-label-caps text-on-surface-variant mb-1 block">SKU</label>
+              <input required value={formData.sku} onChange={e => {
+                setFormData({...formData, sku: e.target.value});
+                setManualSku(true);
+              }} type="text" className="w-full bg-surface border border-outline-variant rounded-lg h-10 px-3 text-body-sm focus:ring-2 focus:ring-primary outline-none text-data-mono uppercase" placeholder="ZAP-CAS-001" />
+            </div>
+            <div>
+              <label className="text-label-caps text-on-surface-variant mb-1 block">Fecha de Registro (Opcional)</label>
+              <input value={formData.created_at} onChange={e => setFormData({...formData, created_at: e.target.value})} type="datetime-local" className="w-full bg-surface border border-outline-variant rounded-lg h-10 px-3 text-body-sm focus:ring-2 focus:ring-primary outline-none" />
+            </div>
           </div>
           
           <div className="grid grid-cols-2 gap-4">
