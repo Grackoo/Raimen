@@ -111,18 +111,26 @@ export function InventoryView() {
     if (!selectedProduct) return;
     const element = document.getElementById('qr-preview-container');
     if (!element) return;
+    
+    const win = window.open('', '', 'width=400,height=400');
+    if (!win) {
+      alert('Por favor habilite las ventanas emergentes de su navegador para imprimir la etiqueta.');
+      return;
+    }
+    win.document.write('<html><head><title>Generando...</title></head><body>Cargando etiqueta...</body></html>');
+    
     try {
       const canvas = await html2canvas(element, { scale: 2, backgroundColor: '#ffffff' });
       const imgData = canvas.toDataURL('image/png');
-      const win = window.open('', '', 'width=400,height=400');
-      if (win) {
-        win.document.write(`<html><head><title>Imprimir Etiqueta</title><style>body{margin:0;display:flex;justify-content:center;align-items:center;height:100vh;}img{width:113px;height:113px;}</style></head><body><img src="${imgData}" /></body></html>`);
-        win.document.close();
-        win.focus();
-        setTimeout(() => { win.print(); win.close(); }, 250);
-      }
+      
+      win.document.open();
+      win.document.write(`<html><head><title>Imprimir Etiqueta</title><style>body{margin:0;display:flex;justify-content:center;align-items:center;height:100vh;}img{width:113px;height:113px;}</style></head><body><img src="${imgData}" /></body></html>`);
+      win.document.close();
+      win.focus();
+      setTimeout(() => { win.print(); win.close(); }, 250);
     } catch (err) {
       console.error('Error al imprimir etiqueta:', err);
+      win.close();
     }
   };
 
