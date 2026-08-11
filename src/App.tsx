@@ -20,9 +20,10 @@ export default function App() {
   const [currentView, setCurrentView] = useState(() => {
     if (window.location.hash === '#tienda') return 'store';
     if (!sessionUser || !sessionUser.id) return 'pos-login';
-    return 'dashboard';
+    const role = (sessionUser.role || 'admin').toLowerCase();
+    return role === 'cajero' ? 'pos' : 'dashboard';
   });
-  const userRole = sessionUser.role || 'admin';
+  const userRole = (sessionUser.role || 'admin').toLowerCase();
 
   useEffect(() => {
     const handleHashChange = () => {
@@ -30,7 +31,8 @@ export default function App() {
         setCurrentView('store');
       } else if (currentView === 'store') {
         const user = JSON.parse(localStorage.getItem('raimen_pos_user') || '{}');
-        setCurrentView(user.id ? 'dashboard' : 'pos-login');
+        const role = (user.role || 'admin').toLowerCase();
+        setCurrentView(user.id ? (role === 'cajero' ? 'pos' : 'dashboard') : 'pos-login');
       }
     };
     

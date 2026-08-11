@@ -8,7 +8,7 @@ interface SidebarProps {
 
 export function Sidebar({ currentView, onViewChange }: SidebarProps) {
   const sessionUser = JSON.parse(localStorage.getItem('raimen_pos_user') || '{}');
-  const userRole = sessionUser.role || 'admin'; // default to admin if not set
+  const userRole = (sessionUser.role || 'admin').toLowerCase();
 
   const allNavItems = [
     { id: 'dashboard', label: 'Panel de Control', icon: LayoutDashboard },
