@@ -23,7 +23,7 @@ export function Sidebar({ currentView, onViewChange }: SidebarProps) {
     { id: 'settings', label: 'Configuración', icon: Settings },
   ];
 
-  const navItems = userRole === 'cajero' 
+  const navItems = userRole === 'cashier' 
     ? allNavItems.filter(item => ['pos', 'orders', 'inventory', 'customers', 'expenses', 'cash_register'].includes(item.id))
     : allNavItems;
 

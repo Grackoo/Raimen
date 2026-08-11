@@ -21,7 +21,7 @@ export default function App() {
     if (window.location.hash === '#tienda') return 'store';
     if (!sessionUser || !sessionUser.id) return 'pos-login';
     const role = (sessionUser.role || 'admin').toLowerCase();
-    return role === 'cajero' ? 'pos' : 'dashboard';
+    return role === 'cashier' ? 'pos' : 'dashboard';
   });
   const userRole = (sessionUser.role || 'admin').toLowerCase();
 
@@ -32,7 +32,7 @@ export default function App() {
       } else if (currentView === 'store') {
         const user = JSON.parse(localStorage.getItem('raimen_pos_user') || '{}');
         const role = (user.role || 'admin').toLowerCase();
-        setCurrentView(user.id ? (role === 'cajero' ? 'pos' : 'dashboard') : 'pos-login');
+        setCurrentView(user.id ? (role === 'cashier' ? 'pos' : 'dashboard') : 'pos-login');
       }
     };
     
@@ -89,14 +89,14 @@ export default function App() {
               <span className="text-[10px]">Ventas</span>
             </button>
 
-            {userRole === 'cajero' && (
+            {userRole === 'cashier' && (
               <button onClick={() => setCurrentView('expenses')} className={`flex flex-col items-center justify-center p-2 rounded-xl transition-colors text-label-caps w-16 ${currentView === 'expenses' ? 'text-primary' : 'text-on-surface-variant'}`}>
                 <ShoppingBag className="mb-1" size={20} />
                 <span className="text-[10px]">Gastos</span>
               </button>
             )}
             
-            {userRole !== 'cajero' && (
+            {userRole !== 'cashier' && (
               <button onClick={() => setCurrentView('settings')} className={`flex flex-col items-center justify-center p-2 rounded-xl transition-colors text-label-caps w-16 ${currentView === 'settings' ? 'text-primary' : 'text-on-surface-variant'}`}>
                 <User className="mb-1" size={20} />
                 <span className="text-[10px]">Perfil</span>
