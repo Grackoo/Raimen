@@ -22,7 +22,6 @@ export function POSLoginView({ onLogin }: POSLoginViewProps) {
   
   const [selectedUsername, setSelectedUsername] = useState('');
   const [pin, setPin] = useState('');
-  const [initialAmount, setInitialAmount] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
 
   useEffect(() => {
@@ -69,33 +68,6 @@ export function POSLoginView({ onLogin }: POSLoginViewProps) {
 
       if (error || !user) {
         throw new Error('PIN incorrecto o usuario no encontrado');
-      }
-
-      // Check if there is already an open register for this branch (assuming user.branch_id)
-      if (user.branch_id) {
-        const { data: activeRegister } = await supabase
-          .from('cash_registers')
-          .select('id')
-          .eq('branch_id', user.branch_id)
-          .eq('status', 'open')
-          .maybeSingle();
-
-        if (!activeRegister) {
-          if (!initialAmount || isNaN(parseFloat(initialAmount))) {
-             throw new Error('Se requiere un Monto Inicial válido para abrir la caja en este turno.');
-          }
-          
-          // Open new register
-          const payload = {
-            branch_id: user.branch_id,
-            user_id: user.id,
-            opening_amount: parseFloat(initialAmount),
-            status: 'open'
-          };
-          
-          const { error: regError } = await supabase.from('cash_registers').insert([payload]);
-          if (regError) throw new Error('Error al abrir la caja: ' + regError.message);
-        }
       }
 
       // Save user session in localStorage for POSView to use
@@ -170,22 +142,6 @@ export function POSLoginView({ onLogin }: POSLoginViewProps) {
               />
             </div>
 
-            <div className="flex flex-col gap-2 pt-4 border-t border-surface-container">
-              <label className="text-label-caps text-on-surface-variant">Monto Inicial (Apertura)</label>
-              <div className="relative flex items-center">
-                <span className="absolute left-4 text-data-mono text-on-surface-variant">$</span>
-                <input 
-                  type="number" 
-                  disabled={isOpened}
-                  value={initialAmount}
-                  onChange={(e) => setInitialAmount(e.target.value)}
-                  step="0.01"
-                  placeholder="0.00"
-                  className="w-full bg-surface border border-outline-variant rounded-lg h-16 pl-10 pr-4 text-on-surface focus:ring-primary focus:border-primary text-data-mono text-xl outline-none"
-                />
-              </div>
-            </div>
-
             {errorMsg && (
               <div className="text-error text-body-sm font-semibold">{errorMsg}</div>
             )}
@@ -205,13 +161,13 @@ export function POSLoginView({ onLogin }: POSLoginViewProps) {
               } disabled:opacity-50`}
             >
               {isOpened ? (
-                <>Caja Abierta Exitosamente</>
+                <>Acceso Correcto</>
               ) : isOpening ? (
-                <><Loader2 className="animate-spin" size={20} /> Procesando...</>
+                <><Loader2 className="animate-spin" size={20} /> Autenticando...</>
               ) : (
                 <>
                   <Monitor size={20} />
-                  Apertura de Caja
+                  Acceder al Sistema
                 </>
               )}
             </button>

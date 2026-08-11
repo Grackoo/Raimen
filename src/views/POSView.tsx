@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Scan, Search, User, MoreVertical, Minus, Plus, Banknote, CreditCard, Landmark, Receipt, ShoppingBag, Loader2, Trash2, X, Calendar } from 'lucide-react';
+import { Scan, Search, User, MoreVertical, Minus, Plus, Banknote, CreditCard, Landmark, Receipt, ShoppingBag, Loader2, Trash2, X, Calendar, Monitor } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { Scanner } from '@yudiel/react-qr-scanner';
 import { AdminOverrideModal } from '../components/AdminOverrideModal';
@@ -42,14 +42,19 @@ export function POSView() {
 
   const [adminAction, setAdminAction] = useState<{action: string, payload?: any} | null>(null);
 
+  const [requiresOpening, setRequiresOpening] = useState(false);
+  const [initialAmount, setInitialAmount] = useState('');
+  const [openingRegister, setOpeningRegister] = useState(false);
+
   const sessionUser = JSON.parse(localStorage.getItem('raimen_pos_user') || '{}');
 
   useEffect(() => {
     async function fetchData() {
       try {
-        const [prodRes, custRes] = await Promise.all([
+        const [prodRes, custRes, activeRegRes] = await Promise.all([
           supabase.from('products').select('*').eq('active', true).order('name'),
-          supabase.from('customers').select('id, name, rfc, email, phone').order('name')
+          supabase.from('customers').select('id, name, rfc, email, phone').order('name'),
+          sessionUser.branch_id ? supabase.from('cash_registers').select('id').eq('branch_id', sessionUser.branch_id).eq('status', 'open').maybeSingle() : Promise.resolve({ data: null, error: null })
         ]);
         
         if (prodRes.error) throw prodRes.error;
@@ -57,6 +62,10 @@ export function POSView() {
         
         setProducts(prodRes.data || []);
         setCustomers(custRes.data || []);
+
+        if (sessionUser.branch_id && !activeRegRes.data) {
+          setRequiresOpening(true);
+        }
         
         // Auto select Publico en general
         const publico = custRes.data?.find(c => c.name.toLowerCase().includes('público en general'));
@@ -101,6 +110,28 @@ export function POSView() {
   const executeRemoveFromCart = (id: string) => {
     setCart(cart.filter(c => c.id !== id));
     setAdminAction(null);
+  };
+
+  const handleOpenRegister = async () => {
+    if (!initialAmount || isNaN(parseFloat(initialAmount))) return;
+    setOpeningRegister(true);
+    try {
+      const payload = {
+        branch_id: sessionUser.branch_id,
+        user_id: sessionUser.id,
+        opening_amount: parseFloat(initialAmount),
+        status: 'open'
+      };
+      
+      const { error } = await supabase.from('cash_registers').insert([payload]);
+      if (error) throw error;
+      setRequiresOpening(false);
+    } catch (err) {
+      console.error('Error al abrir la caja:', err);
+      alert('Hubo un error al intentar abrir la caja.');
+    } finally {
+      setOpeningRegister(false);
+    }
   };
 
   const handleScan = (detectedCodes: any[]) => {
@@ -471,6 +502,39 @@ export function POSView() {
             }
           }}
         />
+      )}
+
+      {requiresOpening && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-surface-container-lowest rounded-2xl w-full max-w-md p-6 shadow-xl border border-outline-variant">
+            <h2 className="text-headline-lg-mobile text-on-surface mb-2">Apertura de Caja</h2>
+            <p className="text-body-md text-on-surface-variant mb-6">Debes ingresar el monto inicial de la caja para comenzar a registrar ventas en este turno.</p>
+            
+            <div className="flex flex-col gap-2 mb-6">
+              <label className="text-label-caps text-on-surface-variant">Monto Inicial (Efectivo)</label>
+              <div className="relative flex items-center">
+                <span className="absolute left-4 text-data-mono text-on-surface-variant">$</span>
+                <input 
+                  type="number" 
+                  value={initialAmount}
+                  onChange={(e) => setInitialAmount(e.target.value)}
+                  step="0.01"
+                  placeholder="0.00"
+                  className="w-full bg-surface border border-outline-variant rounded-lg h-14 pl-10 pr-4 text-on-surface focus:ring-primary focus:border-primary text-data-mono text-xl outline-none"
+                />
+              </div>
+            </div>
+
+            <button
+              disabled={openingRegister || !initialAmount || isNaN(parseFloat(initialAmount))}
+              onClick={handleOpenRegister}
+              className="w-full bg-primary text-on-primary h-12 rounded-lg text-title-md flex items-center justify-center gap-2 hover:opacity-90 disabled:opacity-50"
+            >
+              {openingRegister ? <Loader2 className="animate-spin" /> : <Monitor size={20} />}
+              Abrir Caja
+            </button>
+          </div>
+        </div>
       )}
     </main>
   );
