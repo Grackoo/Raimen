@@ -76,7 +76,7 @@ export function POSView() {
   
   const filteredProducts = products.filter(p => {
     const matchCat = activeCategory === 'Todos' || p.category === activeCategory;
-    const matchSearch = !searchSku || p.sku.toLowerCase().includes(searchSku.toLowerCase()) || p.name.toLowerCase().includes(searchSku.toLowerCase());
+    const matchSearch = !searchSku || p.sku.toLowerCase().includes(searchSku.toLowerCase()) || p.name.toLowerCase().includes(searchSku.toLowerCase()) || p.price.toString().includes(searchSku.toLowerCase());
     return matchCat && matchSearch;
   });
 
@@ -208,7 +208,7 @@ export function POSView() {
                 type="text" 
                 value={searchSku}
                 onChange={(e) => setSearchSku(e.target.value)}
-                placeholder="Buscar por SKU o Nombre..." 
+                placeholder="Buscar por SKU, Nombre o Precio..." 
                 className="w-full pl-10 pr-4 py-3 rounded-lg border border-outline-variant bg-surface focus:ring-2 focus:ring-primary outline-none" 
               />
             </div>
