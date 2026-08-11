@@ -24,7 +24,7 @@ export function Sidebar({ currentView, onViewChange }: SidebarProps) {
   ];
 
   const navItems = userRole === 'cajero' 
-    ? allNavItems.filter(item => ['pos', 'expenses', 'cash_register', 'customers'].includes(item.id))
+    ? allNavItems.filter(item => ['pos', 'orders', 'inventory', 'customers', 'expenses', 'cash_register'].includes(item.id))
     : allNavItems;
 
   return (
