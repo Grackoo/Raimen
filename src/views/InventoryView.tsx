@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Download, Plus, ChevronDown, Filter, AlertTriangle, Edit2, Trash2, Printer, QrCode } from 'lucide-react';
+import { Download, Plus, ChevronDown, Filter, AlertTriangle, Edit2, Trash2, Printer, QrCode, Receipt } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import QRCode from 'react-qr-code';
 import { jsPDF } from 'jspdf';
@@ -135,6 +135,24 @@ export function InventoryView() {
     } catch (err) {
       console.error('Error al imprimir etiqueta:', err);
       win.close();
+    }
+  };
+
+  const handlePrintRawBT = async () => {
+    if (!selectedProduct) return;
+    const element = document.getElementById('qr-preview-container');
+    if (!element) return;
+    
+    try {
+      const canvas = await html2canvas(element, { scale: 2, backgroundColor: '#ffffff' });
+      const imgData = canvas.toDataURL('image/png');
+      
+      const base64Data = imgData.replace('data:image/png;base64,', '');
+      const encoded = encodeURI(base64Data);
+      window.location.href = `intent:${encoded}#Intent;scheme=rawbt:base64;package=ru.a402d.rawbtprinter;end;`;
+    } catch (err) {
+      console.error('Error al generar etiqueta para RawBT:', err);
+      alert('Error al generar la etiqueta.');
     }
   };
 
@@ -364,7 +382,11 @@ export function InventoryView() {
           <div className="p-4 border-t border-outline-variant bg-surface-container-lowest flex flex-col gap-3">
             <button onClick={handlePrint} disabled={!selectedProduct} className="w-full bg-primary text-on-primary h-12 rounded-lg text-title-md flex items-center justify-center gap-2 hover:opacity-90 transition-opacity shadow-sm disabled:opacity-50">
               <Printer size={20} />
-              Imprimir Etiqueta
+              Imprimir Etiqueta (Web)
+            </button>
+            <button onClick={handlePrintRawBT} disabled={!selectedProduct} className="w-full bg-secondary text-on-secondary h-12 rounded-lg text-title-md flex items-center justify-center gap-2 hover:opacity-90 transition-opacity shadow-sm disabled:opacity-50">
+              <Receipt size={20} />
+              Imprimir Bluetooth (Móvil)
             </button>
             <button onClick={handleDownloadPDF} disabled={!selectedProduct} className="w-full bg-surface-container-lowest border border-outline-variant text-primary h-12 rounded-lg text-title-md flex items-center justify-center gap-2 hover:bg-surface-container-low transition-colors disabled:opacity-50">
               <Download size={20} />
