@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { Settings, Users, Store, Shield, Plus, Loader2, Edit2, Trash2, Check, X } from 'lucide-react';
+import { Settings, Users, Store, Shield, Plus, Loader2, Edit2, Trash2, Check, X, Database, Download } from 'lucide-react';
 
 export function SettingsView() {
   const [activeTab, setActiveTab] = useState('users');
@@ -201,6 +201,58 @@ export function SettingsView() {
     } catch (err) {
       console.error(err);
       alert('Error eliminando motivo');
+    }
+  };
+
+  const exportTableToCSV = (tableName: string, data: any[]) => {
+    if (!data || data.length === 0) return;
+    const headers = Object.keys(data[0]);
+    const csvRows = [];
+    csvRows.push(headers.join(','));
+    
+    for (const row of data) {
+      const values = headers.map(header => {
+        let val = row[header];
+        if (val === null || val === undefined) val = '';
+        val = String(val);
+        if (val.includes(',') || val.includes('"') || val.includes('\n')) {
+          val = `"${val.replace(/"/g, '""')}"`;
+        }
+        return val;
+      });
+      csvRows.push(values.join(','));
+    }
+    
+    const csvContent = "data:text/csv;charset=utf-8," + encodeURIComponent(csvRows.join('\n'));
+    const link = document.createElement("a");
+    link.setAttribute("href", csvContent);
+    link.setAttribute("download", `${tableName}_backup.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleExportAll = async () => {
+    const tables = ['branches', 'users', 'products', 'customers', 'sales', 'sale_items', 'cash_registers', 'expense_categories', 'expenses'];
+    setLoading(true);
+    try {
+      for (const table of tables) {
+        const { data, error } = await supabase.from(table).select('*');
+        if (error) {
+          console.error(`Error fetching ${table}:`, error);
+          continue;
+        }
+        if (data && data.length > 0) {
+          exportTableToCSV(table, data);
+          await new Promise(r => setTimeout(r, 500));
+        }
+      }
+      alert('Backup exportado exitosamente. Revisa tus descargas.');
+    } catch (err) {
+      console.error(err);
+      alert('Error al exportar el backup.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -472,9 +524,29 @@ export function SettingsView() {
               </div>
             )}
 
-            {(activeTab === 'security' || activeTab === 'general') && (
+            {activeTab === 'security' && (
               <div className="flex items-center justify-center h-full text-on-surface-variant text-title-md">
                 Próximamente
+              </div>
+            )}
+
+            {activeTab === 'general' && (
+              <div className="space-y-6">
+                <h3 className="text-title-lg text-on-surface border-b border-outline-variant pb-2">Configuración General</h3>
+                <div className="bg-surface p-6 rounded-xl border border-outline-variant max-w-xl">
+                  <h4 className="text-title-md font-bold mb-2">Respaldo de Base de Datos</h4>
+                  <p className="text-body-sm text-on-surface-variant mb-6">
+                    Exporta toda la información del sistema en archivos CSV. Esto descargará un archivo por cada tabla con todas sus columnas y filas tal cual están en Supabase, listo para ser re-subido en caso de error o migración.
+                  </p>
+                  <button 
+                    onClick={handleExportAll} 
+                    disabled={loading}
+                    className="bg-primary text-on-primary px-6 py-3 rounded-lg font-medium flex items-center justify-center gap-2 hover:opacity-90 disabled:opacity-50"
+                  >
+                    {loading ? <Loader2 className="animate-spin" size={20} /> : <Download size={20} />}
+                    Exportar Backup Completo (CSVs)
+                  </button>
+                </div>
               </div>
             )}
 
