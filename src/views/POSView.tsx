@@ -144,6 +144,14 @@ export function POSView() {
     }
   };
 
+  const sumProducts = cart.reduce((acc, item) => acc + (item.price * item.qty), 0);
+  const totalItems = cart.reduce((acc, item) => acc + item.qty, 0);
+  const hasDiscount = totalItems >= 3 && sumProducts > 350;
+  const discountAmount = hasDiscount ? sumProducts * 0.05 : 0;
+  const total = sumProducts - discountAmount;
+  const subtotal = total / 1.16;
+  const taxes = total - subtotal;
+
   const handleCheckout = async () => {
     if (cart.length === 0) return;
     setProcessingSale(true);
@@ -188,6 +196,9 @@ export function POSView() {
       setCompletedSale({
         id: saleData.id,
         items: [...cart],
+        sumProducts: sumProducts,
+        discountAmount: discountAmount,
+        hasDiscount: hasDiscount,
         total: total,
         subtotal: subtotal,
         taxes: taxes,
@@ -196,7 +207,6 @@ export function POSView() {
         customer: customers.find(c => c.id === selectedCustomerId)
       });
 
-      // Clear cart on success
       setCart([]);
       
     } catch (err) {
@@ -206,10 +216,6 @@ export function POSView() {
       setProcessingSale(false);
     }
   };
-
-  const total = cart.reduce((acc, item) => acc + (item.price * item.qty), 0);
-  const subtotal = total / 1.16;
-  const taxes = total - subtotal;
 
   return (
     <main className="flex-1 flex flex-col lg:flex-row lg:h-full overflow-y-auto lg:overflow-hidden bg-surface-container-low p-4 lg:p-6 pb-24 lg:pb-6 gap-6">
@@ -362,8 +368,23 @@ export function POSView() {
 
         <div className="p-4 bg-surface rounded-b-xl border-t border-outline-variant">
           <div className="flex flex-col gap-2 mb-4">
+            {hasDiscount && (
+              <div className="bg-primary/10 text-primary p-2 rounded-md text-center text-sm font-bold mb-2 animate-pulse border border-primary/20">
+                ¡El cliente obtuvo un descuento del 5%!
+              </div>
+            )}
             <div className="flex justify-between text-body-sm text-on-surface-variant">
-              <span>Subtotal</span>
+              <span>Suma de productos</span>
+              <span className="text-data-mono">${sumProducts.toFixed(2)}</span>
+            </div>
+            {hasDiscount && (
+               <div className="flex justify-between text-body-sm text-primary font-bold">
+                 <span>Descuento (5%)</span>
+                 <span className="text-data-mono">-${discountAmount.toFixed(2)}</span>
+               </div>
+            )}
+            <div className="flex justify-between text-body-sm text-on-surface-variant">
+              <span>Subtotal (sin IVA)</span>
               <span className="text-data-mono">${subtotal.toFixed(2)}</span>
             </div>
             <div className="flex justify-between text-body-sm text-on-surface-variant">
@@ -425,6 +446,14 @@ export function POSView() {
                   <p>Tel: {completedSale.customer.phone}</p>
                 )}
               </div>
+              
+              {completedSale.hasDiscount && (
+                <div className="text-center mb-4 py-2 border-y-2 border-dashed border-black">
+                  <p className="font-bold text-lg">🎉 ¡Felicidades! 🎉</p>
+                  <p className="text-sm font-bold mt-1">Obtuviste un 5% de descuento</p>
+                </div>
+              )}
+
               <div className="border-t border-b border-black/20 py-2 mb-4">
                 <table className="w-full">
                   <thead>
@@ -441,6 +470,20 @@ export function POSView() {
                   </tbody>
                 </table>
               </div>
+              
+              {completedSale.hasDiscount && (
+                <div className="flex justify-between text-sm mt-2">
+                  <span>Subtotal:</span>
+                  <span>${completedSale.sumProducts.toFixed(2)}</span>
+                </div>
+              )}
+              {completedSale.hasDiscount && (
+                <div className="flex justify-between text-sm">
+                  <span>Descuento (5%):</span>
+                  <span>-${completedSale.discountAmount.toFixed(2)}</span>
+                </div>
+              )}
+
               <div className="flex justify-between font-bold text-lg mt-2 pt-2 border-t border-black/20"><span>TOTAL:</span><span>${completedSale.total.toFixed(2)}</span></div>
               <div className="text-center mt-6 text-xs text-black/60">
                 <p>PAGO EN: {completedSale.payment_method.toUpperCase()}</p>
@@ -454,7 +497,7 @@ export function POSView() {
                   const printContent = document.getElementById('printable-ticket');
                   const win = window.open('', '', 'width=300,height=600');
                   if(win && printContent) {
-                    win.document.write('<html><head><title>Imprimir Ticket</title><style>body { font-family: monospace; font-size: 12px; margin: 0; padding: 10px; } table { width: 100%; border-collapse: collapse; } th { text-align: left; border-bottom: 1px dashed #000; } td { padding-top: 4px; } .text-right { text-align: right; } .text-center { text-align: center; } .font-bold { font-weight: bold; } .text-xl { font-size: 16px; } .text-lg { font-size: 14px; } .border-t { border-top: 1px dashed #000; } .border-b { border-bottom: 1px dashed #000; } .my-4 { margin: 10px 0; } .py-2 { padding: 5px 0; }</style></head><body>');
+                    win.document.write('<html><head><title>Imprimir Ticket</title><style>body { font-family: monospace; font-size: 12px; margin: 0; padding: 10px; } table { width: 100%; border-collapse: collapse; } th { text-align: left; border-bottom: 1px dashed #000; } td { padding-top: 4px; } .text-right { text-align: right; } .text-center { text-align: center; } .font-bold { font-weight: bold; } .text-xl { font-size: 16px; } .text-lg { font-size: 14px; } .border-t { border-top: 1px dashed #000; } .border-b { border-bottom: 1px dashed #000; } .border-y-2 { border-top: 2px dashed #000; border-bottom: 2px dashed #000; } .dashed { border-style: dashed; } .my-4 { margin: 10px 0; } .py-2 { padding: 5px 0; } .mt-1 { margin-top: 4px; } .mt-2 { margin-top: 8px; }</style></head><body>');
                     win.document.write(printContent.innerHTML);
                     win.document.write('</body></html>');
                     win.document.close();
@@ -473,10 +516,23 @@ export function POSView() {
                 text += "--------------------------------\n";
                 text += `Cliente: ${completedSale.customer?.name || 'Publico en General'}\n`;
                 text += "--------------------------------\n";
+                
+                if (completedSale.hasDiscount) {
+                  text += "*** ¡Felicidades! ***\n";
+                  text += "Obtuviste un 5% de descuento\n";
+                  text += "--------------------------------\n";
+                }
+                
                 completedSale.items.forEach((item: any) => {
                   text += `${item.qty}x ${item.name}\n$${(item.price * item.qty).toFixed(2)}\n`;
                 });
                 text += "--------------------------------\n";
+                
+                if (completedSale.hasDiscount) {
+                  text += `Subtotal: $${completedSale.sumProducts.toFixed(2)}\n`;
+                  text += `Descuento (5%): -$${completedSale.discountAmount.toFixed(2)}\n`;
+                }
+
                 text += `TOTAL: $${completedSale.total.toFixed(2)}\n`;
                 text += "--------------------------------\n";
                 text += `PAGO EN: ${completedSale.payment_method.toUpperCase()}\n`;

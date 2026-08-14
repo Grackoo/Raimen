@@ -45,3 +45,7 @@ Configuracion
 
 añade la seguridad del sistema ya que el login se salta y la primer pantalla que se ve es el sistema y para verlo primero deberia de logearme como cada rol de usuario que existe 
 
+
+#####                                           #######
+
+Para la determinacion del precio planeo agregar un descuento del 5 % a partir de 3 piezas que superen un valor de 350 el total de sus productos y que al cajero le aparezca un mensaje de el cliente obtuvo descuento y salga el monto del descuento debajo del subtotal, tambien deberá salir en el ticket del cliente. un mensaje de felicidades obtuviste un descuento o algo asi de forma atractiva para el cliente.
