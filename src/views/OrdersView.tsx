@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { ShoppingCart, ExternalLink, Box, Truck, User, Receipt, X, Loader2, RefreshCw } from 'lucide-react';
+import { ShoppingCart, ExternalLink, Box, Truck, User, Receipt, X, Loader2, RefreshCw, Trash2 } from 'lucide-react';
 import { ExchangeModal } from '../components/ExchangeModal';
+import { AdminOverrideModal } from '../components/AdminOverrideModal';
 
 interface Sale {
   id: string;
@@ -19,6 +20,7 @@ export function OrdersView() {
   const [loadingTicketId, setLoadingTicketId] = useState<string | null>(null);
   const [completedSale, setCompletedSale] = useState<any>(null);
   const [isExchangeOpen, setIsExchangeOpen] = useState(false);
+  const [adminAction, setAdminAction] = useState<{action: string, payload?: any} | null>(null);
 
   const [startDate, setStartDate] = useState(() => {
     const d = new Date();
@@ -61,6 +63,25 @@ export function OrdersView() {
   useEffect(() => {
     fetchSalesData();
   }, [startDate, endDate]);
+
+  const handleDeleteSale = async (saleId: string) => {
+    try {
+      setLoading(true);
+      // Borrar items primero por si no hay cascade
+      await supabase.from('sale_items').delete().eq('sale_id', saleId);
+      // Borrar venta
+      const { error } = await supabase.from('sales').delete().eq('id', saleId);
+      if (error) throw error;
+      
+      setSales(sales.filter(s => s.id !== saleId));
+      setAdminAction(null);
+    } catch (err) {
+      console.error('Error deleting sale:', err);
+      alert('Error al eliminar la venta.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
 
   const handleViewTicket = async (sale: Sale) => {
@@ -174,6 +195,7 @@ export function OrdersView() {
                     <th className="p-4 text-label-caps text-on-surface-variant">Tipo</th>
                     <th className="p-4 text-label-caps text-on-surface-variant">Pago</th>
                     <th className="p-4 text-label-caps text-on-surface-variant text-right">Total</th>
+                    <th className="p-4 text-label-caps text-on-surface-variant text-center">Acciones</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-outline-variant/30">
@@ -200,6 +222,11 @@ export function OrdersView() {
                       </td>
                       <td className="p-4 text-right text-data-mono font-bold text-primary">
                         ${sale.total.toFixed(2)}
+                      </td>
+                      <td className="p-4 text-center" onClick={(e) => e.stopPropagation()}>
+                        <button onClick={() => setAdminAction({ action: 'eliminar venta', payload: sale.id })} className="text-error hover:bg-error-container p-2 rounded-lg transition-colors" title="Eliminar Venta">
+                          <Trash2 size={18} />
+                        </button>
                       </td>
                     </tr>
                   ))}
@@ -317,6 +344,18 @@ export function OrdersView() {
             setIsExchangeOpen(false);
             setCompletedSale(null);
             // fetch data again to refresh sales list? It will refresh next time component mounts or we can call fetchData again, but it's fine for now.
+          }}
+        />
+      )}
+
+      {adminAction && (
+        <AdminOverrideModal 
+          actionName={adminAction.action}
+          onCancel={() => setAdminAction(null)}
+          onSuccess={() => {
+            if (adminAction.action === 'eliminar venta') {
+              handleDeleteSale(adminAction.payload);
+            }
           }}
         />
       )}
