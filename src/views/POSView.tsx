@@ -104,7 +104,7 @@ export function POSView() {
   };
 
   const requestRemoveFromCart = (id: string) => {
-    setAdminAction({ action: 'eliminar un producto del carrito', payload: id });
+    executeRemoveFromCart(id);
   };
 
   const executeRemoveFromCart = (id: string) => {
