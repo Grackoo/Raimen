@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Scan, Search, User, MoreVertical, Minus, Plus, Banknote, CreditCard, Landmark, Receipt, ShoppingBag, Loader2, Trash2, X, Calendar, Monitor } from 'lucide-react';
+import { Scan, Search, User, MoreVertical, Minus, Plus, Banknote, CreditCard, Landmark, Receipt, ShoppingBag, Loader2, Trash2, X, Calendar, Monitor, Tag, Percent } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { Scanner } from '@yudiel/react-qr-scanner';
 import { AdminOverrideModal } from '../components/AdminOverrideModal';
@@ -40,13 +40,46 @@ export function POSView() {
   const [completedSale, setCompletedSale] = useState<any>(null);
   const [customDate, setCustomDate] = useState('');
 
+  const [manualDiscountEnabled, setManualDiscountEnabled] = useState(false);
+  const [manualDiscountType, setManualDiscountType] = useState<'percent' | 'fixed'>('percent');
+  const [manualDiscountValue, setManualDiscountValue] = useState<number>(10);
+  const [showDiscountModal, setShowDiscountModal] = useState(false);
+
   const [adminAction, setAdminAction] = useState<{action: string, payload?: any} | null>(null);
 
   const [requiresOpening, setRequiresOpening] = useState(false);
   const [initialAmount, setInitialAmount] = useState('');
   const [openingRegister, setOpeningRegister] = useState(false);
 
+  const [todaySalesTotal, setTodaySalesTotal] = useState(0);
+  const [todaySalesCount, setTodaySalesCount] = useState(0);
+
   const sessionUser = JSON.parse(localStorage.getItem('raimen_pos_user') || '{}');
+
+  const fetchTodaySales = async () => {
+    try {
+      const startOfDay = new Date();
+      startOfDay.setHours(0, 0, 0, 0);
+
+      let query = supabase
+        .from('sales')
+        .select('total')
+        .gte('created_at', startOfDay.toISOString());
+
+      if (sessionUser.branch_id) {
+        query = query.eq('branch_id', sessionUser.branch_id);
+      }
+
+      const { data } = await query;
+      if (data) {
+        const sum = data.reduce((acc, s) => acc + (Number(s.total) || 0), 0);
+        setTodaySalesTotal(sum);
+        setTodaySalesCount(data.length);
+      }
+    } catch (err) {
+      console.error('Error fetching today sales:', err);
+    }
+  };
 
   useEffect(() => {
     async function fetchData() {
@@ -79,6 +112,18 @@ export function POSView() {
       }
     }
     fetchData();
+    fetchTodaySales();
+
+    const channel = supabase
+      .channel('realtime_sales_pos')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'sales' }, () => {
+        fetchTodaySales();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const categories = ['Todos', ...Array.from(new Set(products.map(p => p.category || 'General')))];
@@ -146,9 +191,28 @@ export function POSView() {
 
   const sumProducts = cart.reduce((acc, item) => acc + (item.price * item.qty), 0);
   const totalItems = cart.reduce((acc, item) => acc + item.qty, 0);
-  const hasDiscount = totalItems >= 3 && sumProducts > 350;
-  const discountAmount = hasDiscount ? sumProducts * 0.05 : 0;
-  const total = sumProducts - discountAmount;
+  
+  // Auto discount: 3+ items and sum > 350 -> 5%
+  const autoDiscountEligible = totalItems >= 3 && sumProducts > 350;
+  const autoDiscountAmount = autoDiscountEligible ? sumProducts * 0.05 : 0;
+
+  // Manual discount calculation
+  let manualDiscountAmount = 0;
+  if (manualDiscountEnabled) {
+    if (manualDiscountType === 'percent') {
+      manualDiscountAmount = sumProducts * (manualDiscountValue / 100);
+    } else {
+      manualDiscountAmount = Math.min(sumProducts, manualDiscountValue);
+    }
+  }
+
+  const hasDiscount = manualDiscountEnabled ? manualDiscountAmount > 0 : autoDiscountEligible;
+  const discountAmount = manualDiscountEnabled ? manualDiscountAmount : autoDiscountAmount;
+  const discountLabel = manualDiscountEnabled 
+    ? (manualDiscountType === 'percent' ? `Descuento Cliente (${manualDiscountValue}%)` : `Descuento Cliente ($${manualDiscountValue.toFixed(2)})`)
+    : `Descuento (5%)`;
+
+  const total = Math.max(0, sumProducts - discountAmount);
   const subtotal = total / 1.16;
   const taxes = total - subtotal;
 
@@ -199,6 +263,8 @@ export function POSView() {
         sumProducts: sumProducts,
         discountAmount: discountAmount,
         hasDiscount: hasDiscount,
+        discountLabel: discountLabel,
+        isManualDiscount: manualDiscountEnabled,
         total: total,
         subtotal: subtotal,
         taxes: taxes,
@@ -208,6 +274,9 @@ export function POSView() {
       });
 
       setCart([]);
+      setManualDiscountEnabled(false);
+      setTodaySalesTotal(prev => prev + total);
+      setTodaySalesCount(prev => prev + 1);
       
     } catch (err) {
       console.error('Error procesando venta:', err);
@@ -223,8 +292,26 @@ export function POSView() {
       {/* Left panel & Grid */}
       <div className="flex flex-col xl:flex-row gap-6 lg:min-h-0 lg:flex-1 lg:overflow-hidden">
         
-        {/* Scanner Panel */}
+        {/* Scanner Panel & Today Sales Card */}
         <section className="w-full xl:w-1/3 flex flex-col gap-4 flex-shrink-0">
+          {/* Card de Ventas del Día */}
+          <div className="bg-surface-container-lowest rounded-xl p-4 shadow-sm border border-outline-variant flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-primary-fixed flex items-center justify-center font-bold text-primary">
+                <Receipt size={20} />
+              </div>
+              <div>
+                <p className="text-[11px] font-bold uppercase text-on-surface-variant tracking-wider">Ventas del Día en Caja</p>
+                <p className="text-title-lg font-extrabold text-primary text-data-mono">${todaySalesTotal.toFixed(2)}</p>
+              </div>
+            </div>
+            <div className="text-right">
+              <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-secondary-container text-on-secondary-container border border-outline-variant">
+                {todaySalesCount} {todaySalesCount === 1 ? 'venta' : 'ventas'}
+              </span>
+            </div>
+          </div>
+
           <div className="bg-surface-container-lowest rounded-xl p-4 shadow-sm border border-outline-variant flex-1 flex flex-col min-h-[300px]">
             <h2 className="text-title-md text-primary mb-4 flex items-center gap-2">
               <Scan size={24} />
@@ -367,10 +454,38 @@ export function POSView() {
         </div>
 
         <div className="p-4 bg-surface rounded-b-xl border-t border-outline-variant">
+          {/* Botón de Descuento */}
+          <div className="mb-3">
+            <button
+              onClick={() => setShowDiscountModal(true)}
+              className={`w-full py-2 px-3 rounded-lg border transition-all flex items-center justify-between text-body-sm font-semibold ${
+                manualDiscountEnabled
+                  ? 'bg-primary-fixed border-primary text-primary'
+                  : hasDiscount
+                    ? 'bg-primary/10 border-primary/30 text-primary'
+                    : 'bg-surface-container-high border-outline-variant hover:bg-surface-variant text-on-surface-variant'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <Tag size={18} className={hasDiscount ? "text-primary" : "text-on-surface-variant"} />
+                <span>
+                  {manualDiscountEnabled
+                    ? `Descuento Personalizado (${manualDiscountType === 'percent' ? `${manualDiscountValue}%` : `$${manualDiscountValue}`})`
+                    : hasDiscount
+                      ? 'Descuento Automático (5%)'
+                      : 'Aplicar Descuento a Cliente'}
+                </span>
+              </div>
+              <span className="text-xs bg-surface px-2 py-0.5 rounded border border-outline-variant font-bold">
+                {hasDiscount ? 'Modificar' : '+ Descuento'}
+              </span>
+            </button>
+          </div>
+
           <div className="flex flex-col gap-2 mb-4">
             {hasDiscount && (
               <div className="bg-primary/10 text-primary p-2 rounded-md text-center text-sm font-bold mb-2 animate-pulse border border-primary/20">
-                ¡El cliente obtuvo un descuento del 5%!
+                ¡{manualDiscountEnabled ? 'Descuento Especial Aplicado' : 'El cliente obtuvo un descuento del 5%'}!
               </div>
             )}
             <div className="flex justify-between text-body-sm text-on-surface-variant">
@@ -379,7 +494,7 @@ export function POSView() {
             </div>
             {hasDiscount && (
                <div className="flex justify-between text-body-sm text-primary font-bold">
-                 <span>Descuento (5%)</span>
+                 <span>{discountLabel}</span>
                  <span className="text-data-mono">-${discountAmount.toFixed(2)}</span>
                </div>
             )}
@@ -449,8 +564,8 @@ export function POSView() {
               
               {completedSale.hasDiscount && (
                 <div className="text-center mb-4 py-2 border-y-2 border-dashed border-black">
-                  <p className="font-bold text-lg">🎉 ¡Felicidades! 🎉</p>
-                  <p className="text-sm font-bold mt-1">Obtuviste un 5% de descuento</p>
+                  <p className="font-bold text-lg">🎉 ¡Descuento Aplicado! 🎉</p>
+                  <p className="text-sm font-bold mt-1">{completedSale.discountLabel || 'Obtuviste un 5% de descuento'}</p>
                 </div>
               )}
 
@@ -479,7 +594,7 @@ export function POSView() {
               )}
               {completedSale.hasDiscount && (
                 <div className="flex justify-between text-sm">
-                  <span>Descuento (5%):</span>
+                  <span>{completedSale.discountLabel || 'Descuento (5%)'}:</span>
                   <span>-${completedSale.discountAmount.toFixed(2)}</span>
                 </div>
               )}
@@ -518,8 +633,8 @@ export function POSView() {
                 text += "--------------------------------\n";
                 
                 if (completedSale.hasDiscount) {
-                  text += "*** ¡Felicidades! ***\n";
-                  text += "Obtuviste un 5% de descuento\n";
+                  text += "*** ¡Descuento Aplicado! ***\n";
+                  text += `${completedSale.discountLabel || 'Obtuviste un 5% de descuento'}\n`;
                   text += "--------------------------------\n";
                 }
                 
@@ -530,7 +645,7 @@ export function POSView() {
                 
                 if (completedSale.hasDiscount) {
                   text += `Subtotal: $${completedSale.sumProducts.toFixed(2)}\n`;
-                  text += `Descuento (5%): -$${completedSale.discountAmount.toFixed(2)}\n`;
+                  text += `${completedSale.discountLabel || 'Descuento (5%)'}: -$${completedSale.discountAmount.toFixed(2)}\n`;
                 }
 
                 text += `TOTAL: $${completedSale.total.toFixed(2)}\n`;
@@ -542,6 +657,146 @@ export function POSView() {
                 window.location.href = `intent:${encoded}#Intent;scheme=rawbt;package=ru.a402d.rawbtprinter;end;`;
               }} className="w-full py-2 rounded-lg bg-secondary text-on-secondary hover:bg-on-secondary-fixed-variant transition-colors font-medium flex justify-center items-center gap-2">
                 <Receipt size={18} /> Imprimir Bluetooth (Móvil)
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Descuento Personalizado */}
+      {showDiscountModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-surface-container-lowest rounded-2xl w-full max-w-md p-6 shadow-xl border border-outline-variant">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-title-md font-bold text-primary flex items-center gap-2">
+                <Tag size={20} /> Opciones de Descuento
+              </h3>
+              <button onClick={() => setShowDiscountModal(false)} className="text-on-surface-variant hover:bg-surface-variant p-1 rounded-full">
+                <X size={20} />
+              </button>
+            </div>
+
+            <p className="text-body-sm text-on-surface-variant mb-4">
+              Puedes elegir entre la regla de descuento automático (5% al llevar 3+ productos y mayor a $350) o establecer un descuento personalizado para este cliente.
+            </p>
+
+            {/* Selector de modo */}
+            <div className="grid grid-cols-2 gap-2 mb-6">
+              <button
+                onClick={() => setManualDiscountEnabled(false)}
+                className={`py-3 px-2 rounded-lg border text-sm font-medium transition-all ${
+                  !manualDiscountEnabled
+                    ? 'border-primary bg-primary-fixed text-primary font-bold shadow-sm'
+                    : 'border-outline-variant bg-surface text-on-surface-variant hover:bg-surface-variant'
+                }`}
+              >
+                Automático (5%)
+              </button>
+              <button
+                onClick={() => setManualDiscountEnabled(true)}
+                className={`py-3 px-2 rounded-lg border text-sm font-medium transition-all ${
+                  manualDiscountEnabled
+                    ? 'border-primary bg-primary-fixed text-primary font-bold shadow-sm'
+                    : 'border-outline-variant bg-surface text-on-surface-variant hover:bg-surface-variant'
+                }`}
+              >
+                Cliente Conocido / Manual
+              </button>
+            </div>
+
+            {manualDiscountEnabled && (
+              <div className="flex flex-col gap-4 mb-6 bg-surface-container-high p-4 rounded-xl border border-outline-variant">
+                <div className="flex justify-between items-center">
+                  <label className="text-xs font-bold text-on-surface-variant uppercase">Tipo de Descuento</label>
+                  <div className="flex bg-surface rounded-lg p-1 border border-outline-variant">
+                    <button
+                      onClick={() => setManualDiscountType('percent')}
+                      className={`px-3 py-1 text-xs font-bold rounded-md transition-colors ${
+                        manualDiscountType === 'percent' ? 'bg-primary text-on-primary' : 'text-on-surface-variant'
+                      }`}
+                    >
+                      Porcentaje (%)
+                    </button>
+                    <button
+                      onClick={() => setManualDiscountType('fixed')}
+                      className={`px-3 py-1 text-xs font-bold rounded-md transition-colors ${
+                        manualDiscountType === 'fixed' ? 'bg-primary text-on-primary' : 'text-on-surface-variant'
+                      }`}
+                    >
+                      Monto Fijo ($)
+                    </button>
+                  </div>
+                </div>
+
+                {manualDiscountType === 'percent' ? (
+                  <div>
+                    <label className="text-xs text-on-surface-variant mb-2 block font-medium">Accesos Rápidos (%)</label>
+                    <div className="grid grid-cols-4 gap-2 mb-3">
+                      {[5, 10, 15, 20, 25, 30, 40, 50].map((pct) => (
+                        <button
+                          key={pct}
+                          onClick={() => setManualDiscountValue(pct)}
+                          className={`py-2 text-xs font-bold rounded-lg border transition-all ${
+                            manualDiscountValue === pct
+                              ? 'bg-primary text-on-primary border-primary'
+                              : 'bg-surface border-outline-variant text-on-surface hover:bg-surface-variant'
+                          }`}
+                        >
+                          {pct}%
+                        </button>
+                      ))}
+                    </div>
+                    <label className="text-xs text-on-surface-variant mb-1 block font-medium">Porcentaje Personalizado</label>
+                    <div className="relative flex items-center">
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        value={manualDiscountValue}
+                        onChange={(e) => setManualDiscountValue(Math.max(0, Math.min(100, parseFloat(e.target.value) || 0)))}
+                        className="w-full bg-surface border border-outline-variant rounded-lg h-10 pl-3 pr-8 text-on-surface font-bold text-data-mono outline-none focus:border-primary"
+                      />
+                      <span className="absolute right-3 font-bold text-on-surface-variant">%</span>
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <label className="text-xs text-on-surface-variant mb-1 block font-medium">Monto a Descontar ($)</label>
+                    <div className="relative flex items-center">
+                      <span className="absolute left-3 font-bold text-on-surface-variant">$</span>
+                      <input
+                        type="number"
+                        min="0"
+                        step="1"
+                        value={manualDiscountValue}
+                        onChange={(e) => setManualDiscountValue(Math.max(0, parseFloat(e.target.value) || 0))}
+                        className="w-full bg-surface border border-outline-variant rounded-lg h-10 pl-8 pr-3 text-on-surface font-bold text-data-mono outline-none focus:border-primary"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                <div className="bg-primary/10 border border-primary/20 rounded-lg p-2 text-center text-xs text-primary font-bold">
+                  Descuento estimado: -${(manualDiscountType === 'percent' ? sumProducts * (manualDiscountValue / 100) : Math.min(sumProducts, manualDiscountValue)).toFixed(2)}
+                </div>
+              </div>
+            )}
+
+            <div className="flex gap-2">
+              <button
+                onClick={() => {
+                  setManualDiscountEnabled(false);
+                  setShowDiscountModal(false);
+                }}
+                className="flex-1 py-3 rounded-lg border border-outline-variant text-on-surface hover:bg-surface-variant text-sm font-medium"
+              >
+                Restablecer (Auto)
+              </button>
+              <button
+                onClick={() => setShowDiscountModal(false)}
+                className="flex-1 py-3 rounded-lg bg-primary text-on-primary hover:bg-primary/90 text-sm font-medium shadow"
+              >
+                Aplicar
               </button>
             </div>
           </div>

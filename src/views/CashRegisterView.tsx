@@ -34,6 +34,9 @@ export function CashRegisterView() {
   
   // Realtime calculated values
   const [cashSales, setCashSales] = useState(0);
+  const [cardSales, setCardSales] = useState(0);
+  const [transferSales, setTransferSales] = useState(0);
+  const [totalDaySales, setTotalDaySales] = useState(0);
   const [cashExpenses, setCashExpenses] = useState(0);
 
   const [branches, setBranches] = useState<any[]>([]);
@@ -50,8 +53,19 @@ export function CashRegisterView() {
   useEffect(() => {
     if (currentRegister) {
       calculateCurrentTotals(currentRegister.opened_at);
+
+      const channel = supabase
+        .channel('realtime_cash_register')
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'sales' }, () => {
+          calculateCurrentTotals(currentRegister.opened_at);
+        })
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
     }
-  }, [currentRegister]);
+  }, [currentRegister, selectedBranch]);
 
   async function fetchBranches() {
     const { data } = await supabase.from('branches').select('id, name');
@@ -103,16 +117,32 @@ export function CashRegisterView() {
   }
 
   async function calculateCurrentTotals(openedAt: string) {
-    // Fetch Cash Sales since openedAt
+    // Fetch All Sales since openedAt
     const { data: sales } = await supabase
       .from('sales')
-      .select('total')
+      .select('total, payment_method')
       .eq('branch_id', selectedBranch)
-      .eq('payment_method', 'Efectivo')
       .gte('created_at', openedAt);
       
-    const totalSales = sales?.reduce((acc, s) => acc + s.total, 0) || 0;
-    setCashSales(totalSales);
+    let cashSum = 0;
+    let cardSum = 0;
+    let transferSum = 0;
+    let grandTotal = 0;
+
+    if (sales) {
+      sales.forEach(s => {
+        const val = Number(s.total) || 0;
+        grandTotal += val;
+        if (s.payment_method === 'Efectivo') cashSum += val;
+        else if (s.payment_method === 'Tarjeta') cardSum += val;
+        else if (s.payment_method === 'Transfer') transferSum += val;
+      });
+    }
+
+    setCashSales(cashSum);
+    setCardSales(cardSum);
+    setTransferSales(transferSum);
+    setTotalDaySales(grandTotal);
 
     // Fetch Cash Expenses since openedAt
     const { data: expenses } = await supabase
@@ -121,7 +151,7 @@ export function CashRegisterView() {
       .eq('branch_id', selectedBranch)
       .gte('date', openedAt);
 
-    const totalExp = expenses?.reduce((acc, e) => acc + e.amount, 0) || 0;
+    const totalExp = expenses?.reduce((acc, e) => acc + (Number(e.amount) || 0), 0) || 0;
     setCashExpenses(totalExp);
   }
 
@@ -281,8 +311,15 @@ export function CashRegisterView() {
                       <span className="text-body-md text-on-surface-variant">Fondo Inicial</span>
                       <span className="text-title-md font-bold text-on-surface">${currentRegister.opening_amount.toFixed(2)}</span>
                     </div>
+                    <div className="flex justify-between items-center py-2.5 border-b border-outline-variant bg-primary/10 px-3 rounded-lg border border-primary/20">
+                      <div>
+                        <span className="text-body-md font-bold text-primary block">Total Ventas del Día</span>
+                        <span className="text-[11px] text-on-surface-variant font-medium">Efectivo: ${cashSales.toFixed(2)} | Tarjeta: ${cardSales.toFixed(2)} | Transfer: ${transferSales.toFixed(2)}</span>
+                      </div>
+                      <span className="text-title-lg font-extrabold text-primary text-data-mono">+${totalDaySales.toFixed(2)}</span>
+                    </div>
                     <div className="flex justify-between items-center py-2 border-b border-outline-variant">
-                      <span className="text-body-md text-on-surface-variant">Ventas (Efectivo)</span>
+                      <span className="text-body-md text-on-surface-variant">Ventas (Efectivo en Cajón)</span>
                       <span className="text-title-md font-bold text-primary">+${cashSales.toFixed(2)}</span>
                     </div>
                     <div className="flex justify-between items-center py-2 border-b border-outline-variant">
@@ -290,7 +327,7 @@ export function CashRegisterView() {
                       <span className="text-title-md font-bold text-error">-${cashExpenses.toFixed(2)}</span>
                     </div>
                     <div className="flex justify-between items-center py-2 bg-surface-variant px-3 rounded-lg">
-                      <span className="text-title-md font-bold text-on-surface">Total Esperado</span>
+                      <span className="text-title-md font-bold text-on-surface">Total Esperado (Efectivo)</span>
                       <span className="text-headline-sm font-bold text-on-surface">
                         ${(currentRegister.opening_amount + cashSales - cashExpenses).toFixed(2)}
                       </span>
