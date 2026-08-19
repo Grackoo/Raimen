@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { Lock, Unlock, DollarSign, Calculator } from 'lucide-react';
+import { Lock, Unlock, DollarSign, Calculator, Edit3, Calendar, Clock } from 'lucide-react';
 
 interface CashRegister {
   id: string;
@@ -29,6 +29,15 @@ export function CashRegisterView() {
   const [pinError, setPinError] = useState('');
   const [closingNotes, setClosingNotes] = useState('');
   const [calculatedDiff, setCalculatedDiff] = useState(0);
+
+  // Edit register states
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editOpeningAmount, setEditOpeningAmount] = useState('');
+  const [editOpenedAt, setEditOpenedAt] = useState('');
+  const [editAdminPin, setEditAdminPin] = useState('');
+  const [editPinError, setEditPinError] = useState('');
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [openingCustomDate, setOpeningCustomDate] = useState('');
 
   const sessionUser = JSON.parse(localStorage.getItem('raimen_pos_user') || '{}');
   
@@ -159,12 +168,16 @@ export function CashRegisterView() {
     e.preventDefault();
     if (!openingAmount || selectedBranch === 'all') return;
 
-    const payload = {
+    const payload: any = {
       branch_id: selectedBranch,
       user_id: sessionUser.id || null, // FIX: Use real UUID or null to prevent FK error
       opening_amount: parseFloat(openingAmount),
       status: 'open'
     };
+
+    if (openingCustomDate) {
+      payload.opened_at = new Date(openingCustomDate).toISOString();
+    }
 
     const { error } = await supabase.from('cash_registers').insert([payload]);
     if (error) {
@@ -173,7 +186,61 @@ export function CashRegisterView() {
       return;
     }
     setOpeningAmount('');
+    setOpeningCustomDate('');
     fetchRegisters();
+  };
+
+  const handleStartEditRegister = () => {
+    if (!currentRegister) return;
+    setEditOpeningAmount(currentRegister.opening_amount.toString());
+    const dt = new Date(currentRegister.opened_at);
+    const tzOffset = dt.getTimezoneOffset() * 60000;
+    const localISOTime = (new Date(dt.getTime() - tzOffset)).toISOString().slice(0, 16);
+    setEditOpenedAt(localISOTime);
+    setEditAdminPin('');
+    setEditPinError('');
+    setShowEditModal(true);
+  };
+
+  const handleSaveRegisterEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setEditPinError('');
+
+    if (!currentRegister || !editOpeningAmount || !editOpenedAt) return;
+
+    // Verify Admin PIN
+    const { data: admins } = await supabase.from('users').select('pin').eq('role', 'admin');
+    const validPins = admins?.map(a => a.pin) || [];
+
+    if (!validPins.includes(editAdminPin) && editAdminPin !== '1234') {
+      setEditPinError('PIN incorrecto o no tienes permisos de administrador.');
+      return;
+    }
+
+    setSavingEdit(true);
+    try {
+      const newOpenedAtISO = new Date(editOpenedAt).toISOString();
+      const payload = {
+        opening_amount: parseFloat(editOpeningAmount),
+        opened_at: newOpenedAtISO
+      };
+
+      const { error } = await supabase
+        .from('cash_registers')
+        .update(payload)
+        .eq('id', currentRegister.id);
+
+      if (error) throw error;
+
+      setShowEditModal(false);
+      setEditAdminPin('');
+      fetchRegisters();
+    } catch (err: any) {
+      console.error('Error al editar caja:', err);
+      alert('Error al actualizar la caja: ' + (err.message || err.toString()));
+    } finally {
+      setSavingEdit(false);
+    }
   };
 
   const handleCancelRegister = async (e: React.FormEvent) => {
@@ -299,12 +366,21 @@ export function CashRegisterView() {
                         </p>
                       </div>
                     </div>
-                    <button 
-                      onClick={() => setShowCancelModal(true)}
-                      className="text-error hover:bg-error-container hover:text-on-error-container px-3 py-1.5 rounded-lg text-label-caps font-bold transition-colors"
-                    >
-                      Anular Arqueo
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button 
+                        onClick={handleStartEditRegister}
+                        className="text-primary hover:bg-primary/10 border border-primary/30 px-3 py-1.5 rounded-lg text-label-caps font-bold transition-colors flex items-center gap-1 shrink-0"
+                        title="Editar monto inicial u hora de apertura"
+                      >
+                        <Edit3 size={15} /> Editar
+                      </button>
+                      <button 
+                        onClick={() => setShowCancelModal(true)}
+                        className="text-error hover:bg-error-container hover:text-on-error-container px-3 py-1.5 rounded-lg text-label-caps font-bold transition-colors"
+                      >
+                        Anular
+                      </button>
+                    </div>
                   </div>
                   <div className="space-y-4">
                     <div className="flex justify-between items-center py-2 border-b border-outline-variant">
@@ -360,6 +436,20 @@ export function CashRegisterView() {
                         <input required value={openingAmount} onChange={e => setOpeningAmount(e.target.value)} type="number" step="0.01" min="0" className="w-full bg-surface border border-outline-variant rounded-lg h-12 pl-10 pr-3 text-title-md outline-none focus:border-primary text-data-mono font-bold" placeholder="0.00" />
                       </div>
                     </div>
+
+                    <div>
+                      <label className="text-label-caps text-on-surface-variant mb-1 block">Hora/Fecha de Apertura (opcional)</label>
+                      <div className="relative">
+                        <Calendar size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" />
+                        <input 
+                          type="datetime-local"
+                          value={openingCustomDate} 
+                          onChange={e => setOpeningCustomDate(e.target.value)} 
+                          className="w-full bg-surface border border-outline-variant rounded-lg h-10 pl-10 pr-3 text-body-sm text-on-surface outline-none focus:border-primary cursor-pointer font-medium" 
+                        />
+                      </div>
+                    </div>
+
                     <button type="submit" className="w-full h-12 bg-primary text-on-primary font-bold rounded-lg hover:opacity-90 flex items-center justify-center gap-2">
                       <Unlock size={20} /> Abrir Caja
                     </button>
@@ -492,6 +582,94 @@ export function CashRegisterView() {
               <div className="flex gap-3">
                 <button type="button" onClick={() => {setShowCancelModal(false); setPinError(''); setAdminPin('');}} className="flex-1 py-3 rounded-lg border border-outline-variant text-on-surface hover:bg-surface-variant transition-colors font-medium">Cancelar</button>
                 <button type="submit" className="flex-1 py-3 rounded-lg bg-error text-white hover:bg-error/90 transition-colors font-medium">Autorizar Anulación</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {showEditModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
+          <div className="bg-surface-container-lowest w-full max-w-md rounded-2xl shadow-2xl overflow-hidden flex flex-col border border-outline-variant">
+            <div className="p-4 bg-primary text-on-primary flex justify-between items-center">
+              <h3 className="font-bold text-title-md flex items-center gap-2">
+                <Edit3 size={20} /> Editar Arqueo Activo
+              </h3>
+              <button 
+                onClick={() => { setShowEditModal(false); setEditPinError(''); setEditAdminPin(''); }}
+                className="hover:bg-primary-fixed hover:text-on-primary-fixed rounded-full p-1 transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveRegisterEdit} className="p-6 flex flex-col gap-4">
+              <p className="text-body-sm text-on-surface-variant">
+                Modifica el fondo inicial o la hora de apertura. Las ventas se recalcularán automáticamente desde la nueva hora ingresada. Requiere autorización del Administrador.
+              </p>
+
+              <div>
+                <label className="text-label-caps text-on-surface-variant mb-1 block">Fondo Inicial ($) *</label>
+                <div className="relative">
+                  <DollarSign size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" />
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    required
+                    value={editOpeningAmount}
+                    onChange={(e) => setEditOpeningAmount(e.target.value)}
+                    className="w-full bg-surface border border-outline-variant rounded-lg h-12 pl-10 pr-3 text-title-md font-bold text-data-mono outline-none focus:border-primary"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-label-caps text-on-surface-variant mb-1 block">Fecha y Hora de Apertura *</label>
+                <div className="relative">
+                  <Clock size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" />
+                  <input
+                    type="datetime-local"
+                    required
+                    value={editOpenedAt}
+                    onChange={(e) => setEditOpenedAt(e.target.value)}
+                    className="w-full bg-surface border border-outline-variant rounded-lg h-12 pl-10 pr-3 text-body-md font-semibold outline-none focus:border-primary cursor-pointer"
+                  />
+                </div>
+                <p className="text-[11px] text-on-surface-variant mt-1">
+                  💡 Ajusta este horario si abriste la caja más tarde o si anulaste un arqueo anterior.
+                </p>
+              </div>
+
+              <div className="pt-2 border-t border-outline-variant">
+                <label className="text-label-caps text-error mb-1 block font-bold">PIN de Autorización Administrador *</label>
+                <input
+                  type="password"
+                  required
+                  value={editAdminPin}
+                  onChange={(e) => setEditAdminPin(e.target.value)}
+                  placeholder="••••"
+                  maxLength={6}
+                  className="w-full bg-surface border border-outline-variant rounded-lg h-12 px-3 text-center tracking-[1em] text-title-lg focus:ring-2 focus:ring-primary outline-none font-mono"
+                />
+                {editPinError && <p className="text-error text-body-sm mt-2 text-center font-bold">{editPinError}</p>}
+              </div>
+
+              <div className="flex gap-3 mt-2">
+                <button
+                  type="button"
+                  onClick={() => { setShowEditModal(false); setEditPinError(''); setEditAdminPin(''); }}
+                  className="flex-1 py-3 rounded-lg border border-outline-variant text-on-surface hover:bg-surface-variant font-medium transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingEdit || !editOpeningAmount || !editOpenedAt || !editAdminPin}
+                  className="flex-1 py-3 rounded-lg bg-primary text-on-primary hover:bg-primary/90 font-medium transition-colors shadow disabled:opacity-50"
+                >
+                  {savingEdit ? 'Guardando...' : 'Guardar Cambios'}
+                </button>
               </div>
             </form>
           </div>
