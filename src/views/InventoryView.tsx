@@ -319,16 +319,18 @@ export function InventoryView() {
                       </div>
                     </td>
                     <td className="p-4 text-center">
-                      <div className="flex justify-center gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className={`flex justify-center gap-3 transition-opacity ${selectedProduct?.id === p.id ? 'opacity-100' : 'opacity-100 md:opacity-0 md:group-hover:opacity-100'}`}>
                         <button 
                           onClick={(e) => { e.stopPropagation(); setProductToEdit(p); setShowAddModal(true); }}
-                          className="text-on-surface-variant hover:text-primary transition-colors"
+                          className="text-on-surface-variant hover:text-primary transition-colors p-1"
+                          title="Editar producto"
                         >
                           <Edit2 size={18} />
                         </button>
                         <button 
                           onClick={(e) => { e.stopPropagation(); handleDeleteProduct(p); }}
-                          className="text-on-surface-variant hover:text-error transition-colors"
+                          className="text-on-surface-variant hover:text-error transition-colors p-1"
+                          title="Eliminar producto"
                         >
                           <Trash2 size={18} />
                         </button>

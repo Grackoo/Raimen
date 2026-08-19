@@ -171,11 +171,11 @@ export function CustomersView() {
                       <td className="p-4 text-data-mono text-on-surface">{c.rfc || '-'}</td>
                       <td className="p-4 text-body-sm text-on-surface-variant truncate max-w-[200px]">{c.address || '-'}</td>
                       <td className="p-4 text-center">
-                        <div className="flex justify-center gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button onClick={() => openEdit(c)} className="text-on-surface-variant hover:text-primary transition-colors">
+                        <div className="flex justify-center gap-3 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                          <button onClick={() => openEdit(c)} className="text-on-surface-variant hover:text-primary transition-colors p-1" title="Editar cliente">
                             <Edit2 size={18} />
                           </button>
-                          <button onClick={() => handleDelete(c.id)} className="text-on-surface-variant hover:text-error transition-colors">
+                          <button onClick={() => handleDelete(c.id)} className="text-on-surface-variant hover:text-error transition-colors p-1" title="Eliminar cliente">
                             <Trash2 size={18} />
                           </button>
                         </div>

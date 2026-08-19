@@ -176,13 +176,13 @@ export function AccountsPayableView() {
                           )}
                         </td>
                         <td className="p-4 text-center">
-                          <div className="flex justify-center gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <div className="flex justify-center gap-3 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                             {ap.status !== 'paid' && (
-                              <button onClick={() => handlePayment(ap)} className="text-primary hover:text-primary-variant font-bold text-label-caps transition-colors">
+                              <button onClick={() => handlePayment(ap)} className="text-primary hover:text-primary-variant font-bold text-label-caps transition-colors p-1">
                                 Abonar
                               </button>
                             )}
-                            <button onClick={() => handleDelete(ap.id)} className="text-on-surface-variant hover:text-error transition-colors">
+                            <button onClick={() => handleDelete(ap.id)} className="text-on-surface-variant hover:text-error transition-colors p-1" title="Eliminar cuenta">
                               <Trash2 size={18} />
                             </button>
                           </div>

@@ -164,8 +164,8 @@ export function ExpensesView() {
                       </td>
                       <td className="p-4 text-right text-data-mono font-bold text-error">-${e.amount.toFixed(2)}</td>
                       <td className="p-4 text-center">
-                        <div className="flex justify-center gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button onClick={() => handleDelete(e.id)} className="text-on-surface-variant hover:text-error transition-colors">
+                        <div className="flex justify-center gap-3 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                          <button onClick={() => handleDelete(e.id)} className="text-on-surface-variant hover:text-error transition-colors p-1" title="Eliminar gasto">
                             <Trash2 size={18} />
                           </button>
                         </div>
