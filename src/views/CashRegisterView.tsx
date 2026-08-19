@@ -8,11 +8,14 @@ interface CashRegister {
   user_id: string;
   opening_amount: number;
   expected_closing_amount: number;
+  actual_closing_amount?: number;
   difference: number;
   notes?: string;
   status: string;
   opened_at: string;
   closed_at: string;
+  owner_withdrawal?: number;
+  next_opening_amount?: number;
 }
 
 export function CashRegisterView() {
@@ -22,6 +25,7 @@ export function CashRegisterView() {
   
   const [openingAmount, setOpeningAmount] = useState('');
   const [closingAmount, setClosingAmount] = useState('');
+  const [nextOpeningAmount, setNextOpeningAmount] = useState('');
   
   const [showCloseModal, setShowCloseModal] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
@@ -117,7 +121,10 @@ export function CashRegisterView() {
     setHistory(hist || []);
     
     if (!active && hist && hist.length > 0) {
-      setOpeningAmount(hist[0].actual_closing_amount.toString());
+      const suggested = (hist[0].next_opening_amount !== undefined && hist[0].next_opening_amount !== null)
+        ? hist[0].next_opening_amount
+        : (hist[0].actual_closing_amount || 0);
+      setOpeningAmount(suggested.toString());
     } else if (!active) {
       setOpeningAmount('');
     }
@@ -287,6 +294,9 @@ export function CashRegisterView() {
     const difference = actual - expected;
 
     setCalculatedDiff(difference);
+    if (!nextOpeningAmount) {
+      setNextOpeningAmount(currentRegister.opening_amount.toString());
+    }
     setShowCloseModal(true);
   };
 
@@ -295,27 +305,47 @@ export function CashRegisterView() {
 
     const expected = currentRegister.opening_amount + cashSales - cashExpenses;
     const actual = parseFloat(closingAmount);
+    const nextOpening = parseFloat(nextOpeningAmount) || 0;
+    const withdrawalAmount = Math.max(0, actual - nextOpening);
 
-    const payload = {
+    const withdrawalStr = `[Retiro de Negocio: $${withdrawalAmount.toFixed(2)} | Fondo Dejado: $${nextOpening.toFixed(2)}]`;
+    const formattedNotes = closingNotes 
+      ? `${closingNotes.trim()}\n${withdrawalStr}`
+      : withdrawalStr;
+
+    const payload: any = {
       expected_closing_amount: expected,
       actual_closing_amount: actual,
       difference: calculatedDiff,
-      notes: closingNotes,
+      notes: formattedNotes,
       status: 'closed',
       closed_at: new Date().toISOString(),
       cash_sales: cashSales,
-      cash_expenses: cashExpenses
+      card_sales: cardSales,
+      transfer_sales: transferSales,
+      cash_expenses: cashExpenses,
+      owner_withdrawal: withdrawalAmount,
+      next_opening_amount: nextOpening
     };
 
-    const { error } = await supabase.from('cash_registers').update(payload).eq('id', currentRegister.id);
-    
-    if (error) {
-      console.error('Error closing register:', error);
-      alert('Error al cerrar caja: ' + error.message);
+    try {
+      const { error } = await supabase.from('cash_registers').update(payload).eq('id', currentRegister.id);
+      if (error) {
+        // Retry without custom columns if they don't exist yet in DB
+        const fallbackPayload = { ...payload };
+        delete fallbackPayload.owner_withdrawal;
+        delete fallbackPayload.next_opening_amount;
+        const { error: err2 } = await supabase.from('cash_registers').update(fallbackPayload).eq('id', currentRegister.id);
+        if (err2) throw err2;
+      }
+    } catch (err: any) {
+      console.error('Error closing register:', err);
+      alert('Error al cerrar caja: ' + (err.message || err.toString()));
       return;
     }
 
     setClosingAmount('');
+    setNextOpeningAmount('');
     setClosingNotes('');
     setShowCloseModal(false);
     fetchRegisters();
@@ -412,9 +442,30 @@ export function CashRegisterView() {
 
                   <form onSubmit={handlePreClose} className="mt-4 pt-4 border-t border-outline-variant flex flex-col gap-4">
                     <div>
-                      <label className="text-label-caps text-on-surface-variant mb-1 block">Conteo Físico Real (Dinero en Cajón) *</label>
+                      <label className="text-label-caps text-on-surface-variant mb-1 block">1. Conteo Físico Real (Dinero Total en Cajón) *</label>
                       <input required value={closingAmount} onChange={e => setClosingAmount(e.target.value)} type="number" step="0.01" min="0" className="w-full bg-surface border border-outline-variant rounded-lg h-12 px-3 text-title-md outline-none focus:border-primary text-data-mono font-bold" placeholder="0.00" />
                     </div>
+
+                    <div>
+                      <label className="text-label-caps text-on-surface-variant mb-1 block">2. Fondo para Siguiente Apertura (Fondo de Cambio)</label>
+                      <div className="relative">
+                        <DollarSign size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" />
+                        <input value={nextOpeningAmount} onChange={e => setNextOpeningAmount(e.target.value)} type="number" step="0.01" min="0" className="w-full bg-surface border border-outline-variant rounded-lg h-10 pl-10 pr-3 text-body-md outline-none focus:border-primary text-data-mono font-semibold" placeholder={currentRegister.opening_amount.toFixed(2)} />
+                      </div>
+                    </div>
+
+                    {closingAmount !== '' && (
+                      <div className="bg-primary/10 border border-primary/30 p-3 rounded-xl flex items-center justify-between shadow-sm">
+                        <div>
+                          <p className="text-[11px] font-bold uppercase text-primary tracking-wider">🏦 Dinero Retirado del Negocio</p>
+                          <p className="text-xs text-on-surface-variant">Ganancias / Efectivo tomado de la caja</p>
+                        </div>
+                        <p className="text-title-lg font-extrabold text-primary text-data-mono">
+                          ${(Math.max(0, (parseFloat(closingAmount) || 0) - (parseFloat(nextOpeningAmount) || 0))).toFixed(2)}
+                        </p>
+                      </div>
+                    )}
+
                     <button type="submit" className="w-full h-12 bg-error text-white font-bold rounded-lg hover:opacity-90 flex items-center justify-center gap-2">
                       <Lock size={20} /> Ejecutar Corte de Caja
                     </button>
@@ -462,43 +513,56 @@ export function CashRegisterView() {
             <div className="bg-surface-container-lowest rounded-xl border border-outline-variant p-6 shadow-sm flex flex-col">
               <h3 className="text-title-md font-bold text-on-surface mb-4">Últimos Cortes Realizados</h3>
               <div className="flex-1 overflow-y-auto custom-scrollbar flex flex-col gap-3">
-                {history.map((reg) => (
-                  <div key={reg.id} className="p-3 border border-outline-variant rounded-lg bg-surface-container-low flex flex-col gap-2 relative">
-                    <div className="flex justify-between items-center text-label-caps text-on-surface-variant pr-8">
-                      <span>{new Date(reg.closed_at).toLocaleDateString()}</span>
-                      <span>{new Date(reg.closed_at).toLocaleTimeString()}</span>
+                {history.map((reg) => {
+                  const actual = reg.actual_closing_amount !== undefined ? reg.actual_closing_amount : 0;
+                  const withdrawal = reg.owner_withdrawal !== undefined && reg.owner_withdrawal !== null
+                    ? reg.owner_withdrawal
+                    : Math.max(0, actual - (reg.next_opening_amount !== undefined ? reg.next_opening_amount : reg.opening_amount));
+
+                  return (
+                    <div key={reg.id} className="p-3 border border-outline-variant rounded-lg bg-surface-container-low flex flex-col gap-2 relative">
+                      <div className="flex justify-between items-center text-label-caps text-on-surface-variant pr-8">
+                        <span>{new Date(reg.closed_at).toLocaleDateString()}</span>
+                        <span>{new Date(reg.closed_at).toLocaleTimeString()}</span>
+                      </div>
+                      {sessionUser?.role === 'admin' && (
+                        <button 
+                          onClick={() => handleDeleteClosedRegister(reg.id)}
+                          className="absolute top-2 right-2 text-on-surface-variant hover:text-error hover:bg-error/10 p-1.5 rounded-lg transition-colors"
+                          title="Eliminar registro"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path></svg>
+                        </button>
+                      )}
+                      <div className="grid grid-cols-2 gap-2 text-body-sm">
+                        <div className="flex justify-between">
+                          <span className="text-on-surface-variant">Fondo Inicial:</span>
+                          <span className="font-bold text-on-surface">${reg.opening_amount.toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-on-surface-variant">Esperado:</span>
+                          <span className="font-bold text-on-surface">${reg.expected_closing_amount.toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-on-surface-variant">Cierre Real:</span>
+                          <span className="font-bold text-on-surface">${actual.toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-on-surface-variant">Diferencia:</span>
+                          <span className={`font-bold ${reg.difference === 0 ? 'text-secondary' : 'text-error'}`}>
+                            {reg.difference > 0 ? '+' : ''}{reg.difference.toFixed(2)}
+                          </span>
+                        </div>
+                        <div className="col-span-2 pt-2 border-t border-outline-variant flex justify-between items-center text-xs">
+                          <span className="text-primary font-bold">🏦 Retiro de Negocio:</span>
+                          <span className="font-extrabold text-primary text-data-mono bg-primary/10 px-2 py-0.5 rounded">
+                            ${withdrawal.toFixed(2)}
+                          </span>
+                        </div>
+                      </div>
                     </div>
-                    {sessionUser?.role === 'admin' && (
-                      <button 
-                        onClick={() => handleDeleteClosedRegister(reg.id)}
-                        className="absolute top-2 right-2 text-on-surface-variant hover:text-error hover:bg-error/10 p-1.5 rounded-lg transition-colors"
-                        title="Eliminar registro"
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path></svg>
-                      </button>
-                    )}
-                    <div className="grid grid-cols-2 gap-2 text-body-sm">
-                      <div className="flex justify-between">
-                        <span className="text-on-surface-variant">Fondo:</span>
-                        <span className="font-bold text-on-surface">${reg.opening_amount.toFixed(2)}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-on-surface-variant">Esperado:</span>
-                        <span className="font-bold text-on-surface">${reg.expected_closing_amount.toFixed(2)}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-on-surface-variant">Real:</span>
-                        <span className="font-bold text-primary">${reg.actual_closing_amount.toFixed(2)}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-on-surface-variant">Diferencia:</span>
-                        <span className={`font-bold ${reg.difference === 0 ? 'text-secondary' : 'text-error'}`}>
-                          {reg.difference > 0 ? '+' : ''}{reg.difference.toFixed(2)}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
                 {history.length === 0 && (
                   <div className="text-center text-on-surface-variant text-body-sm py-4">No hay historial de cortes.</div>
                 )}
@@ -515,6 +579,21 @@ export function CashRegisterView() {
               <h3 className="font-bold flex items-center gap-2"><Lock size={20} /> Confirmar Corte de Caja</h3>
             </div>
             <div className="p-6">
+              <div className="bg-surface-container-high p-3 rounded-xl border border-outline-variant mb-4 flex flex-col gap-2 text-xs">
+                <div className="flex justify-between">
+                  <span className="text-on-surface-variant">Conteo Real en Cajón:</span>
+                  <span className="font-bold text-data-mono text-on-surface">${(parseFloat(closingAmount) || 0).toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-on-surface-variant">Fondo para Mañana:</span>
+                  <span className="font-bold text-data-mono text-on-surface">${(parseFloat(nextOpeningAmount) || 0).toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between pt-1.5 border-t border-outline-variant text-primary font-bold text-sm">
+                  <span>🏦 Retiro del Negocio:</span>
+                  <span className="text-data-mono">${(Math.max(0, (parseFloat(closingAmount) || 0) - (parseFloat(nextOpeningAmount) || 0))).toFixed(2)}</span>
+                </div>
+              </div>
+
               {calculatedDiff !== 0 ? (
                 <>
                   <p className="text-body-sm text-on-surface-variant mb-4">
