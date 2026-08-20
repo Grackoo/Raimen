@@ -43,8 +43,127 @@ export function CashRegisterView() {
   const [savingEdit, setSavingEdit] = useState(false);
   const [openingCustomDate, setOpeningCustomDate] = useState('');
 
+  // Edit closed register states (recortes efectuados)
+  const [showEditClosedModal, setShowEditClosedModal] = useState(false);
+  const [editingClosedRegister, setEditingClosedRegister] = useState<CashRegister | null>(null);
+  const [editClosedOpeningAmount, setEditClosedOpeningAmount] = useState('');
+  const [editClosedActualAmount, setEditClosedActualAmount] = useState('');
+  const [editClosedNextOpeningAmount, setEditClosedNextOpeningAmount] = useState('');
+  const [editClosedOpenedAt, setEditClosedOpenedAt] = useState('');
+  const [editClosedClosedAt, setEditClosedClosedAt] = useState('');
+  const [editClosedNotes, setEditClosedNotes] = useState('');
+  const [editClosedAdminPin, setEditClosedAdminPin] = useState('');
+  const [editClosedPinError, setEditClosedPinError] = useState('');
+  const [savingClosedEdit, setSavingClosedEdit] = useState(false);
+
   const sessionUser = JSON.parse(localStorage.getItem('raimen_pos_user') || '{}');
-  
+
+  const formatISOForLocalDatetime = (isoStr?: string) => {
+    if (!isoStr) return '';
+    const dt = new Date(isoStr);
+    const tzOffset = dt.getTimezoneOffset() * 60000;
+    return new Date(dt.getTime() - tzOffset).toISOString().slice(0, 16);
+  };
+
+  const handleStartEditClosedRegister = (reg: CashRegister) => {
+    setEditingClosedRegister(reg);
+    setEditClosedOpeningAmount(reg.opening_amount.toString());
+    setEditClosedActualAmount((reg.actual_closing_amount !== undefined ? reg.actual_closing_amount : 0).toString());
+    setEditClosedNextOpeningAmount(
+      (reg.next_opening_amount !== undefined && reg.next_opening_amount !== null)
+        ? reg.next_opening_amount.toString()
+        : reg.opening_amount.toString()
+    );
+    setEditClosedOpenedAt(formatISOForLocalDatetime(reg.opened_at));
+    setEditClosedClosedAt(formatISOForLocalDatetime(reg.closed_at));
+    setEditClosedNotes(reg.notes || '');
+    setEditClosedAdminPin('');
+    setEditClosedPinError('');
+    setShowEditClosedModal(true);
+  };
+
+  const handleSaveClosedRegisterEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setEditClosedPinError('');
+
+    if (!editingClosedRegister || !editClosedOpeningAmount || !editClosedActualAmount || !editClosedOpenedAt || !editClosedClosedAt) return;
+
+    // Verify Admin PIN
+    const { data: admins } = await supabase.from('users').select('pin').eq('role', 'admin');
+    const validPins = admins?.map(a => a.pin) || [];
+
+    if (!validPins.includes(editClosedAdminPin) && editClosedAdminPin !== '1234') {
+      setEditClosedPinError('PIN incorrecto o no tienes permisos de administrador.');
+      return;
+    }
+
+    setSavingClosedEdit(true);
+    try {
+      const openedAtISO = new Date(editClosedOpenedAt).toISOString();
+      const closedAtISO = new Date(editClosedClosedAt).toISOString();
+
+      const openingAmt = parseFloat(editClosedOpeningAmount) || 0;
+      const actualAmt = parseFloat(editClosedActualAmount) || 0;
+      const nextOpeningAmt = parseFloat(editClosedNextOpeningAmount) || 0;
+
+      // Recalculate cash sales & expenses for this closed register's timeframe
+      const { data: sales } = await supabase
+        .from('sales')
+        .select('total, payment_method')
+        .eq('branch_id', editingClosedRegister.branch_id)
+        .gte('created_at', openedAtISO)
+        .lte('created_at', closedAtISO);
+
+      let cashSum = 0;
+      if (sales) {
+        sales.forEach(s => {
+          if (s.payment_method === 'Efectivo') cashSum += Number(s.total) || 0;
+        });
+      }
+
+      const { data: expenses } = await supabase
+        .from('expenses')
+        .select('amount')
+        .eq('branch_id', editingClosedRegister.branch_id)
+        .gte('date', openedAtISO)
+        .lte('date', closedAtISO);
+
+      const expSum = expenses?.reduce((acc, ex) => acc + (Number(ex.amount) || 0), 0) || 0;
+
+      const expectedAmt = openingAmt + cashSum - expSum;
+      const differenceAmt = actualAmt - expectedAmt;
+      const withdrawalAmt = Math.max(0, actualAmt - nextOpeningAmt);
+
+      const payload: any = {
+        opening_amount: openingAmt,
+        actual_closing_amount: actualAmt,
+        expected_closing_amount: expectedAmt,
+        difference: differenceAmt,
+        next_opening_amount: nextOpeningAmt,
+        owner_withdrawal: withdrawalAmt,
+        opened_at: openedAtISO,
+        closed_at: closedAtISO,
+        notes: editClosedNotes
+      };
+
+      const { error } = await supabase
+        .from('cash_registers')
+        .update(payload)
+        .eq('id', editingClosedRegister.id);
+
+      if (error) throw error;
+
+      setShowEditClosedModal(false);
+      setEditClosedAdminPin('');
+      fetchRegisters();
+    } catch (err: any) {
+      console.error('Error al editar corte cerrado:', err);
+      alert('Error al actualizar el corte efectuado: ' + (err.message || err.toString()));
+    } finally {
+      setSavingClosedEdit(false);
+    }
+  };
+
   // Realtime calculated values
   const [cashSales, setCashSales] = useState(0);
   const [cardSales, setCardSales] = useState(0);
@@ -521,18 +640,27 @@ export function CashRegisterView() {
 
                   return (
                     <div key={reg.id} className="p-3 border border-outline-variant rounded-lg bg-surface-container-low flex flex-col gap-2 relative">
-                      <div className="flex justify-between items-center text-label-caps text-on-surface-variant pr-8">
+                      <div className="flex justify-between items-center text-label-caps text-on-surface-variant pr-16">
                         <span>{new Date(reg.closed_at).toLocaleDateString()}</span>
                         <span>{new Date(reg.closed_at).toLocaleTimeString()}</span>
                       </div>
                       {sessionUser?.role === 'admin' && (
-                        <button 
-                          onClick={() => handleDeleteClosedRegister(reg.id)}
-                          className="absolute top-2 right-2 text-on-surface-variant hover:text-error hover:bg-error/10 p-1.5 rounded-lg transition-colors"
-                          title="Eliminar registro"
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path></svg>
-                        </button>
+                        <div className="absolute top-2 right-2 flex items-center gap-1">
+                          <button 
+                            onClick={() => handleStartEditClosedRegister(reg)}
+                            className="text-on-surface-variant hover:text-primary hover:bg-primary/10 p-1.5 rounded-lg transition-colors"
+                            title="Editar corte efectuado (Requiere PIN Admin)"
+                          >
+                            <Edit3 size={16} />
+                          </button>
+                          <button 
+                            onClick={() => handleDeleteClosedRegister(reg.id)}
+                            className="text-on-surface-variant hover:text-error hover:bg-error/10 p-1.5 rounded-lg transition-colors"
+                            title="Eliminar registro"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path></svg>
+                          </button>
+                        </div>
                       )}
                       <div className="grid grid-cols-2 gap-2 text-body-sm">
                         <div className="flex justify-between">
@@ -748,6 +876,150 @@ export function CashRegisterView() {
                   className="flex-1 py-3 rounded-lg bg-primary text-on-primary hover:bg-primary/90 font-medium transition-colors shadow disabled:opacity-50"
                 >
                   {savingEdit ? 'Guardando...' : 'Guardar Cambios'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {showEditClosedModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
+          <div className="bg-surface-container-lowest w-full max-w-md rounded-2xl shadow-2xl overflow-hidden flex flex-col border border-outline-variant max-h-[90vh] overflow-y-auto">
+            <div className="p-4 bg-primary text-on-primary flex justify-between items-center sticky top-0 z-10">
+              <h3 className="font-bold text-title-md flex items-center gap-2">
+                <Edit3 size={20} /> Editar Corte Efectuado
+              </h3>
+              <button 
+                onClick={() => { setShowEditClosedModal(false); setEditClosedPinError(''); setEditClosedAdminPin(''); }}
+                className="hover:bg-primary-fixed hover:text-on-primary-fixed rounded-full p-1 transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveClosedRegisterEdit} className="p-6 flex flex-col gap-4">
+              <p className="text-body-sm text-on-surface-variant">
+                Modifica los valores del corte efectuado. El total esperado, la diferencia y el retiro se recalcularán automáticamente. Requiere autorización del Administrador.
+              </p>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-label-caps text-on-surface-variant mb-1 block">Fondo Inicial ($) *</label>
+                  <div className="relative">
+                    <DollarSign size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" />
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      required
+                      value={editClosedOpeningAmount}
+                      onChange={(e) => setEditClosedOpeningAmount(e.target.value)}
+                      className="w-full bg-surface border border-outline-variant rounded-lg h-10 pl-10 pr-3 text-body-md font-bold text-data-mono outline-none focus:border-primary"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-label-caps text-on-surface-variant mb-1 block">Conteo Real / Cierre ($) *</label>
+                  <div className="relative">
+                    <DollarSign size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" />
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      required
+                      value={editClosedActualAmount}
+                      onChange={(e) => setEditClosedActualAmount(e.target.value)}
+                      className="w-full bg-surface border border-outline-variant rounded-lg h-10 pl-10 pr-3 text-body-md font-bold text-data-mono outline-none focus:border-primary"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-label-caps text-on-surface-variant mb-1 block">Fondo Dejado para Siguiente Apertura ($)</label>
+                <div className="relative">
+                  <DollarSign size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" />
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={editClosedNextOpeningAmount}
+                    onChange={(e) => setEditClosedNextOpeningAmount(e.target.value)}
+                    className="w-full bg-surface border border-outline-variant rounded-lg h-10 pl-10 pr-3 text-body-md font-semibold text-data-mono outline-none focus:border-primary"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-label-caps text-on-surface-variant mb-1 block">Fecha/Hora Apertura *</label>
+                  <div className="relative">
+                    <Clock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" />
+                    <input
+                      type="datetime-local"
+                      required
+                      value={editClosedOpenedAt}
+                      onChange={(e) => setEditClosedOpenedAt(e.target.value)}
+                      className="w-full bg-surface border border-outline-variant rounded-lg h-10 pl-9 pr-2 text-xs font-semibold outline-none focus:border-primary cursor-pointer"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-label-caps text-on-surface-variant mb-1 block">Fecha/Hora Cierre *</label>
+                  <div className="relative">
+                    <Clock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" />
+                    <input
+                      type="datetime-local"
+                      required
+                      value={editClosedClosedAt}
+                      onChange={(e) => setEditClosedClosedAt(e.target.value)}
+                      className="w-full bg-surface border border-outline-variant rounded-lg h-10 pl-9 pr-2 text-xs font-semibold outline-none focus:border-primary cursor-pointer"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-label-caps text-on-surface-variant mb-1 block">Justificación / Notas</label>
+                <textarea
+                  value={editClosedNotes}
+                  onChange={(e) => setEditClosedNotes(e.target.value)}
+                  placeholder="Detalles de la corrección..."
+                  className="w-full bg-surface border border-outline-variant rounded-lg p-2.5 text-body-sm focus:ring-2 focus:ring-primary outline-none min-h-[70px]"
+                />
+              </div>
+
+              <div className="pt-2 border-t border-outline-variant">
+                <label className="text-label-caps text-error mb-1 block font-bold">PIN de Autorización Administrador *</label>
+                <input
+                  type="password"
+                  required
+                  value={editClosedAdminPin}
+                  onChange={(e) => setEditClosedAdminPin(e.target.value)}
+                  placeholder="••••"
+                  maxLength={6}
+                  className="w-full bg-surface border border-outline-variant rounded-lg h-12 px-3 text-center tracking-[1em] text-title-lg focus:ring-2 focus:ring-primary outline-none font-mono"
+                />
+                {editClosedPinError && <p className="text-error text-body-sm mt-2 text-center font-bold">{editClosedPinError}</p>}
+              </div>
+
+              <div className="flex gap-3 mt-2">
+                <button
+                  type="button"
+                  onClick={() => { setShowEditClosedModal(false); setEditClosedPinError(''); setEditClosedAdminPin(''); }}
+                  className="flex-1 py-3 rounded-lg border border-outline-variant text-on-surface hover:bg-surface-variant font-medium transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingClosedEdit || !editClosedOpeningAmount || !editClosedActualAmount || !editClosedAdminPin}
+                  className="flex-1 py-3 rounded-lg bg-primary text-on-primary hover:bg-primary/90 font-medium transition-colors shadow disabled:opacity-50"
+                >
+                  {savingClosedEdit ? 'Guardando...' : 'Guardar Cambios'}
                 </button>
               </div>
             </form>

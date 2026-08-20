@@ -20,8 +20,14 @@ export function ExpensesView() {
   const [selectedBranch, setSelectedBranch] = useState<string>('all');
   const [dateFilter, setDateFilter] = useState('month'); // today, week, month, year
 
+  const getNowISOForInput = () => {
+    const d = new Date();
+    const tzOffset = d.getTimezoneOffset() * 60000;
+    return new Date(d.getTime() - tzOffset).toISOString().slice(0, 16);
+  };
+
   const [formData, setFormData] = useState({
-    description: '', amount: '', category: 'Operativo', customCategory: ''
+    description: '', amount: '', category: 'Operativo', customCategory: '', date: getNowISOForInput()
   });
 
   const sessionUser = JSON.parse(localStorage.getItem('raimen_pos_user') || '{}');
@@ -29,6 +35,17 @@ export function ExpensesView() {
   const [allCategories, setAllCategories] = useState<string[]>([]);
   const baseCategories = ['Operativo', 'Administrativo', 'Nómina', 'Marketing', 'Mantenimiento', 'Insumos', 'Renta', 'Luz', 'Agua', 'Internet', 'Teléfono', 'Impuestos', 'Otro'];
   const dynamicCategories = allCategories.length > 0 ? allCategories : baseCategories;
+
+  const handleOpenModal = () => {
+    setFormData({
+      description: '',
+      amount: '',
+      category: 'Operativo',
+      customCategory: '',
+      date: getNowISOForInput()
+    });
+    setShowModal(true);
+  };
 
   useEffect(() => {
     fetchBranches();
@@ -80,7 +97,7 @@ export function ExpensesView() {
 
     const finalCategory = formData.category === 'NEW' ? formData.customCategory : formData.category;
 
-    const payload = {
+    const payload: any = {
       description: formData.description,
       amount: parseFloat(formData.amount),
       category: finalCategory || 'Otro',
@@ -88,9 +105,13 @@ export function ExpensesView() {
       user_id: sessionUser.id || null
     };
 
+    if (formData.date) {
+      payload.date = new Date(formData.date).toISOString();
+    }
+
     await supabase.from('expenses').insert([payload]);
     setShowModal(false);
-    setFormData({ description: '', amount: '', category: 'Operativo', customCategory: '' });
+    setFormData({ description: '', amount: '', category: 'Operativo', customCategory: '', date: getNowISOForInput() });
     fetchExpenses();
   };
 
@@ -111,7 +132,7 @@ export function ExpensesView() {
             <h2 className="text-display-lg font-bold text-on-surface tracking-tight">Control de Gastos</h2>
             <p className="text-body-md text-on-surface-variant mt-1">Registra salidas de efectivo y gastos operativos.</p>
           </div>
-          <button onClick={() => setShowModal(true)} className="flex items-center justify-center gap-2 h-10 px-4 bg-error text-white rounded-lg text-title-md hover:opacity-90 shadow-sm w-full sm:w-auto">
+          <button onClick={handleOpenModal} className="flex items-center justify-center gap-2 h-10 px-4 bg-error text-white rounded-lg text-title-md hover:opacity-90 shadow-sm w-full sm:w-auto">
             <Plus size={20} /> Registrar Gasto
           </button>
         </div>
@@ -193,6 +214,18 @@ export function ExpensesView() {
                 <label className="text-label-caps text-on-surface-variant mb-1 block">Motivo / Descripción *</label>
                 <input required value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} type="text" className="w-full bg-surface border border-outline-variant rounded-lg h-10 px-3 text-body-sm outline-none focus:border-primary" placeholder="Ej. Pago de luz" />
               </div>
+
+              <div>
+                <label className="text-label-caps text-on-surface-variant mb-1 block">Fecha y Hora de Registro *</label>
+                <input 
+                  type="datetime-local" 
+                  required
+                  value={formData.date} 
+                  onChange={e => setFormData({...formData, date: e.target.value})} 
+                  className="w-full bg-surface border border-outline-variant rounded-lg h-10 px-3 text-body-sm outline-none focus:border-primary font-medium cursor-pointer" 
+                />
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-label-caps text-on-surface-variant mb-1 block">Monto ($) *</label>
