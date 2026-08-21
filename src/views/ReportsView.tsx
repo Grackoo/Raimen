@@ -138,161 +138,295 @@ export function ReportsView() {
     return branches.find(b => b.id === selectedBranch)?.name || 'Sucursal';
   };
 
-  const handlePrintPDFNative = () => {
-    const reportContent = document.getElementById('financial-report-print-container');
-    if (!reportContent) return;
+  const buildCleanReportHTML = () => {
+    return `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Reporte Financiero - RAIMEN STORE</title>
+        <style>
+          @page { size: A4 portrait; margin: 10mm; }
+          * { box-sizing: border-box; font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+          body { margin: 0; padding: 0; background: #ffffff; color: #111827; }
+          .report-card {
+            position: relative;
+            background: #ffffff;
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+            padding: 24px;
+            overflow: hidden;
+            max-width: 900px;
+            margin: 0 auto;
+          }
+          .watermark-bg {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 400px;
+            max-width: 80%;
+            opacity: 0.12;
+            pointer-events: none;
+            z-index: 0;
+          }
+          .report-content { position: relative; z-index: 10; }
+          .header-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid #e5e7eb;
+            padding-bottom: 16px;
+            margin-bottom: 20px;
+          }
+          .company-title { font-size: 24px; font-weight: 900; color: #000000; letter-spacing: 0.05em; margin: 0; }
+          .sub-title { font-size: 13px; color: #4b5563; font-weight: 600; margin-top: 3px; }
+          .meta-text { font-size: 12px; color: #4b5563; text-align: right; margin: 0; line-height: 1.5; }
+          .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+          }
+          .section-box {
+            background: #ffffff;
+            border: 1px solid #e5e7eb;
+            border-radius: 10px;
+            overflow: hidden;
+          }
+          .box-title-bar {
+            background: #f9fafb;
+            padding: 12px 16px;
+            border-bottom: 1px solid #e5e7eb;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+          }
+          .box-title { font-size: 15px; font-weight: 700; color: #111827; margin: 0; }
+          .box-badge { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 4px; background: #e5e7eb; color: #374151; }
+          .box-body { padding: 16px; font-size: 13px; }
+          .row-item { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+          .row-item-sub { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; padding-left: 14px; font-size: 12px; color: #4b5563; }
+          .row-divider { border-bottom: 1px dashed #e5e7eb; padding-bottom: 10px; margin-bottom: 10px; }
+          .txt-red { color: #dc2626; font-weight: 600; }
+          .txt-green { color: #047857; font-weight: 700; }
+          .txt-bold { font-weight: 700; color: #111827; }
+          .mono-val { font-family: monospace; font-weight: 700; font-size: 14px; }
+          .result-banner {
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-top: 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+          }
+          .result-banner-profit { background: #ecfdf5; border: 1px solid #a7f3d0; color: #047857; }
+          .result-banner-loss { background: #fff1f2; border: 1px solid #fecdd3; color: #be123c; }
+          .section-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #6b7280; border-bottom: 1px solid #e5e7eb; padding-bottom: 4px; margin-bottom: 10px; }
+          @media print {
+            body { padding: 0; }
+            .report-card { border: none; padding: 0; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="report-card">
+          <!-- Centered Watermark Image -->
+          <img src="/MARCA DE AGUA.png" class="watermark-bg" alt="Marca de Agua" />
 
-    const win = window.open('', '', 'width=1000,height=800');
-    if (win) {
-      win.document.write(`
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <title>Reporte Financiero - RAIMEN STORE</title>
-          <style>
-            body { font-family: system-ui, -apple-system, sans-serif; margin: 0; padding: 20px; color: #111; }
-            .report-box { position: relative; background: #fff; border: 1px solid #ccc; padding: 24px; border-radius: 12px; }
-            .watermark { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; opacity: 0.12; pointer-events: none; z-index: 0; }
-            .watermark img { width: 450px; }
-            .content { position: relative; z-index: 10; }
-            .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #ddd; padding-bottom: 12px; margin-bottom: 20px; }
-            .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
-            .card { background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden; }
-            .card-header { padding: 12px 16px; background: #f9fafb; border-bottom: 1px solid #e5e7eb; display: flex; justify-content: space-between; font-weight: bold; }
-            .card-body { padding: 16px; font-size: 14px; }
-            .row { display: flex; justify-content: space-between; margin-bottom: 10px; }
-            .row-sub { display: flex; justify-content: space-between; margin-bottom: 6px; padding-left: 16px; color: #666; font-size: 13px; }
-            .row-bold { font-weight: bold; }
-            .row-red { color: #dc2626; }
-            .box-highlight { padding: 12px; border-radius: 8px; margin-top: 12px; font-weight: bold; display: flex; justify-content: space-between; font-size: 16px; }
-            .bg-green { background: #ecfdf5; border: 1px solid #a7f3d0; color: #047857; }
-            .bg-red { background: #fff1f2; border: 1px solid #fecdd3; color: #be123c; }
-            .mono { font-family: monospace; font-size: 15px; }
-            @media print {
-              body { padding: 0; }
-              .no-print { display: none; }
-            }
-          </style>
-        </head>
-        <body>
-          <div className="report-box">
-            ${reportContent.innerHTML}
+          <div class="report-content">
+            <div class="header-bar">
+              <div>
+                <h1 class="company-title">RAIMEN STORE</h1>
+                <div class="sub-title">Reporte Financiero Oficial</div>
+              </div>
+              <div class="meta-text">
+                <p><b>Periodo:</b> ${getDateFilterLabel()}</p>
+                <p><b>Sucursal:</b> ${getBranchLabel()}</p>
+                <p><b>Generado:</b> ${new Date().toLocaleString('es-MX')}</p>
+              </div>
+            </div>
+
+            <div class="grid-2">
+              <!-- Estado de Resultados -->
+              <div class="section-box">
+                <div class="box-title-bar">
+                  <h3 class="box-title">Estado de Resultados</h3>
+                  <span class="box-badge">ER</span>
+                </div>
+                <div class="box-body">
+                  <div class="row-item">
+                    <span>Ingresos por Ventas</span>
+                    <span class="mono-val">$${income.toFixed(2)}</span>
+                  </div>
+                  <div class="row-item row-red row-divider">
+                    <span>[-] Costo de Ventas (COGS)</span>
+                    <span class="mono-val">-$${cogs.toFixed(2)}</span>
+                  </div>
+                  <div class="row-item txt-bold">
+                    <span>(=) Utilidad Bruta</span>
+                    <span class="mono-val">$${grossProfit.toFixed(2)}</span>
+                  </div>
+                  <div class="row-item row-red row-divider">
+                    <span>[-] Gastos de Operación</span>
+                    <span class="mono-val">-$${expenses.toFixed(2)}</span>
+                  </div>
+                  <div class="result-banner ${netProfit >= 0 ? 'result-banner-profit' : 'result-banner-loss'}">
+                    <span style="font-weight:800; font-size:14px;">(=) Utilidad Neta</span>
+                    <span class="mono-val" style="font-size:18px;">$${netProfit.toFixed(2)}</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Balance General -->
+              <div class="section-box">
+                <div class="box-title-bar">
+                  <h3 class="box-title">Estado de Situación Financiera</h3>
+                  <span class="box-badge" style="background:#ecfdf5; color:#047857; border:1px solid #a7f3d0;">✓ Cuadrado</span>
+                </div>
+                <div class="box-body">
+                  <div class="section-label">ACTIVO CIRCULANTE</div>
+                  <div class="row-item">
+                    <span>Efectivo Equivalente (Cajas)</span>
+                    <span class="mono-val">$${cash.toFixed(2)}</span>
+                  </div>
+                  <div class="row-item-sub">
+                    <span>└ Ingresos por Tarjeta</span>
+                    <span class="mono-val">$${cardSales.toFixed(2)}</span>
+                  </div>
+                  <div class="row-item-sub">
+                    <span>└ Ingresos por Transferencia</span>
+                    <span class="mono-val">$${transferSales.toFixed(2)}</span>
+                  </div>
+                  <div class="row-item">
+                    <span>Inventarios (a Costo)</span>
+                    <span class="mono-val">$${inventoryValue.toFixed(2)}</span>
+                  </div>
+                  <div class="row-item txt-bold row-divider" style="padding-top:6px;">
+                    <span>Total Activo</span>
+                    <span class="mono-val">$${totalAssets.toFixed(2)}</span>
+                  </div>
+
+                  <div class="section-label">PASIVO</div>
+                  <div class="row-item row-red row-divider">
+                    <span>Cuentas por Pagar</span>
+                    <span class="mono-val">$${accountsPayable.toFixed(2)}</span>
+                  </div>
+
+                  <div class="section-label">PATRIMONIO / CAPITAL</div>
+                  <div class="row-item txt-bold">
+                    <span>Capital Contable</span>
+                    <span class="mono-val">$${equity.toFixed(2)}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
-          <script>
-            window.onload = function() {
-              setTimeout(function() {
-                window.print();
-                window.close();
-              }, 300);
-            };
-          </script>
-        </body>
-        </html>
-      `);
+        </div>
+      </body>
+      </html>
+    `;
+  };
+
+  const handlePrintPDFNative = () => {
+    const win = window.open('', '', 'width=950,height=800');
+    if (win) {
+      win.document.write(buildCleanReportHTML());
       win.document.close();
+      win.focus();
+      setTimeout(() => {
+        win.print();
+        win.close();
+      }, 350);
     }
   };
 
   const handleDownloadPDF = async () => {
     setGeneratingPDF(true);
     try {
-      const reportContent = document.getElementById('financial-report-print-container');
-      if (!reportContent) return;
+      // Use clean standalone iframe / HTML string rendering to jsPDF
+      const iframe = document.createElement('iframe');
+      iframe.style.position = 'fixed';
+      iframe.style.right = '100%';
+      iframe.style.bottom = '100%';
+      iframe.style.width = '900px';
+      iframe.style.height = '1200px';
+      iframe.style.border = 'none';
+      document.body.appendChild(iframe);
 
-      const width = reportContent.offsetWidth || 850;
-      const height = reportContent.offsetHeight || 1100;
+      const doc = iframe.contentWindow?.document;
+      if (!doc) throw new Error('No se pudo crear el contexto de renderizado.');
 
-      // Inline computed styles to convert all CSS rules into clean explicit inline styles
-      const clone = reportContent.cloneNode(true) as HTMLElement;
-      const origElems = [reportContent, ...Array.from(reportContent.querySelectorAll('*'))];
-      const cloneElems = [clone, ...Array.from(clone.querySelectorAll('*'))];
+      doc.open();
+      doc.write(buildCleanReportHTML());
+      doc.close();
 
-      for (let i = 0; i < origElems.length; i++) {
-        const origEl = origElems[i] as HTMLElement;
-        const cloneEl = cloneElems[i] as HTMLElement;
-        if (origEl && cloneEl && origEl.nodeType === 1) {
-          const comp = window.getComputedStyle(origEl);
-          cloneEl.style.backgroundColor = comp.backgroundColor;
-          cloneEl.style.color = comp.color;
-          cloneEl.style.borderColor = comp.borderColor;
-          cloneEl.style.fontSize = comp.fontSize;
-          cloneEl.style.fontFamily = comp.fontFamily;
-          cloneEl.style.fontWeight = comp.fontWeight;
-          cloneEl.style.padding = comp.padding;
-          cloneEl.style.margin = comp.margin;
-          cloneEl.style.display = comp.display;
-          cloneEl.style.flexDirection = comp.flexDirection;
-          cloneEl.style.justifyContent = comp.justifyContent;
-          cloneEl.style.alignItems = comp.alignItems;
-          cloneEl.style.width = comp.width;
-          cloneEl.style.height = comp.height;
-          cloneEl.style.borderRadius = comp.borderRadius;
-          cloneEl.style.borderWidth = comp.borderWidth;
-          cloneEl.style.borderStyle = comp.borderStyle;
-        }
-      }
+      // Wait for image loading inside iframe
+      await new Promise(resolve => setTimeout(resolve, 400));
 
-      // Convert cloned HTML to SVG foreignObject data URI
-      const svg = `
-        <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">
-          <foreignObject width="100%" height="100%">
-            <div xmlns="http://www.w3.org/1999/xhtml" style="background:#ffffff; width:${width}px; height:${height}px;">
-              ${clone.outerHTML}
-            </div>
-          </foreignObject>
-        </svg>
-      `;
+      const reportEl = doc.querySelector('.report-card') as HTMLElement;
+      if (reportEl) {
+        const width = reportEl.offsetWidth || 850;
+        const height = reportEl.offsetHeight || 1100;
 
-      const blob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' });
-      const url = URL.createObjectURL(blob);
-      const img = new Image();
+        const svg = `
+          <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">
+            <foreignObject width="100%" height="100%">
+              <div xmlns="http://www.w3.org/1999/xhtml" style="background:#ffffff; width:${width}px; height:${height}px;">
+                ${reportEl.outerHTML}
+              </div>
+            </foreignObject>
+          </svg>
+        `;
 
-      await new Promise<void>((resolve, reject) => {
-        img.onload = () => {
-          try {
-            const canvas = document.createElement('canvas');
-            canvas.width = width * 2;
-            canvas.height = height * 2;
-            const ctx = canvas.getContext('2d');
-            if (ctx) {
-              ctx.scale(2, 2);
-              ctx.fillStyle = '#ffffff';
-              ctx.fillRect(0, 0, width, height);
-              ctx.drawImage(img, 0, 0);
+        const blob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const img = new Image();
 
-              const imgData = canvas.toDataURL('image/jpeg', 0.95);
-              const pdf = new jsPDF({
-                orientation: 'portrait',
-                unit: 'mm',
-                format: 'a4'
-              });
+        await new Promise<void>((resolve, reject) => {
+          img.onload = () => {
+            try {
+              const canvas = document.createElement('canvas');
+              canvas.width = width * 2;
+              canvas.height = height * 2;
+              const ctx = canvas.getContext('2d');
+              if (ctx) {
+                ctx.scale(2, 2);
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(0, 0, width, height);
+                ctx.drawImage(img, 0, 0);
 
-              const imgWidth = 210;
-              const pageHeight = 297;
-              const imgHeight = (canvas.height * imgWidth) / canvas.width;
+                const imgData = canvas.toDataURL('image/jpeg', 0.95);
+                const pdf = new jsPDF({
+                  orientation: 'portrait',
+                  unit: 'mm',
+                  format: 'a4'
+                });
 
-              pdf.addImage(imgData, 'JPEG', 0, 0, imgWidth, Math.min(imgHeight, pageHeight));
-              const branchName = selectedBranch === 'all' ? 'Consolidado' : (branches.find(b => b.id === selectedBranch)?.name || 'Sucursal');
-              pdf.save(`Reporte_Financiero_${branchName}_${new Date().toISOString().slice(0, 10)}.pdf`);
+                const imgWidth = 210;
+                const pageHeight = 297;
+                const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+                pdf.addImage(imgData, 'JPEG', 0, 0, imgWidth, Math.min(imgHeight, pageHeight));
+                const branchName = selectedBranch === 'all' ? 'Consolidado' : (branches.find(b => b.id === selectedBranch)?.name || 'Sucursal');
+                pdf.save(`Reporte_Financiero_${branchName}_${new Date().toISOString().slice(0, 10)}.pdf`);
+              }
+              URL.revokeObjectURL(url);
+              resolve();
+            } catch (err) {
+              URL.revokeObjectURL(url);
+              reject(err);
             }
+          };
+          img.onerror = () => {
             URL.revokeObjectURL(url);
+            handlePrintPDFNative();
             resolve();
-          } catch (err) {
-            URL.revokeObjectURL(url);
-            reject(err);
-          }
-        };
-        img.onerror = (e) => {
-          URL.revokeObjectURL(url);
-          // Fallback to native print window if browser blocks SVG canvas export
-          handlePrintPDFNative();
-          resolve();
-        };
-        img.src = url;
-      });
-
-    } catch (err: any) {
-      console.warn('Fallback a impresión nativa por:', err);
+          };
+          img.src = url;
+        });
+      }
+      document.body.removeChild(iframe);
+    } catch (err) {
+      console.warn('Fallback a impresión nativa:', err);
       handlePrintPDFNative();
     } finally {
       setGeneratingPDF(false);
@@ -359,8 +493,8 @@ export function ReportsView() {
           <div id="financial-report-print-container" className="relative bg-white rounded-2xl p-6 border border-gray-200 shadow-sm overflow-hidden">
             
             {/* Watermark Background Image */}
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0 opacity-15 overflow-hidden">
-              <img src="/MARCA DE AGUA.png" alt="Marca de Agua" className="w-[450px] max-w-full object-contain" />
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none z-0 opacity-15 overflow-hidden w-[400px] max-w-[80%]">
+              <img src="/MARCA DE AGUA.png" alt="Marca de Agua" className="w-full object-contain" />
             </div>
 
             <div className="relative z-10 space-y-6">
