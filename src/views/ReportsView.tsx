@@ -139,17 +139,32 @@ export function ReportsView() {
         allowTaint: true,
         onclone: (clonedDoc) => {
           try {
-            // Replace any multi-line or single-line oklch/oklab CSS color functions in head & body HTML
-            if (clonedDoc.head) {
-              clonedDoc.head.innerHTML = clonedDoc.head.innerHTML
-                .replace(/oklch\([\s\S]*?\)/gi, '#000000')
-                .replace(/oklab\([\s\S]*?\)/gi, '#000000');
-            }
-            if (clonedDoc.body) {
-              clonedDoc.body.innerHTML = clonedDoc.body.innerHTML
-                .replace(/oklch\([\s\S]*?\)/gi, '#000000')
-                .replace(/oklab\([\s\S]*?\)/gi, '#000000');
-            }
+            // Clean modern CSS color functions without breaking CSS syntax boundaries
+            const styleEls = clonedDoc.querySelectorAll('style');
+            styleEls.forEach((style) => {
+              if (style.textContent) {
+                style.textContent = style.textContent
+                  .replace(/oklch\([^;{}]+?\)/gi, '#000000')
+                  .replace(/oklab\([^;{}]+?\)/gi, '#000000')
+                  .replace(/color-mix\([^;{}]+?\)/gi, '#000000')
+                  .replace(/light-dark\([^;{}]+?\)/gi, '#000000');
+              }
+            });
+
+            const inlineStyleElems = clonedDoc.querySelectorAll('[style]');
+            inlineStyleElems.forEach((el) => {
+              const s = el.getAttribute('style');
+              if (s) {
+                el.setAttribute(
+                  'style',
+                  s
+                    .replace(/oklch\([^;{}]+?\)/gi, '#000000')
+                    .replace(/oklab\([^;{}]+?\)/gi, '#000000')
+                    .replace(/color-mix\([^;{}]+?\)/gi, '#000000')
+                    .replace(/light-dark\([^;{}]+?\)/gi, '#000000')
+                );
+              }
+            });
           } catch (e) {
             console.warn('Error sanitizando estilos para html2canvas:', e);
           }
