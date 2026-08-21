@@ -288,7 +288,7 @@ export function POSView() {
   };
 
   return (
-    <main className="flex-1 flex flex-col lg:flex-row lg:h-full overflow-y-auto lg:overflow-hidden bg-surface-container-low p-4 lg:p-6 pb-24 lg:pb-6 gap-6">
+    <main className="flex-1 flex flex-col lg:flex-row lg:h-full overflow-y-auto lg:overflow-hidden bg-surface-container-low p-4 lg:p-6 pb-36 lg:pb-6 gap-6">
       
       {/* Left panel & Grid */}
       <div className="flex flex-col xl:flex-row gap-6 lg:min-h-0 lg:flex-1 lg:overflow-hidden">
@@ -850,7 +850,7 @@ export function POSView() {
       )}
       {/* Floating Mobile Cart Bar */}
       {cart.length > 0 && (
-        <div className="lg:hidden fixed bottom-14 left-0 right-0 z-40 bg-surface-container-lowest border-t-2 border-primary shadow-[0_-6px_20px_rgba(0,0,0,0.2)] p-3 px-4 flex items-center justify-between gap-3 animate-in slide-in-from-bottom duration-200">
+        <div className="lg:hidden fixed bottom-16 left-0 right-0 z-40 bg-surface-container-lowest border-t-2 border-primary shadow-[0_-6px_20px_rgba(0,0,0,0.2)] p-3 px-4 flex items-center justify-between gap-3 animate-in slide-in-from-bottom duration-200">
           <div className="flex items-center gap-3 cursor-pointer flex-1" onClick={() => setShowMobileCartModal(true)}>
             <div className="relative bg-primary text-on-primary p-2.5 rounded-full shadow shrink-0">
               <ShoppingBag size={20} />

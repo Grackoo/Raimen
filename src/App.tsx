@@ -66,13 +66,12 @@ export default function App() {
       <div className="flex-1 flex flex-col md:ml-60 h-screen overflow-hidden">
         <DailyCashCutAlertBanner onGoToCashRegister={() => setCurrentView('cash_register')} />
         
-        {currentView !== 'pos' && (
-          <TopBar 
-            currentView={currentView} 
-            onViewChange={setCurrentView} 
-            onOpenMobileMenu={() => setIsMobileMenuOpen(true)}
-          />
-        )}
+        {/* Render TopBar for all views when logged in */}
+        <TopBar 
+          currentView={currentView} 
+          onViewChange={setCurrentView} 
+          onOpenMobileMenu={() => setIsMobileMenuOpen(true)}
+        />
         
         {currentView === 'dashboard' && <DashboardView onViewChange={setCurrentView} />}
         {currentView === 'inventory' && <InventoryView />}
@@ -85,8 +84,8 @@ export default function App() {
         {currentView === 'accounts_payable' && <AccountsPayableView />}
         {currentView === 'cash_register' && <CashRegisterView />}
         
-        {/* Mobile bottom nav with direct access to Caja, Gastos, Corte, Ventas & Menú */}
-        {currentView !== 'pos-login' && currentView !== 'pos' && (
+        {/* Mobile bottom nav with direct access to Caja, Gastos, Corte, Ventas & Menú across all views */}
+        {currentView !== 'pos-login' && (
           <nav className="md:hidden bg-surface-container-highest docked full-width bottom-0 fixed z-50 rounded-t-xl shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] left-0 w-full flex justify-around items-center px-2 py-2">
             <button 
               onClick={() => setCurrentView('pos')} 
