@@ -44,6 +44,7 @@ export function POSView() {
   const [manualDiscountType, setManualDiscountType] = useState<'percent' | 'fixed'>('percent');
   const [manualDiscountValue, setManualDiscountValue] = useState<number>(10);
   const [showDiscountModal, setShowDiscountModal] = useState(false);
+  const [showMobileCartModal, setShowMobileCartModal] = useState(false);
 
   const [adminAction, setAdminAction] = useState<{action: string, payload?: any} | null>(null);
 
@@ -844,6 +845,180 @@ export function POSView() {
               {openingRegister ? <Loader2 className="animate-spin" /> : <Monitor size={20} />}
               Abrir Caja
             </button>
+          </div>
+        </div>
+      )}
+      {/* Floating Mobile Cart Bar */}
+      {cart.length > 0 && (
+        <div className="lg:hidden fixed bottom-14 left-0 right-0 z-40 bg-surface-container-lowest border-t-2 border-primary shadow-[0_-6px_20px_rgba(0,0,0,0.2)] p-3 px-4 flex items-center justify-between gap-3 animate-in slide-in-from-bottom duration-200">
+          <div className="flex items-center gap-3 cursor-pointer flex-1" onClick={() => setShowMobileCartModal(true)}>
+            <div className="relative bg-primary text-on-primary p-2.5 rounded-full shadow shrink-0">
+              <ShoppingBag size={20} />
+              <span className="absolute -top-1 -right-1 bg-secondary text-on-secondary text-[11px] font-extrabold w-5 h-5 rounded-full flex items-center justify-center border-2 border-surface">
+                {totalItems}
+              </span>
+            </div>
+            <div className="min-w-0">
+              <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Ticket ({totalItems} {totalItems === 1 ? 'ítem' : 'ítems'})</p>
+              <p className="text-title-md font-extrabold text-primary text-data-mono">${total.toFixed(2)}</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={() => setShowMobileCartModal(true)}
+              className="px-3 py-2.5 bg-surface-variant text-on-surface hover:bg-surface-container-highest font-bold rounded-lg text-xs transition-colors"
+            >
+              Ver Ticket
+            </button>
+            <button
+              disabled={processingSale}
+              onClick={() => setShowMobileCartModal(true)}
+              className="px-4 py-2.5 bg-secondary text-on-secondary hover:bg-on-secondary-fixed-variant font-bold rounded-lg text-xs transition-colors shadow flex items-center gap-1.5"
+            >
+              {processingSale ? <Loader2 className="animate-spin" size={16} /> : <Receipt size={16} />}
+              Cobrar (${total.toFixed(2)})
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Mobile Cart Drawer / Modal */}
+      {showMobileCartModal && (
+        <div className="lg:hidden fixed inset-0 bg-black/70 backdrop-blur-sm z-[200] flex flex-col justify-end p-0">
+          <div className="bg-surface-container-lowest w-full rounded-t-2xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden border-t border-outline-variant animate-in slide-in-from-bottom duration-300">
+            <div className="p-4 bg-primary text-on-primary flex justify-between items-center shrink-0">
+              <h3 className="font-bold text-title-md flex items-center gap-2">
+                <ShoppingBag size={20} /> Resumen de Venta ({totalItems} {totalItems === 1 ? 'producto' : 'productos'})
+              </h3>
+              <button 
+                onClick={() => setShowMobileCartModal(false)}
+                className="hover:bg-primary-fixed hover:text-on-primary-fixed rounded-full p-1 transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="p-4 border-b border-outline-variant bg-surface/50 flex flex-col gap-3 shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-full bg-primary-fixed flex items-center justify-center text-primary font-bold shrink-0">
+                  <User size={18} />
+                </div>
+                <div className="w-full">
+                  <select 
+                    value={selectedCustomerId} 
+                    onChange={(e) => setSelectedCustomerId(e.target.value)}
+                    className="w-full bg-transparent text-label-caps text-on-surface-variant font-bold outline-none cursor-pointer"
+                  >
+                    <option value="">Seleccionar Cliente...</option>
+                    {customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* Cart items scrollable area */}
+            <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-3 min-h-[150px]">
+              {cart.map((item) => (
+                <div key={item.id} className="flex items-center gap-3 py-2 border-b border-outline-variant border-dashed last:border-0">
+                  <div className="w-12 h-12 bg-surface-variant rounded-md overflow-hidden flex-shrink-0">
+                    <img src={item.image} className="w-full h-full object-cover" alt={item.name} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h4 className="text-body-sm font-semibold text-on-surface truncate">{item.name}</h4>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="text-data-mono text-on-surface-variant">${item.price.toFixed(2)}</span>
+                      <span className="text-outline-variant text-[10px]">x{item.qty}</span>
+                    </div>
+                  </div>
+                  <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-data-mono font-bold text-primary">${(item.price * item.qty).toFixed(2)}</span>
+                      <button onClick={() => requestRemoveFromCart(item.id)} className="text-error hover:bg-error-container p-1 rounded-md transition-colors"><Trash2 size={16} /></button>
+                    </div>
+                    <div className="flex items-center bg-surface-container rounded-full overflow-hidden border border-outline-variant">
+                      <button onClick={() => updateQty(item.id, -1)} className="w-7 h-7 flex items-center justify-center hover:bg-surface-variant text-on-surface"><Minus size={14} /></button>
+                      <span className="w-7 text-center text-body-sm font-bold text-[12px]">{item.qty}</span>
+                      <button onClick={() => updateQty(item.id, 1)} className="w-7 h-7 flex items-center justify-center hover:bg-surface-variant text-on-surface"><Plus size={14} /></button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Totals and Checkout */}
+            <div className="p-4 bg-surface border-t border-outline-variant shrink-0">
+              <div className="mb-3">
+                <button
+                  onClick={() => setShowDiscountModal(true)}
+                  className={`w-full py-2 px-3 rounded-lg border transition-all flex items-center justify-between text-xs font-semibold ${
+                    manualDiscountEnabled
+                      ? 'bg-primary-fixed border-primary text-primary'
+                      : hasDiscount
+                        ? 'bg-primary/10 border-primary/30 text-primary'
+                        : 'bg-surface-container-high border-outline-variant hover:bg-surface-variant text-on-surface-variant'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <Tag size={16} className={hasDiscount ? "text-primary" : "text-on-surface-variant"} />
+                    <span>
+                      {manualDiscountEnabled
+                        ? `Descuento Personalizado (${manualDiscountType === 'percent' ? `${manualDiscountValue}%` : `$${manualDiscountValue}`})`
+                        : hasDiscount
+                          ? 'Descuento Automático (5%)'
+                          : 'Aplicar Descuento'}
+                    </span>
+                  </div>
+                  <span className="text-[10px] bg-surface px-2 py-0.5 rounded border border-outline-variant font-bold">
+                    {hasDiscount ? 'Modificar' : '+ Descuento'}
+                  </span>
+                </button>
+              </div>
+
+              <div className="flex flex-col gap-1 mb-3">
+                <div className="flex justify-between text-xs text-on-surface-variant">
+                  <span>Suma de productos</span>
+                  <span className="text-data-mono">${sumProducts.toFixed(2)}</span>
+                </div>
+                {hasDiscount && (
+                   <div className="flex justify-between text-xs text-primary font-bold">
+                     <span>{discountLabel}</span>
+                     <span className="text-data-mono">-${discountAmount.toFixed(2)}</span>
+                   </div>
+                )}
+                <div className="flex justify-between text-title-md mt-1 pt-1 border-t border-outline-variant font-bold">
+                  <span>Total</span>
+                  <span className="text-data-mono text-primary">${total.toFixed(2)}</span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2 mb-3">
+                <button onClick={() => setPaymentMethod('Efectivo')} className={`flex flex-col items-center justify-center py-2 rounded-lg border transition-all h-14 ${paymentMethod === 'Efectivo' ? 'border-primary bg-primary-fixed text-primary ring-2 ring-primary ring-opacity-20' : 'border-outline-variant bg-surface-container-lowest text-on-surface-variant'}`}>
+                  <Banknote size={18} className="mb-0.5" />
+                  <span className="text-label-caps text-[9px]">Efectivo</span>
+                </button>
+                <button onClick={() => setPaymentMethod('Tarjeta')} className={`flex flex-col items-center justify-center py-2 rounded-lg border transition-all h-14 ${paymentMethod === 'Tarjeta' ? 'border-primary bg-primary-fixed text-primary ring-2 ring-primary ring-opacity-20' : 'border-outline-variant bg-surface-container-lowest text-on-surface-variant'}`}>
+                  <CreditCard size={18} className="mb-0.5" />
+                  <span className="text-label-caps text-[9px]">Tarjeta</span>
+                </button>
+                <button onClick={() => setPaymentMethod('Transfer')} className={`flex flex-col items-center justify-center py-2 rounded-lg border transition-all h-14 ${paymentMethod === 'Transfer' ? 'border-primary bg-primary-fixed text-primary ring-2 ring-primary ring-opacity-20' : 'border-outline-variant bg-surface-container-lowest text-on-surface-variant'}`}>
+                  <Landmark size={18} className="mb-0.5" />
+                  <span className="text-label-caps text-[9px]">Transferencia</span>
+                </button>
+              </div>
+
+              <button 
+                disabled={processingSale || cart.length === 0} 
+                onClick={async () => {
+                  await handleCheckout();
+                  setShowMobileCartModal(false);
+                }} 
+                className="w-full bg-secondary text-on-secondary hover:bg-on-secondary-fixed-variant transition-colors rounded-xl py-3 text-title-md flex items-center justify-center gap-2 shadow-lg h-12 disabled:opacity-50 disabled:cursor-not-allowed font-bold"
+              >
+                {processingSale ? <Loader2 className="animate-spin" size={18} /> : <Receipt size={18} />}
+                {processingSale ? 'Procesando...' : `Cobrar ($${total.toFixed(2)})`}
+              </button>
+            </div>
           </div>
         </div>
       )}
