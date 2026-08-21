@@ -377,6 +377,7 @@ export function OrdersView() {
               <div className="flex justify-between font-bold text-lg mt-2 pt-2 border-t border-black/20"><span>TOTAL:</span><span>${completedSale.total.toFixed(2)}</span></div>
               <div className="text-center mt-6 text-xs text-black/60">
                 <p>PAGO EN: {completedSale.payment_method.toUpperCase()}</p>
+                <p className="mt-3 font-semibold text-[11px] leading-tight text-black/80">Para cualquier cambio o aclaración es indispensable presentar este ticket.</p>
                 <p className="mt-2">¡Gracias por su compra!</p>
               </div>
             </div>
@@ -406,7 +407,7 @@ export function OrdersView() {
                   const printContent = document.getElementById('printable-ticket');
                   const win = window.open('', '', 'width=300,height=600');
                   if(win && printContent) {
-                    win.document.write('<html><head><title>Imprimir Ticket</title><style>body { font-family: monospace; font-size: 12px; margin: 0; padding: 10px; } table { width: 100%; border-collapse: collapse; } th { text-align: left; border-bottom: 1px dashed #000; } td { padding-top: 4px; } .text-right { text-align: right; } .text-center { text-align: center; } .font-bold { font-weight: bold; } .text-xl { font-size: 16px; } .text-lg { font-size: 14px; } .border-t { border-top: 1px dashed #000; } .border-b { border-bottom: 1px dashed #000; } .my-4 { margin: 10px 0; } .py-2 { padding: 5px 0; }</style></head><body>');
+                    win.document.write('<html><head><title>Imprimir Ticket</title><style>body { font-family: monospace; font-size: 12px; margin: 0; padding: 10px; } table { width: 100%; border-collapse: collapse; } th { text-align: left; border-bottom: 1px dashed #000; } td { padding-top: 4px; } .text-right { text-align: right; } .text-center { text-align: center; } .font-bold { font-weight: bold; } .font-semibold { font-weight: 600; } .text-xl { font-size: 16px; } .text-lg { font-size: 14px; } .border-t { border-top: 1px dashed #000; } .border-b { border-bottom: 1px dashed #000; } .my-4 { margin: 10px 0; } .py-2 { padding: 5px 0; } .mt-1 { margin-top: 4px; } .mt-2 { margin-top: 8px; } .mt-3 { margin-top: 12px; }</style></head><body>');
                     win.document.write(printContent.innerHTML);
                     win.document.write('</body></html>');
                     win.document.close();
@@ -433,6 +434,7 @@ export function OrdersView() {
                   text += `TOTAL: $${completedSale.total.toFixed(2)}\n`;
                   text += "--------------------------------\n";
                   text += `PAGO EN: ${completedSale.payment_method.toUpperCase()}\n`;
+                  text += "Para cualquier cambio o aclaracion\nes indispensable presentar este ticket.\n";
                   text += "Gracias por su compra!\n\n\n";
 
                   const encoded = encodeURI(text);
