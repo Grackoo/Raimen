@@ -13,7 +13,7 @@ import { CustomersView } from './views/CustomersView';
 import { ExpensesView } from './views/ExpensesView';
 import { AccountsPayableView } from './views/AccountsPayableView';
 import { CashRegisterView } from './views/CashRegisterView';
-import { Scan, Package, ShoppingBag, User, Menu } from 'lucide-react';
+import { Scan, ShoppingBag, Menu, Wallet, Lock } from 'lucide-react';
 
 import { DailyCashCutAlertBanner } from './components/DailyCashCutAlertBanner';
 
@@ -85,25 +85,53 @@ export default function App() {
         {currentView === 'accounts_payable' && <AccountsPayableView />}
         {currentView === 'cash_register' && <CashRegisterView />}
         
-        {/* Mobile bottom nav */}
+        {/* Mobile bottom nav with direct access to Caja, Gastos, Corte, Ventas & Menú */}
         {currentView !== 'pos-login' && currentView !== 'pos' && (
-          <nav className="md:hidden bg-surface-container-highest docked full-width bottom-0 fixed z-50 rounded-t-xl shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] left-0 w-full flex justify-around items-center px-4 py-2">
-            <button onClick={() => setCurrentView('pos')} className="flex flex-col items-center justify-center bg-secondary-container text-on-secondary-container rounded-full p-2 transition-transform scale-95 active:scale-90 text-label-caps w-14">
+          <nav className="md:hidden bg-surface-container-highest docked full-width bottom-0 fixed z-50 rounded-t-xl shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] left-0 w-full flex justify-around items-center px-2 py-2">
+            <button 
+              onClick={() => setCurrentView('pos')} 
+              className={`flex flex-col items-center justify-center p-1.5 rounded-xl transition-all text-label-caps w-14 ${
+                currentView === 'pos' ? 'bg-primary text-on-primary font-bold shadow' : 'bg-secondary-container text-on-secondary-container font-bold'
+              }`}
+            >
               <Scan className="mb-0.5" size={18} />
               <span className="text-[10px]">Caja</span>
             </button>
-            
-            <button onClick={() => setCurrentView('inventory')} className={`flex flex-col items-center justify-center p-2 rounded-xl transition-colors text-label-caps w-14 ${currentView === 'inventory' ? 'text-primary font-bold' : 'text-on-surface-variant'}`}>
-              <Package className="mb-0.5" size={18} />
-              <span className="text-[10px]">Inv</span>
+
+            <button 
+              onClick={() => setCurrentView('expenses')} 
+              className={`flex flex-col items-center justify-center p-1.5 rounded-xl transition-colors text-label-caps w-14 ${
+                currentView === 'expenses' ? 'text-primary font-bold bg-white/60 shadow-sm' : 'text-on-surface-variant'
+              }`}
+            >
+              <Wallet className="mb-0.5" size={18} />
+              <span className="text-[10px]">Gastos</span>
+            </button>
+
+            <button 
+              onClick={() => setCurrentView('cash_register')} 
+              className={`flex flex-col items-center justify-center p-1.5 rounded-xl transition-colors text-label-caps w-14 ${
+                currentView === 'cash_register' ? 'text-primary font-bold bg-white/60 shadow-sm' : 'text-on-surface-variant'
+              }`}
+            >
+              <Lock className="mb-0.5" size={18} />
+              <span className="text-[10px]">Corte</span>
             </button>
             
-            <button onClick={() => setCurrentView('orders')} className={`flex flex-col items-center justify-center p-2 rounded-xl transition-colors text-label-caps w-14 ${currentView === 'orders' ? 'text-primary font-bold' : 'text-on-surface-variant'}`}>
+            <button 
+              onClick={() => setCurrentView('orders')} 
+              className={`flex flex-col items-center justify-center p-1.5 rounded-xl transition-colors text-label-caps w-14 ${
+                currentView === 'orders' ? 'text-primary font-bold bg-white/60 shadow-sm' : 'text-on-surface-variant'
+              }`}
+            >
               <ShoppingBag className="mb-0.5" size={18} />
               <span className="text-[10px]">Ventas</span>
             </button>
 
-            <button onClick={() => setIsMobileMenuOpen(true)} className="flex flex-col items-center justify-center p-2 rounded-xl transition-colors text-label-caps w-14 text-primary font-bold">
+            <button 
+              onClick={() => setIsMobileMenuOpen(true)} 
+              className="flex flex-col items-center justify-center p-1.5 rounded-xl transition-colors text-label-caps w-14 text-on-surface-variant hover:text-primary"
+            >
               <Menu className="mb-0.5" size={18} />
               <span className="text-[10px]">Menú</span>
             </button>
