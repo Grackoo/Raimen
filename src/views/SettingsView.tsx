@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { Settings, Users, Store, Shield, Plus, Loader2, Edit2, Trash2, Check, X, Database, Download } from 'lucide-react';
+import * as XLSX from 'xlsx';
 
 export function SettingsView() {
   const [activeTab, setActiveTab] = useState('users');
@@ -204,52 +205,41 @@ export function SettingsView() {
     }
   };
 
-  const exportTableToCSV = (tableName: string, data: any[]) => {
-    if (!data || data.length === 0) return;
-    const headers = Object.keys(data[0]);
-    const csvRows = [];
-    csvRows.push(headers.join(','));
-    
-    for (const row of data) {
-      const values = headers.map(header => {
-        let val = row[header];
-        if (val === null || val === undefined) val = '';
-        val = String(val);
-        if (val.includes(',') || val.includes('"') || val.includes('\n')) {
-          val = `"${val.replace(/"/g, '""')}"`;
-        }
-        return val;
-      });
-      csvRows.push(values.join(','));
-    }
-    
-    const csvContent = "data:text/csv;charset=utf-8," + encodeURIComponent(csvRows.join('\n'));
-    const link = document.createElement("a");
-    link.setAttribute("href", csvContent);
-    link.setAttribute("download", `${tableName}_backup.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-
   const handleExportAll = async () => {
-    const tables = ['branches', 'users', 'products', 'customers', 'sales', 'sale_items', 'cash_registers', 'expense_categories', 'expenses'];
+    const tables = [
+      'branches',
+      'users',
+      'products',
+      'customers',
+      'sales',
+      'sale_items',
+      'cash_registers',
+      'expense_categories',
+      'expenses',
+      'accounts_payable'
+    ];
     setLoading(true);
     try {
+      const workbook = XLSX.utils.book_new();
+
       for (const table of tables) {
         const { data, error } = await supabase.from(table).select('*');
         if (error) {
-          console.error(`Error fetching ${table}:`, error);
+          console.error(`Error al obtener tabla ${table}:`, error);
           continue;
         }
-        if (data && data.length > 0) {
-          exportTableToCSV(table, data);
-          await new Promise(r => setTimeout(r, 500));
-        }
+        
+        const worksheet = XLSX.utils.json_to_sheet(data || []);
+        const sheetName = table.slice(0, 31);
+        XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
       }
-      alert('Backup exportado exitosamente. Revisa tus descargas.');
+
+      const dateStr = new Date().toISOString().split('T')[0];
+      const fileName = `Backup_Raimen_${dateStr}.xlsx`;
+      XLSX.writeFile(workbook, fileName);
+      alert('Backup exportado exitosamente en un solo archivo de Excel (.xlsx).');
     } catch (err) {
-      console.error(err);
+      console.error('Error al exportar el backup:', err);
       alert('Error al exportar el backup.');
     } finally {
       setLoading(false);
@@ -536,7 +526,7 @@ export function SettingsView() {
                 <div className="bg-surface p-6 rounded-xl border border-outline-variant max-w-xl">
                   <h4 className="text-title-md font-bold mb-2">Respaldo de Base de Datos</h4>
                   <p className="text-body-sm text-on-surface-variant mb-6">
-                    Exporta toda la información del sistema en archivos CSV. Esto descargará un archivo por cada tabla con todas sus columnas y filas tal cual están en Supabase, listo para ser re-subido en caso de error o migración.
+                    Exporta toda la información del sistema en un único archivo de Excel (.xlsx). Cada tabla de la base de datos se guardará organizada en su propia pestaña, lista para ser consultada o respaldada.
                   </p>
                   <button 
                     onClick={handleExportAll} 
@@ -544,7 +534,7 @@ export function SettingsView() {
                     className="bg-primary text-on-primary px-6 py-3 rounded-lg font-medium flex items-center justify-center gap-2 hover:opacity-90 disabled:opacity-50"
                   >
                     {loading ? <Loader2 className="animate-spin" size={20} /> : <Download size={20} />}
-                    Exportar Backup Completo (CSVs)
+                    Exportar Backup Completo (.xlsx)
                   </button>
                 </div>
               </div>
