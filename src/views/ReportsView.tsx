@@ -1,9 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { TrendingUp, FileText, Download, CheckCircle, AlertCircle } from 'lucide-react';
+import { TrendingUp, FileText, Download, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
+import { jsPDF } from 'jspdf';
+import html2canvas from 'html2canvas';
 
 export function ReportsView() {
   const [loading, setLoading] = useState(true);
+  const [generatingPDF, setGeneratingPDF] = useState(false);
   const [branches, setBranches] = useState<any[]>([]);
   const [selectedBranch, setSelectedBranch] = useState<string>('all');
   const [dateFilter, setDateFilter] = useState('month');
@@ -88,7 +91,7 @@ export function ReportsView() {
       const totalExp = expData?.reduce((acc, e) => acc + e.amount, 0) || 0;
       setExpenses(totalExp);
 
-      // 4. Efectivo en Caja (Último corte de caja de la sucursal seleccionada)
+      // 4. Efectivo en Caja
       let cashQ = supabase.from('cash_registers').select('actual_closing_amount').eq('status', 'closed').order('closed_at', { ascending: false }).limit(1);
       if (selectedBranch !== 'all') cashQ = cashQ.eq('branch_id', selectedBranch);
       const { data: cashData } = await cashQ;
@@ -100,7 +103,7 @@ export function ReportsView() {
       const totalInvValue = invData?.reduce((acc, p) => acc + (p.stock * p.cost), 0) || 0;
       setInventoryValue(totalInvValue);
 
-      // 6. Cuentas por Pagar (Solo pendientes/parciales)
+      // 6. Cuentas por Pagar
       let apQ = supabase.from('accounts_payable').select('amount, paid_amount').neq('status', 'paid');
       if (selectedBranch !== 'all') apQ = apQ.eq('branch_id', selectedBranch);
       const { data: apData } = await apQ;
@@ -116,9 +119,64 @@ export function ReportsView() {
 
   const grossProfit = income - cogs;
   const netProfit = grossProfit - expenses;
-  const totalAssets = cash + cardSales + transferSales + inventoryValue; // Simplified
-  const totalLiabilities = accountsPayable; // Simplified
+  const totalAssets = cash + cardSales + transferSales + inventoryValue;
+  const totalLiabilities = accountsPayable;
   const equity = totalAssets - totalLiabilities; 
+
+  const handleDownloadPDF = async () => {
+    setGeneratingPDF(true);
+    try {
+      const reportElement = document.getElementById('financial-report-print-container');
+      if (!reportElement) {
+        alert('No se encontró el contenedor del reporte para la descarga.');
+        return;
+      }
+
+      const canvas = await html2canvas(reportElement, {
+        scale: 2,
+        backgroundColor: '#ffffff',
+        useCORS: true,
+        allowTaint: true
+      });
+
+      const imgData = canvas.toDataURL('image/jpeg', 1.0);
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4'
+      });
+
+      const imgWidth = 210; // A4 width mm
+      const pageHeight = 297; // A4 height mm
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+      pdf.addImage(imgData, 'JPEG', 0, 0, imgWidth, Math.min(imgHeight, pageHeight));
+
+      const branchName = selectedBranch === 'all' ? 'Consolidado' : (branches.find(b => b.id === selectedBranch)?.name || 'Sucursal');
+      pdf.save(`Reporte_Financiero_${branchName}_${new Date().toISOString().slice(0, 10)}.pdf`);
+    } catch (err: any) {
+      console.error('Error al generar PDF:', err);
+      alert('Error al descargar el PDF: ' + (err.message || err.toString()));
+    } finally {
+      setGeneratingPDF(false);
+    }
+  };
+
+  const getDateFilterLabel = () => {
+    switch (dateFilter) {
+      case 'today': return 'Día Actual';
+      case 'week': return 'Última Semana';
+      case 'month': return 'Mensual (30 días)';
+      case 'quarter': return 'Trimestral';
+      case 'year': return 'Anual';
+      default: return dateFilter;
+    }
+  };
+
+  const getBranchLabel = () => {
+    if (selectedBranch === 'all') return 'Consolidado (Todas)';
+    return branches.find(b => b.id === selectedBranch)?.name || 'Sucursal';
+  };
 
   return (
     <main className="flex-1 overflow-y-auto p-4 md:p-8 pb-24 md:pb-8 bg-background flex flex-col gap-6 relative">
@@ -152,8 +210,13 @@ export function ReportsView() {
                 {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
               </select>
             </div>
-            <button className="h-12 px-6 bg-primary text-white font-bold rounded-lg hover:opacity-90 transition-opacity shadow-sm flex items-center gap-2 self-end xl:self-auto mt-2 xl:mt-0">
-              <Download size={20} /> PDF
+            <button 
+              onClick={handleDownloadPDF}
+              disabled={generatingPDF || loading}
+              className="h-12 px-6 bg-primary text-white font-bold rounded-lg hover:opacity-90 transition-opacity shadow-sm flex items-center gap-2 self-end xl:self-auto mt-2 xl:mt-0 disabled:opacity-50"
+            >
+              {generatingPDF ? <Loader2 className="animate-spin" size={20} /> : <Download size={20} />}
+              {generatingPDF ? 'Generando PDF...' : 'PDF'}
             </button>
           </div>
         </div>
@@ -161,120 +224,144 @@ export function ReportsView() {
         {loading ? (
           <div className="flex justify-center p-12"><div className="animate-pulse text-on-surface-variant font-bold flex items-center gap-3"><TrendingUp className="animate-bounce"/> Recopilando datos financieros...</div></div>
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          /* Container printable to PDF with Watermark */
+          <div id="financial-report-print-container" className="relative bg-white rounded-2xl p-6 border border-outline-variant/20 shadow-[0_8px_30px_rgb(0,0,0,0.04)] overflow-hidden">
             
-            {/* Estado de Resultados */}
-            <div className="bg-white rounded-2xl border border-outline-variant/20 shadow-[0_8px_30px_rgb(0,0,0,0.04)] overflow-hidden flex flex-col">
-              <div className="p-6 border-b border-outline-variant/20 bg-surface-container-lowest flex justify-between items-center">
+            {/* Watermark Background Image */}
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0 opacity-15 overflow-hidden">
+              <img src="/MARCA DE AGUA.png" alt="Marca de Agua" className="w-[450px] max-w-full object-contain" />
+            </div>
+
+            <div className="relative z-10 space-y-6">
+              {/* Header Report Meta info for PDF */}
+              <div className="flex justify-between items-center border-b border-outline-variant/30 pb-4">
                 <div>
-                  <h3 className="text-title-lg font-bold text-on-surface">Estado de Resultados</h3>
-                  <p className="text-body-sm text-on-surface-variant">Periodo seleccionado</p>
+                  <h1 className="text-2xl font-extrabold text-primary tracking-wider">RAIMEN STORE</h1>
+                  <p className="text-xs text-on-surface-variant font-semibold">Reporte Financiero Oficial</p>
                 </div>
-                <div className="px-3 py-1 bg-surface-container-high rounded-md text-label-caps font-bold text-on-surface-variant">
-                  ER
+                <div className="text-right text-xs text-on-surface-variant font-medium">
+                  <p><span className="font-bold">Periodo:</span> {getDateFilterLabel()}</p>
+                  <p><span className="font-bold">Sucursal:</span> {getBranchLabel()}</p>
+                  <p><span className="font-bold">Generado:</span> {new Date().toLocaleString('es-MX')}</p>
                 </div>
               </div>
-              
-              <div className="p-6 flex-1 flex flex-col">
-                <div className="space-y-4 text-body-md">
-                  <div className="flex justify-between items-center">
-                    <span className="text-on-surface">Ingresos por Ventas</span>
-                    <span className="font-bold text-data-mono">${income.toFixed(2)}</span>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                
+                {/* Estado de Resultados */}
+                <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-outline-variant/20 shadow-sm overflow-hidden flex flex-col">
+                  <div className="p-6 border-b border-outline-variant/20 bg-surface-container-lowest flex justify-between items-center">
+                    <div>
+                      <h3 className="text-title-lg font-bold text-on-surface">Estado de Resultados</h3>
+                      <p className="text-body-sm text-on-surface-variant">Periodo seleccionado</p>
+                    </div>
+                    <div className="px-3 py-1 bg-surface-container-high rounded-md text-label-caps font-bold text-on-surface-variant">
+                      ER
+                    </div>
                   </div>
                   
-                  <div className="flex justify-between items-center text-error border-b border-outline-variant/20 pb-4">
-                    <span>[-] Costo de Ventas (COGS)</span>
-                    <span className="font-bold text-data-mono">-${cogs.toFixed(2)}</span>
-                  </div>
+                  <div className="p-6 flex-1 flex flex-col">
+                    <div className="space-y-4 text-body-md">
+                      <div className="flex justify-between items-center">
+                        <span className="text-on-surface">Ingresos por Ventas</span>
+                        <span className="font-bold text-data-mono">${income.toFixed(2)}</span>
+                      </div>
+                      
+                      <div className="flex justify-between items-center text-error border-b border-outline-variant/20 pb-4">
+                        <span>[-] Costo de Ventas (COGS)</span>
+                        <span className="font-bold text-data-mono">-${cogs.toFixed(2)}</span>
+                      </div>
 
-                  <div className="flex justify-between items-center pt-2">
-                    <span className="font-bold text-on-surface">(=) Utilidad Bruta</span>
-                    <span className="font-bold text-data-mono text-title-md">${grossProfit.toFixed(2)}</span>
-                  </div>
+                      <div className="flex justify-between items-center pt-2">
+                        <span className="font-bold text-on-surface">(=) Utilidad Bruta</span>
+                        <span className="font-bold text-data-mono text-title-md">${grossProfit.toFixed(2)}</span>
+                      </div>
 
-                  <div className="flex justify-between items-center text-error border-b border-outline-variant/20 pb-4 pt-2">
-                    <span>[-] Gastos de Operación</span>
-                    <span className="font-bold text-data-mono">-${expenses.toFixed(2)}</span>
-                  </div>
+                      <div className="flex justify-between items-center text-error border-b border-outline-variant/20 pb-4 pt-2">
+                        <span>[-] Gastos de Operación</span>
+                        <span className="font-bold text-data-mono">-${expenses.toFixed(2)}</span>
+                      </div>
 
-                  <div className={`flex justify-between items-center p-4 rounded-xl mt-4 ${netProfit >= 0 ? 'bg-secondary/10 border border-secondary/20 text-secondary' : 'bg-error/10 border border-error/20 text-error'}`}>
-                    <span className="font-black text-title-md">(=) Utilidad Neta del Ejercicio</span>
-                    <span className="font-black text-display-lg text-data-mono">${netProfit.toFixed(2)}</span>
+                      <div className={`flex justify-between items-center p-4 rounded-xl mt-4 ${netProfit >= 0 ? 'bg-secondary/10 border border-secondary/20 text-secondary' : 'bg-error/10 border border-error/20 text-error'}`}>
+                        <span className="font-black text-title-md">(=) Utilidad Neta del Ejercicio</span>
+                        <span className="font-black text-display-lg text-data-mono">${netProfit.toFixed(2)}</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
+
+                {/* Estado de Situación Financiera */}
+                <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-outline-variant/20 shadow-sm overflow-hidden flex flex-col">
+                  <div className="p-6 border-b border-outline-variant/20 bg-surface-container-lowest flex justify-between items-center">
+                    <div>
+                      <h3 className="text-title-lg font-bold text-on-surface">Estado de Situación Financiera</h3>
+                      <p className="text-body-sm text-on-surface-variant">Balance General</p>
+                    </div>
+                    <div className="flex items-center gap-1 px-3 py-1 bg-secondary/10 text-secondary rounded-md text-label-caps font-bold">
+                      <CheckCircle size={14} /> Cuadrado
+                    </div>
+                  </div>
+                  
+                  <div className="p-6 flex-1 flex flex-col gap-6 text-body-md overflow-y-auto custom-scrollbar">
+                    
+                    {/* Activos */}
+                    <div>
+                      <h4 className="text-label-caps text-on-surface-variant mb-3 border-b border-outline-variant/20 pb-1">ACTIVO CIRCULANTE</h4>
+                      <div className="space-y-3 pl-2 border-l-2 border-outline-variant/20">
+                        <div className="flex justify-between items-center">
+                          <span className="text-on-surface">Efectivo Equivalente (Cajas)</span>
+                          <span className="font-bold text-data-mono">${cash.toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between items-center text-on-surface-variant">
+                          <span className="text-sm pl-4">└ Ingresos por Tarjeta (Bancos)</span>
+                          <span className="font-bold text-data-mono text-sm">${cardSales.toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between items-center text-on-surface-variant">
+                          <span className="text-sm pl-4">└ Ingresos por Transferencia (Bancos)</span>
+                          <span className="font-bold text-data-mono text-sm">${transferSales.toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-on-surface">Inventarios (Valuación a Costo)</span>
+                          <span className="font-bold text-data-mono">${inventoryValue.toFixed(2)}</span>
+                        </div>
+                      </div>
+                      <div className="flex justify-between items-center mt-3 font-bold text-primary text-title-md pt-2 border-t border-outline-variant/20">
+                        <span>Total Activo</span>
+                        <span className="text-data-mono">${totalAssets.toFixed(2)}</span>
+                      </div>
+                    </div>
+
+                    {/* Pasivos */}
+                    <div>
+                      <h4 className="text-label-caps text-on-surface-variant mb-3 border-b border-outline-variant/20 pb-1">PASIVO</h4>
+                      <div className="space-y-3 pl-2 border-l-2 border-outline-variant/20">
+                        <div className="flex justify-between items-center">
+                          <span className="text-on-surface">Cuentas por Pagar (Proveedores)</span>
+                          <span className="font-bold text-data-mono text-error">${accountsPayable.toFixed(2)}</span>
+                        </div>
+                      </div>
+                      <div className="flex justify-between items-center mt-3 font-bold text-error text-title-md pt-2 border-t border-outline-variant/20">
+                        <span>Total Pasivo</span>
+                        <span className="text-data-mono">${totalLiabilities.toFixed(2)}</span>
+                      </div>
+                    </div>
+
+                    {/* Capital */}
+                    <div>
+                      <h4 className="text-label-caps text-on-surface-variant mb-3 border-b border-outline-variant/20 pb-1">PATRIMONIO / CAPITAL</h4>
+                      <div className="space-y-3 pl-2 border-l-2 border-outline-variant/20">
+                        <div className="flex justify-between items-center">
+                          <span className="text-on-surface">Capital Contable</span>
+                          <span className="font-bold text-data-mono">${equity.toFixed(2)}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                  </div>
+                </div>
+
               </div>
             </div>
-
-            {/* Estado de Situación Financiera */}
-            <div className="bg-white rounded-2xl border border-outline-variant/20 shadow-[0_8px_30px_rgb(0,0,0,0.04)] overflow-hidden flex flex-col">
-              <div className="p-6 border-b border-outline-variant/20 bg-surface-container-lowest flex justify-between items-center">
-                <div>
-                  <h3 className="text-title-lg font-bold text-on-surface">Estado de Situación Financiera</h3>
-                  <p className="text-body-sm text-on-surface-variant">Balance General</p>
-                </div>
-                <div className="flex items-center gap-1 px-3 py-1 bg-secondary/10 text-secondary rounded-md text-label-caps font-bold">
-                  <CheckCircle size={14} /> Cuadrado
-                </div>
-              </div>
-              
-              <div className="p-6 flex-1 flex flex-col gap-6 text-body-md overflow-y-auto custom-scrollbar">
-                
-                {/* Activos */}
-                <div>
-                  <h4 className="text-label-caps text-on-surface-variant mb-3 border-b border-outline-variant/20 pb-1">ACTIVO CIRCULANTE</h4>
-                  <div className="space-y-3 pl-2 border-l-2 border-outline-variant/20">
-                    <div className="flex justify-between items-center">
-                      <span className="text-on-surface">Efectivo Equivalente (Cajas)</span>
-                      <span className="font-bold text-data-mono">${cash.toFixed(2)}</span>
-                    </div>
-                    <div className="flex justify-between items-center text-on-surface-variant">
-                      <span className="text-sm pl-4">└ Ingresos por Tarjeta (Bancos)</span>
-                      <span className="font-bold text-data-mono text-sm">${cardSales.toFixed(2)}</span>
-                    </div>
-                    <div className="flex justify-between items-center text-on-surface-variant">
-                      <span className="text-sm pl-4">└ Ingresos por Transferencia (Bancos)</span>
-                      <span className="font-bold text-data-mono text-sm">${transferSales.toFixed(2)}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-on-surface">Inventarios (Valuación a Costo)</span>
-                      <span className="font-bold text-data-mono">${inventoryValue.toFixed(2)}</span>
-                    </div>
-                  </div>
-                  <div className="flex justify-between items-center mt-3 font-bold text-primary text-title-md pt-2 border-t border-outline-variant/20">
-                    <span>Total Activo</span>
-                    <span className="text-data-mono">${totalAssets.toFixed(2)}</span>
-                  </div>
-                </div>
-
-                {/* Pasivos */}
-                <div>
-                  <h4 className="text-label-caps text-on-surface-variant mb-3 border-b border-outline-variant/20 pb-1">PASIVO</h4>
-                  <div className="space-y-3 pl-2 border-l-2 border-outline-variant/20">
-                    <div className="flex justify-between items-center">
-                      <span className="text-on-surface">Cuentas por Pagar (Proveedores)</span>
-                      <span className="font-bold text-data-mono text-error">${accountsPayable.toFixed(2)}</span>
-                    </div>
-                  </div>
-                  <div className="flex justify-between items-center mt-3 font-bold text-error text-title-md pt-2 border-t border-outline-variant/20">
-                    <span>Total Pasivo</span>
-                    <span className="text-data-mono">${totalLiabilities.toFixed(2)}</span>
-                  </div>
-                </div>
-
-                {/* Capital */}
-                <div>
-                  <h4 className="text-label-caps text-on-surface-variant mb-3 border-b border-outline-variant/20 pb-1">PATRIMONIO / CAPITAL</h4>
-                  <div className="space-y-3 pl-2 border-l-2 border-outline-variant/20">
-                    <div className="flex justify-between items-center">
-                      <span className="text-on-surface">Capital Contable</span>
-                      <span className="font-bold text-data-mono">${equity.toFixed(2)}</span>
-                    </div>
-                  </div>
-                </div>
-
-              </div>
-            </div>
-
           </div>
         )}
       </div>
