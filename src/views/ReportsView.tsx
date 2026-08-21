@@ -126,47 +126,61 @@ export function ReportsView() {
   const handleDownloadPDF = async () => {
     setGeneratingPDF(true);
     try {
-      const reportElement = document.getElementById('financial-report-print-container');
-      if (!reportElement) {
+      const origContainer = document.getElementById('financial-report-print-container');
+      if (!origContainer) {
         alert('No se encontró el contenedor del reporte para la descarga.');
         return;
       }
 
-      const canvas = await html2canvas(reportElement, {
+      const canvas = await html2canvas(origContainer, {
         scale: 2,
         backgroundColor: '#ffffff',
         useCORS: true,
         allowTaint: true,
         onclone: (clonedDoc) => {
-          try {
-            // Clean modern CSS color functions without breaking CSS syntax boundaries
-            const styleEls = clonedDoc.querySelectorAll('style');
-            styleEls.forEach((style) => {
-              if (style.textContent) {
-                style.textContent = style.textContent
-                  .replace(/oklch\([^;{}]+?\)/gi, '#000000')
-                  .replace(/oklab\([^;{}]+?\)/gi, '#000000')
-                  .replace(/color-mix\([^;{}]+?\)/gi, '#000000')
-                  .replace(/light-dark\([^;{}]+?\)/gi, '#000000');
-              }
-            });
+          const clonedContainer = clonedDoc.getElementById('financial-report-print-container');
+          if (clonedContainer && origContainer) {
+            const origElems = [origContainer, ...Array.from(origContainer.querySelectorAll('*'))];
+            const cloneElems = [clonedContainer, ...Array.from(clonedContainer.querySelectorAll('*'))];
 
-            const inlineStyleElems = clonedDoc.querySelectorAll('[style]');
-            inlineStyleElems.forEach((el) => {
-              const s = el.getAttribute('style');
-              if (s) {
-                el.setAttribute(
-                  'style',
-                  s
-                    .replace(/oklch\([^;{}]+?\)/gi, '#000000')
-                    .replace(/oklab\([^;{}]+?\)/gi, '#000000')
-                    .replace(/color-mix\([^;{}]+?\)/gi, '#000000')
-                    .replace(/light-dark\([^;{}]+?\)/gi, '#000000')
-                );
+            for (let i = 0; i < origElems.length; i++) {
+              const origEl = origElems[i] as HTMLElement;
+              const cloneEl = cloneElems[i] as HTMLElement;
+              if (origEl && cloneEl && origEl.nodeType === 1) {
+                try {
+                  const computed = window.getComputedStyle(origEl);
+                  cloneEl.style.backgroundColor = computed.backgroundColor;
+                  cloneEl.style.color = computed.color;
+                  cloneEl.style.borderColor = computed.borderColor;
+                  cloneEl.style.fontSize = computed.fontSize;
+                  cloneEl.style.fontFamily = computed.fontFamily;
+                  cloneEl.style.fontWeight = computed.fontWeight;
+                  cloneEl.style.lineHeight = computed.lineHeight;
+                  cloneEl.style.padding = computed.padding;
+                  cloneEl.style.margin = computed.margin;
+                  cloneEl.style.display = computed.display;
+                  cloneEl.style.flexDirection = computed.flexDirection;
+                  cloneEl.style.justifyContent = computed.justifyContent;
+                  cloneEl.style.alignItems = computed.alignItems;
+                  cloneEl.style.width = computed.width;
+                  cloneEl.style.height = computed.height;
+                  cloneEl.style.borderRadius = computed.borderRadius;
+                  cloneEl.style.borderWidth = computed.borderWidth;
+                  cloneEl.style.borderStyle = computed.borderStyle;
+                  cloneEl.style.gap = computed.gap;
+                  cloneEl.style.gridTemplateColumns = computed.gridTemplateColumns;
+                  cloneEl.style.boxShadow = 'none';
+                } catch (e) {
+                  // ignore element style error
+                }
               }
-            });
-          } catch (e) {
-            console.warn('Error sanitizando estilos para html2canvas:', e);
+            }
+          }
+
+          // Delete all stylesheet links and style tags so html2canvas doesn't parse external Tailwind 4 CSS files containing oklch
+          if (clonedDoc.head) {
+            const stylesheets = clonedDoc.head.querySelectorAll('style, link[rel="stylesheet"]');
+            stylesheets.forEach(sheet => sheet.remove());
           }
         }
       });
