@@ -1,12 +1,14 @@
 import React from 'react';
-import { LayoutDashboard, Package, RefreshCw, Monitor, Settings, HelpCircle, LogOut, Plus, Users, Wallet, FileText, Lock, LineChart } from 'lucide-react';
+import { LayoutDashboard, Package, RefreshCw, Monitor, Settings, HelpCircle, LogOut, Plus, Users, Wallet, FileText, Lock, LineChart, X } from 'lucide-react';
 
 interface SidebarProps {
   currentView: string;
   onViewChange: (view: string) => void;
+  mobileMenuOpen?: boolean;
+  onCloseMobileMenu?: () => void;
 }
 
-export function Sidebar({ currentView, onViewChange }: SidebarProps) {
+export function Sidebar({ currentView, onViewChange, mobileMenuOpen, onCloseMobileMenu }: SidebarProps) {
   const sessionUser = JSON.parse(localStorage.getItem('raimen_pos_user') || '{}');
   const userRole = (sessionUser.role || 'admin').toLowerCase();
 
@@ -27,11 +29,16 @@ export function Sidebar({ currentView, onViewChange }: SidebarProps) {
     ? allNavItems.filter(item => ['pos', 'orders', 'inventory', 'customers', 'expenses', 'cash_register'].includes(item.id))
     : allNavItems;
 
-  return (
-    <aside className="bg-surface-container-low h-screen w-64 fixed left-0 top-0 hidden md:flex flex-col border-r border-outline-variant/30 shadow-[4px_0_24px_-12px_rgba(0,0,0,0.1)] z-40">
-      <div className="flex flex-col h-full py-6 px-4">
-        {/* Header */}
-        <div className="mb-8 px-2 flex items-center gap-3">
+  const handleNavClick = (viewId: string) => {
+    onViewChange(viewId);
+    if (onCloseMobileMenu) onCloseMobileMenu();
+  };
+
+  const renderNavContent = () => (
+    <div className="flex flex-col h-full py-6 px-4">
+      {/* Header */}
+      <div className="mb-6 px-2 flex items-center justify-between">
+        <div className="flex items-center gap-3">
           {currentView === 'pos' ? (
             <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-on-primary font-bold">
               <Monitor size={20} />
@@ -43,60 +50,91 @@ export function Sidebar({ currentView, onViewChange }: SidebarProps) {
           )}
           <div>
             <h1 className="text-headline-lg font-bold text-primary leading-tight tracking-tight text-xl">RAIMEN</h1>
-            <p className="text-label-caps text-on-surface-variant">Retail Management</p>
+            <p className="text-label-caps text-on-surface-variant">Retail Management ({userRole.toUpperCase()})</p>
           </div>
         </div>
-        
-        {/* CTA */}
-        <button 
-          onClick={() => onViewChange('pos-login')}
-          className="w-full bg-primary text-on-primary h-12 rounded-lg text-title-md flex items-center justify-center gap-2 mb-6 hover:opacity-90 transition-opacity"
-        >
-          <Plus size={20} />
-          Nueva Venta
-        </button>
 
-        {/* Navigation */}
-        <nav className="flex-1 flex flex-col gap-2">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = currentView === item.id;
-            return (
-              <button
-                key={item.id}
-                onClick={() => onViewChange(item.id)}
-                className={`flex items-center gap-3 px-3 py-3 rounded-xl text-body-sm w-full text-left transition-all duration-300 ease-out group relative ${
-                  isActive
-                    ? 'text-primary font-bold bg-white shadow-sm ring-1 ring-outline-variant/30'
-                    : 'text-on-surface-variant hover:text-primary hover:bg-white/50'
-                }`}
-              >
-                {isActive && (
-                  <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-primary rounded-r-full"></div>
-                )}
-                <Icon size={20} className={!isActive ? 'group-hover:scale-110 transition-transform duration-300' : ''} />
-                {item.label}
-              </button>
-            );
-          })}
-        </nav>
-
-        {/* Footer */}
-        <div className="mt-auto flex flex-col gap-2 border-t border-outline-variant pt-4">
-          <button className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-on-surface-variant hover:text-primary hover:bg-surface-container-high transition-all duration-200 ease-in-out text-body-sm group w-full text-left">
-            <HelpCircle size={20} className="group-hover:scale-110 transition-transform" />
-            Soporte
+        {onCloseMobileMenu && (
+          <button onClick={onCloseMobileMenu} className="md:hidden p-2 text-on-surface-variant hover:bg-surface-variant rounded-full">
+            <X size={20} />
           </button>
-          <button onClick={() => {
-            if(window.confirm('¿Seguro que deseas cerrar sesión?')) {
-              onViewChange('pos-login');
-            }
-          }} className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-error hover:text-error hover:bg-error-container transition-all duration-200 ease-in-out text-body-sm group w-full text-left mt-2">
-            <LogOut size={20} className="group-hover:scale-110 transition-transform" />
-            Cerrar Sesión
-          </button>
-        </div>
+        )}
       </div>
-    </aside>
+      
+      {/* CTA */}
+      <button 
+        onClick={() => handleNavClick('pos-login')}
+        className="w-full bg-primary text-on-primary h-12 rounded-lg text-title-md flex items-center justify-center gap-2 mb-4 hover:opacity-90 transition-opacity"
+      >
+        <Plus size={20} />
+        Nueva Venta
+      </button>
+
+      {/* Navigation */}
+      <nav className="flex-1 flex flex-col gap-1.5 overflow-y-auto custom-scrollbar pr-1">
+        {navItems.map((item) => {
+          const Icon = item.icon;
+          const isActive = currentView === item.id;
+          return (
+            <button
+              key={item.id}
+              onClick={() => handleNavClick(item.id)}
+              className={`flex items-center gap-3 px-3 py-3 rounded-xl text-body-sm w-full text-left transition-all duration-300 ease-out group relative ${
+                isActive
+                  ? 'text-primary font-bold bg-white shadow-sm ring-1 ring-outline-variant/30'
+                  : 'text-on-surface-variant hover:text-primary hover:bg-white/50'
+              }`}
+            >
+              {isActive && (
+                <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-primary rounded-r-full"></div>
+              )}
+              <Icon size={20} className={!isActive ? 'group-hover:scale-110 transition-transform duration-300' : ''} />
+              {item.label}
+            </button>
+          );
+        })}
+      </nav>
+
+      {/* Footer */}
+      <div className="mt-auto flex flex-col gap-2 border-t border-outline-variant pt-4">
+        <button className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-on-surface-variant hover:text-primary hover:bg-surface-container-high transition-all duration-200 ease-in-out text-body-sm group w-full text-left">
+          <HelpCircle size={20} className="group-hover:scale-110 transition-transform" />
+          Soporte
+        </button>
+        <button onClick={() => {
+          if(window.confirm('¿Seguro que deseas cerrar sesión?')) {
+            handleNavClick('pos-login');
+          }
+        }} className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-error hover:text-error hover:bg-error-container transition-all duration-200 ease-in-out text-body-sm group w-full text-left">
+          <LogOut size={20} className="group-hover:scale-110 transition-transform" />
+          Cerrar Sesión
+        </button>
+      </div>
+    </div>
+  );
+
+  return (
+    <>
+      {/* Desktop Sidebar */}
+      <aside className="bg-surface-container-low h-screen w-64 fixed left-0 top-0 hidden md:flex flex-col border-r border-outline-variant/30 shadow-[4px_0_24px_-12px_rgba(0,0,0,0.1)] z-40">
+        {renderNavContent()}
+      </aside>
+
+      {/* Mobile Drawer Overlay & Sidebar */}
+      {mobileMenuOpen && (
+        <div className="fixed inset-0 z-[150] md:hidden flex">
+          {/* Backdrop */}
+          <div 
+            onClick={onCloseMobileMenu} 
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"
+          ></div>
+
+          {/* Sliding Drawer */}
+          <div className="relative w-80 max-w-[85vw] bg-surface-container-low h-full shadow-2xl flex flex-col z-10 animate-in slide-in-from-left duration-300 border-r border-outline-variant">
+            {renderNavContent()}
+          </div>
+        </div>
+      )}
+    </>
   );
 }

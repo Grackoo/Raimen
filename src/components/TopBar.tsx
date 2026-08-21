@@ -4,13 +4,18 @@ import { Search, Bell, User, Menu } from 'lucide-react';
 interface TopBarProps {
   currentView: string;
   onViewChange: (view: string) => void;
+  onOpenMobileMenu?: () => void;
 }
 
-export function TopBar({ currentView, onViewChange }: TopBarProps) {
+export function TopBar({ currentView, onViewChange, onOpenMobileMenu }: TopBarProps) {
   return (
     <header className="bg-surface top-0 sticky z-30 border-b border-outline-variant flex justify-between items-center w-full px-4 md:px-8 h-16 shrink-0">
       <div className="flex items-center gap-4 md:gap-6">
-        <button className="md:hidden text-on-surface-variant p-2 -ml-2 rounded-full hover:bg-surface-variant">
+        <button 
+          onClick={onOpenMobileMenu}
+          className="md:hidden text-on-surface-variant p-2 -ml-2 rounded-full hover:bg-surface-variant transition-colors"
+          title="Abrir Menú"
+        >
           <Menu size={24} />
         </button>
         <h1 className="text-headline-lg-mobile font-black text-primary md:hidden">RAIMEN</h1>
