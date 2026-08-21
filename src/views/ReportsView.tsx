@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { TrendingUp, FileText, Download, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
+import { TrendingUp, FileText, Download, CheckCircle, Loader2 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
 
@@ -136,7 +136,31 @@ export function ReportsView() {
         scale: 2,
         backgroundColor: '#ffffff',
         useCORS: true,
-        allowTaint: true
+        allowTaint: true,
+        onclone: (clonedDoc) => {
+          // Clean Tailwind 4 oklab / oklch color declarations in cloned stylesheets & inline styles
+          const styleTags = clonedDoc.querySelectorAll('style');
+          styleTags.forEach((style) => {
+            if (style.textContent) {
+              style.textContent = style.textContent
+                .replace(/oklab\([^)]+\)/g, '#000000')
+                .replace(/oklch\([^)]+\)/g, '#000000');
+            }
+          });
+
+          const allElems = clonedDoc.querySelectorAll('*');
+          allElems.forEach((el) => {
+            const styleAttr = el.getAttribute('style');
+            if (styleAttr && (styleAttr.includes('oklab') || styleAttr.includes('oklch'))) {
+              el.setAttribute(
+                'style',
+                styleAttr
+                  .replace(/oklab\([^)]+\)/g, '#000000')
+                  .replace(/oklch\([^)]+\)/g, '#000000')
+              );
+            }
+          });
+        }
       });
 
       const imgData = canvas.toDataURL('image/jpeg', 1.0);
@@ -225,7 +249,7 @@ export function ReportsView() {
           <div className="flex justify-center p-12"><div className="animate-pulse text-on-surface-variant font-bold flex items-center gap-3"><TrendingUp className="animate-bounce"/> Recopilando datos financieros...</div></div>
         ) : (
           /* Container printable to PDF with Watermark */
-          <div id="financial-report-print-container" className="relative bg-white rounded-2xl p-6 border border-outline-variant/20 shadow-[0_8px_30px_rgb(0,0,0,0.04)] overflow-hidden">
+          <div id="financial-report-print-container" className="relative bg-white rounded-2xl p-6 border border-gray-200 shadow-sm overflow-hidden">
             
             {/* Watermark Background Image */}
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0 opacity-15 overflow-hidden">
@@ -234,12 +258,12 @@ export function ReportsView() {
 
             <div className="relative z-10 space-y-6">
               {/* Header Report Meta info for PDF */}
-              <div className="flex justify-between items-center border-b border-outline-variant/30 pb-4">
+              <div className="flex justify-between items-center border-b border-gray-200 pb-4">
                 <div>
-                  <h1 className="text-2xl font-extrabold text-primary tracking-wider">RAIMEN STORE</h1>
-                  <p className="text-xs text-on-surface-variant font-semibold">Reporte Financiero Oficial</p>
+                  <h1 className="text-2xl font-extrabold text-black tracking-wider">RAIMEN STORE</h1>
+                  <p className="text-xs text-gray-600 font-semibold">Reporte Financiero Oficial</p>
                 </div>
-                <div className="text-right text-xs text-on-surface-variant font-medium">
+                <div className="text-right text-xs text-gray-600 font-medium">
                   <p><span className="font-bold">Periodo:</span> {getDateFilterLabel()}</p>
                   <p><span className="font-bold">Sucursal:</span> {getBranchLabel()}</p>
                   <p><span className="font-bold">Generado:</span> {new Date().toLocaleString('es-MX')}</p>
@@ -249,13 +273,13 @@ export function ReportsView() {
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 
                 {/* Estado de Resultados */}
-                <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-outline-variant/20 shadow-sm overflow-hidden flex flex-col">
-                  <div className="p-6 border-b border-outline-variant/20 bg-surface-container-lowest flex justify-between items-center">
+                <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden flex flex-col">
+                  <div className="p-6 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
                     <div>
-                      <h3 className="text-title-lg font-bold text-on-surface">Estado de Resultados</h3>
-                      <p className="text-body-sm text-on-surface-variant">Periodo seleccionado</p>
+                      <h3 className="text-title-lg font-bold text-black">Estado de Resultados</h3>
+                      <p className="text-body-sm text-gray-600">Periodo seleccionado</p>
                     </div>
-                    <div className="px-3 py-1 bg-surface-container-high rounded-md text-label-caps font-bold text-on-surface-variant">
+                    <div className="px-3 py-1 bg-gray-200 rounded-md text-label-caps font-bold text-gray-700">
                       ER
                     </div>
                   </div>
@@ -263,26 +287,26 @@ export function ReportsView() {
                   <div className="p-6 flex-1 flex flex-col">
                     <div className="space-y-4 text-body-md">
                       <div className="flex justify-between items-center">
-                        <span className="text-on-surface">Ingresos por Ventas</span>
+                        <span className="text-black">Ingresos por Ventas</span>
                         <span className="font-bold text-data-mono">${income.toFixed(2)}</span>
                       </div>
                       
-                      <div className="flex justify-between items-center text-error border-b border-outline-variant/20 pb-4">
+                      <div className="flex justify-between items-center text-red-600 border-b border-gray-200 pb-4">
                         <span>[-] Costo de Ventas (COGS)</span>
                         <span className="font-bold text-data-mono">-${cogs.toFixed(2)}</span>
                       </div>
 
                       <div className="flex justify-between items-center pt-2">
-                        <span className="font-bold text-on-surface">(=) Utilidad Bruta</span>
+                        <span className="font-bold text-black">(=) Utilidad Bruta</span>
                         <span className="font-bold text-data-mono text-title-md">${grossProfit.toFixed(2)}</span>
                       </div>
 
-                      <div className="flex justify-between items-center text-error border-b border-outline-variant/20 pb-4 pt-2">
+                      <div className="flex justify-between items-center text-red-600 border-b border-gray-200 pb-4 pt-2">
                         <span>[-] Gastos de Operación</span>
                         <span className="font-bold text-data-mono">-${expenses.toFixed(2)}</span>
                       </div>
 
-                      <div className={`flex justify-between items-center p-4 rounded-xl mt-4 ${netProfit >= 0 ? 'bg-secondary/10 border border-secondary/20 text-secondary' : 'bg-error/10 border border-error/20 text-error'}`}>
+                      <div className={`flex justify-between items-center p-4 rounded-xl mt-4 ${netProfit >= 0 ? 'bg-emerald-50 border border-emerald-200 text-emerald-700' : 'bg-rose-50 border border-rose-200 text-rose-700'}`}>
                         <span className="font-black text-title-md">(=) Utilidad Neta del Ejercicio</span>
                         <span className="font-black text-display-lg text-data-mono">${netProfit.toFixed(2)}</span>
                       </div>
@@ -291,13 +315,13 @@ export function ReportsView() {
                 </div>
 
                 {/* Estado de Situación Financiera */}
-                <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-outline-variant/20 shadow-sm overflow-hidden flex flex-col">
-                  <div className="p-6 border-b border-outline-variant/20 bg-surface-container-lowest flex justify-between items-center">
+                <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden flex flex-col">
+                  <div className="p-6 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
                     <div>
-                      <h3 className="text-title-lg font-bold text-on-surface">Estado de Situación Financiera</h3>
-                      <p className="text-body-sm text-on-surface-variant">Balance General</p>
+                      <h3 className="text-title-lg font-bold text-black">Estado de Situación Financiera</h3>
+                      <p className="text-body-sm text-gray-600">Balance General</p>
                     </div>
-                    <div className="flex items-center gap-1 px-3 py-1 bg-secondary/10 text-secondary rounded-md text-label-caps font-bold">
+                    <div className="flex items-center gap-1 px-3 py-1 bg-emerald-50 text-emerald-700 rounded-md text-label-caps font-bold border border-emerald-200">
                       <CheckCircle size={14} /> Cuadrado
                     </div>
                   </div>
@@ -306,26 +330,26 @@ export function ReportsView() {
                     
                     {/* Activos */}
                     <div>
-                      <h4 className="text-label-caps text-on-surface-variant mb-3 border-b border-outline-variant/20 pb-1">ACTIVO CIRCULANTE</h4>
-                      <div className="space-y-3 pl-2 border-l-2 border-outline-variant/20">
+                      <h4 className="text-label-caps text-gray-500 mb-3 border-b border-gray-200 pb-1">ACTIVO CIRCULANTE</h4>
+                      <div className="space-y-3 pl-2 border-l-2 border-gray-200">
                         <div className="flex justify-between items-center">
-                          <span className="text-on-surface">Efectivo Equivalente (Cajas)</span>
+                          <span className="text-black">Efectivo Equivalente (Cajas)</span>
                           <span className="font-bold text-data-mono">${cash.toFixed(2)}</span>
                         </div>
-                        <div className="flex justify-between items-center text-on-surface-variant">
+                        <div className="flex justify-between items-center text-gray-600">
                           <span className="text-sm pl-4">└ Ingresos por Tarjeta (Bancos)</span>
                           <span className="font-bold text-data-mono text-sm">${cardSales.toFixed(2)}</span>
                         </div>
-                        <div className="flex justify-between items-center text-on-surface-variant">
+                        <div className="flex justify-between items-center text-gray-600">
                           <span className="text-sm pl-4">└ Ingresos por Transferencia (Bancos)</span>
                           <span className="font-bold text-data-mono text-sm">${transferSales.toFixed(2)}</span>
                         </div>
                         <div className="flex justify-between items-center">
-                          <span className="text-on-surface">Inventarios (Valuación a Costo)</span>
+                          <span className="text-black">Inventarios (Valuación a Costo)</span>
                           <span className="font-bold text-data-mono">${inventoryValue.toFixed(2)}</span>
                         </div>
                       </div>
-                      <div className="flex justify-between items-center mt-3 font-bold text-primary text-title-md pt-2 border-t border-outline-variant/20">
+                      <div className="flex justify-between items-center mt-3 font-bold text-black text-title-md pt-2 border-t border-gray-200">
                         <span>Total Activo</span>
                         <span className="text-data-mono">${totalAssets.toFixed(2)}</span>
                       </div>
@@ -333,14 +357,14 @@ export function ReportsView() {
 
                     {/* Pasivos */}
                     <div>
-                      <h4 className="text-label-caps text-on-surface-variant mb-3 border-b border-outline-variant/20 pb-1">PASIVO</h4>
-                      <div className="space-y-3 pl-2 border-l-2 border-outline-variant/20">
+                      <h4 className="text-label-caps text-gray-500 mb-3 border-b border-gray-200 pb-1">PASIVO</h4>
+                      <div className="space-y-3 pl-2 border-l-2 border-gray-200">
                         <div className="flex justify-between items-center">
-                          <span className="text-on-surface">Cuentas por Pagar (Proveedores)</span>
-                          <span className="font-bold text-data-mono text-error">${accountsPayable.toFixed(2)}</span>
+                          <span className="text-black">Cuentas por Pagar (Proveedores)</span>
+                          <span className="font-bold text-data-mono text-red-600">${accountsPayable.toFixed(2)}</span>
                         </div>
                       </div>
-                      <div className="flex justify-between items-center mt-3 font-bold text-error text-title-md pt-2 border-t border-outline-variant/20">
+                      <div className="flex justify-between items-center mt-3 font-bold text-red-600 text-title-md pt-2 border-t border-gray-200">
                         <span>Total Pasivo</span>
                         <span className="text-data-mono">${totalLiabilities.toFixed(2)}</span>
                       </div>
@@ -348,10 +372,10 @@ export function ReportsView() {
 
                     {/* Capital */}
                     <div>
-                      <h4 className="text-label-caps text-on-surface-variant mb-3 border-b border-outline-variant/20 pb-1">PATRIMONIO / CAPITAL</h4>
-                      <div className="space-y-3 pl-2 border-l-2 border-outline-variant/20">
+                      <h4 className="text-label-caps text-gray-500 mb-3 border-b border-gray-200 pb-1">PATRIMONIO / CAPITAL</h4>
+                      <div className="space-y-3 pl-2 border-l-2 border-gray-200">
                         <div className="flex justify-between items-center">
-                          <span className="text-on-surface">Capital Contable</span>
+                          <span className="text-black">Capital Contable</span>
                           <span className="font-bold text-data-mono">${equity.toFixed(2)}</span>
                         </div>
                       </div>
