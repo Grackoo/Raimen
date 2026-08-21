@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { ShoppingCart, ExternalLink, Box, Truck, User, Receipt, X, Loader2, RefreshCw, Trash2 } from 'lucide-react';
+import { ShoppingCart, ExternalLink, Box, Truck, User, Receipt, X, Loader2, RefreshCw, Trash2, Edit3, DollarSign, Calendar, Clock } from 'lucide-react';
 import { ExchangeModal } from '../components/ExchangeModal';
 import { AdminOverrideModal } from '../components/AdminOverrideModal';
 
@@ -22,6 +22,13 @@ export function OrdersView() {
   const [isExchangeOpen, setIsExchangeOpen] = useState(false);
   const [adminAction, setAdminAction] = useState<{action: string, payload?: any} | null>(null);
 
+  // Edit sale states
+  const [editingSale, setEditingSale] = useState<any | null>(null);
+  const [editPaymentMethod, setEditPaymentMethod] = useState('Efectivo');
+  const [editCreatedAt, setEditCreatedAt] = useState('');
+  const [editItems, setEditItems] = useState<any[]>([]);
+  const [savingSaleEdit, setSavingSaleEdit] = useState(false);
+
   const [startDate, setStartDate] = useState(() => {
     const d = new Date();
     d.setDate(d.getDate() - 7);
@@ -31,6 +38,13 @@ export function OrdersView() {
   const [endDate, setEndDate] = useState(() => {
     return new Date().toISOString().split('T')[0];
   });
+
+  const formatISOForLocalDatetime = (isoStr?: string) => {
+    if (!isoStr) return '';
+    const dt = new Date(isoStr);
+    const tzOffset = dt.getTimezoneOffset() * 60000;
+    return new Date(dt.getTime() - tzOffset).toISOString().slice(0, 16);
+  };
 
   const fetchSalesData = async () => {
     setLoading(true);
@@ -67,9 +81,7 @@ export function OrdersView() {
   const handleDeleteSale = async (saleId: string) => {
     try {
       setLoading(true);
-      // Borrar items primero por si no hay cascade
       await supabase.from('sale_items').delete().eq('sale_id', saleId);
-      // Borrar venta
       const { error } = await supabase.from('sales').delete().eq('id', saleId);
       if (error) throw error;
       
@@ -83,6 +95,78 @@ export function OrdersView() {
     }
   };
 
+  const handleStartEditSale = async (sale: Sale) => {
+    setLoadingTicketId(sale.id);
+    try {
+      const { data, error } = await supabase.from('sale_items').select('*').eq('sale_id', sale.id);
+      if (error) throw error;
+
+      const items = (data || []).map(item => {
+        const product = products.find(p => p.id === item.product_id);
+        return {
+          id: item.id,
+          product_id: item.product_id,
+          name: product ? product.name : 'Producto',
+          quantity: item.quantity,
+          price_at_time: item.price_at_time
+        };
+      });
+
+      setEditingSale(sale);
+      setEditPaymentMethod(sale.payment_method || 'Efectivo');
+      setEditCreatedAt(formatISOForLocalDatetime(sale.created_at));
+      setEditItems(items);
+    } catch (err) {
+      console.error(err);
+      alert('Error cargando detalles de la venta para edición');
+    } finally {
+      setLoadingTicketId(null);
+    }
+  };
+
+  const handleSaveSaleEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingSale) return;
+
+    setSavingSaleEdit(true);
+    try {
+      const newTotal = editItems.reduce((acc, item) => acc + (Number(item.quantity) * Number(item.price_at_time)), 0);
+      const createdAtISO = new Date(editCreatedAt).toISOString();
+
+      const { error: saleErr } = await supabase
+        .from('sales')
+        .update({
+          payment_method: editPaymentMethod,
+          created_at: createdAtISO,
+          total: newTotal
+        })
+        .eq('id', editingSale.id);
+
+      if (saleErr) throw saleErr;
+
+      for (const item of editItems) {
+        if (item.id) {
+          const { error: itemErr } = await supabase
+            .from('sale_items')
+            .update({
+              quantity: Number(item.quantity),
+              price_at_time: Number(item.price_at_time)
+            })
+            .eq('id', item.id);
+          if (itemErr) console.warn('Error actualizando item:', itemErr);
+        }
+      }
+
+      alert('Ticket de venta actualizado con éxito.');
+      setEditingSale(null);
+      fetchSalesData();
+    } catch (err: any) {
+      console.error(err);
+      alert('Error al guardar edición del ticket: ' + (err.message || err.toString()));
+    } finally {
+      setSavingSaleEdit(false);
+    }
+  };
 
   const handleViewTicket = async (sale: Sale) => {
     if (loadingTicketId) return;
@@ -224,15 +308,28 @@ export function OrdersView() {
                         ${sale.total.toFixed(2)}
                       </td>
                       <td className="p-4 text-center" onClick={(e) => e.stopPropagation()}>
-                        <button onClick={() => setAdminAction({ action: 'eliminar venta', payload: sale.id })} className="text-error hover:bg-error-container p-2 rounded-lg transition-colors" title="Eliminar Venta">
-                          <Trash2 size={18} />
-                        </button>
+                        <div className="flex justify-center items-center gap-1">
+                          <button 
+                            onClick={() => setAdminAction({ action: 'editar venta', payload: sale })}
+                            className="text-on-surface-variant hover:text-primary hover:bg-primary/10 p-2 rounded-lg transition-colors"
+                            title="Editar Ticket (Requiere Admin)"
+                          >
+                            <Edit3 size={18} />
+                          </button>
+                          <button 
+                            onClick={() => setAdminAction({ action: 'eliminar venta', payload: sale.id })} 
+                            className="text-error hover:bg-error-container p-2 rounded-lg transition-colors" 
+                            title="Eliminar Venta"
+                          >
+                            <Trash2 size={18} />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
                   {sales.length === 0 && (
                     <tr>
-                      <td colSpan={5} className="p-8 text-center text-on-surface-variant">
+                      <td colSpan={6} className="p-8 text-center text-on-surface-variant">
                         No hay ventas registradas aún.
                       </td>
                     </tr>
@@ -284,13 +381,27 @@ export function OrdersView() {
               </div>
             </div>
             <div className="p-4 bg-surface-container-low border-t border-outline-variant flex flex-col gap-3 shrink-0">
-              <div className="flex gap-3">
-                <button onClick={() => setCompletedSale(null)} className="flex-1 py-2 rounded-lg border border-outline-variant text-on-surface hover:bg-surface-variant transition-colors font-medium">Cerrar</button>
+              <div className="flex gap-2">
+                <button onClick={() => setCompletedSale(null)} className="flex-1 py-2 rounded-lg border border-outline-variant text-on-surface hover:bg-surface-variant transition-colors font-medium text-xs">Cerrar</button>
                 
-                <button onClick={() => setIsExchangeOpen(true)} className="flex-1 py-2 rounded-lg bg-secondary text-on-secondary hover:bg-on-secondary-fixed-variant transition-colors font-medium flex justify-center items-center gap-2">
-                  <RefreshCw size={18} /> Efectuar Cambio
+                <button 
+                  onClick={() => {
+                    const saleToEdit = sales.find(s => s.id === completedSale.id);
+                    if (saleToEdit) {
+                      setCompletedSale(null);
+                      setAdminAction({ action: 'editar venta', payload: saleToEdit });
+                    }
+                  }} 
+                  className="flex-1 py-2 rounded-lg bg-surface-variant text-on-surface hover:bg-surface-container-highest transition-colors font-bold text-xs flex justify-center items-center gap-1"
+                >
+                  <Edit3 size={15} /> Editar
                 </button>
 
+                <button onClick={() => setIsExchangeOpen(true)} className="flex-1 py-2 rounded-lg bg-secondary text-on-secondary hover:bg-on-secondary-fixed-variant transition-colors font-medium text-xs flex justify-center items-center gap-1">
+                  <RefreshCw size={15} /> Cambio
+                </button>
+              </div>
+              <div className="flex gap-2">
                 <button onClick={() => {
                   const printContent = document.getElementById('printable-ticket');
                   const win = window.open('', '', 'width=300,height=600');
@@ -302,35 +413,147 @@ export function OrdersView() {
                     win.focus();
                     setTimeout(() => { win.print(); win.close(); }, 250);
                   }
-                }} className="flex-1 py-2 rounded-lg bg-primary text-on-primary hover:bg-primary/90 transition-colors font-medium flex justify-center items-center gap-2">
-                  <Receipt size={18} /> Imprimir
+                }} className="flex-1 py-2 rounded-lg bg-primary text-on-primary hover:bg-primary/90 transition-colors font-medium text-xs flex justify-center items-center gap-1">
+                  <Receipt size={16} /> Imprimir
+                </button>
+                <button onClick={() => {
+                  let text = "RAIMEN STORE\n";
+                  text += "Sucursal Principal\n";
+                  text += `Fecha: ${completedSale.date}\n`;
+                  text += `Ticket: ${completedSale.id.substring(0,8).toUpperCase()}\n`;
+                  text += "--------------------------------\n";
+                  text += "Cant | Descripcion | Importe\n";
+                  text += "--------------------------------\n";
+                  completedSale.items.forEach((item: any) => {
+                    text += `${item.qty}x ${item.name}\n$${(item.price * item.qty).toFixed(2)}\n`;
+                  });
+                  text += "--------------------------------\n";
+                  text += `SUBTOTAL: $${completedSale.subtotal.toFixed(2)}\n`;
+                  text += `IVA (16%): $${completedSale.taxes.toFixed(2)}\n`;
+                  text += `TOTAL: $${completedSale.total.toFixed(2)}\n`;
+                  text += "--------------------------------\n";
+                  text += `PAGO EN: ${completedSale.payment_method.toUpperCase()}\n`;
+                  text += "Gracias por su compra!\n\n\n";
+
+                  const encoded = encodeURI(text);
+                  window.location.href = `intent:${encoded}#Intent;scheme=rawbt;package=ru.a402d.rawbtprinter;end;`;
+                }} className="flex-1 py-2 rounded-lg bg-secondary text-on-secondary hover:bg-on-secondary-fixed-variant transition-colors font-medium text-xs flex justify-center items-center gap-1">
+                  <Receipt size={16} /> BT Móvil
                 </button>
               </div>
-              <button onClick={() => {
-                let text = "RAIMEN STORE\n";
-                text += "Sucursal Principal\n";
-                text += `Fecha: ${completedSale.date}\n`;
-                text += `Ticket: ${completedSale.id.substring(0,8).toUpperCase()}\n`;
-                text += "--------------------------------\n";
-                text += "Cant | Descripcion | Importe\n";
-                text += "--------------------------------\n";
-                completedSale.items.forEach((item: any) => {
-                  text += `${item.qty}x ${item.name}\n$${(item.price * item.qty).toFixed(2)}\n`;
-                });
-                text += "--------------------------------\n";
-                text += `SUBTOTAL: $${completedSale.subtotal.toFixed(2)}\n`;
-                text += `IVA (16%): $${completedSale.taxes.toFixed(2)}\n`;
-                text += `TOTAL: $${completedSale.total.toFixed(2)}\n`;
-                text += "--------------------------------\n";
-                text += `PAGO EN: ${completedSale.payment_method.toUpperCase()}\n`;
-                text += "Gracias por su compra!\n\n\n";
+            </div>
+          </div>
+        </div>
+      )}
 
-                const encoded = encodeURI(text);
-                window.location.href = `intent:${encoded}#Intent;scheme=rawbt;package=ru.a402d.rawbtprinter;end;`;
-              }} className="w-full py-2 rounded-lg bg-secondary text-on-secondary hover:bg-on-secondary-fixed-variant transition-colors font-medium flex justify-center items-center gap-2">
-                <Receipt size={18} /> Imprimir Bluetooth (Móvil)
+      {/* Edit Sale Modal */}
+      {editingSale && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[250] flex items-center justify-center p-4">
+          <div className="bg-surface-container-lowest w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden flex flex-col border border-outline-variant max-h-[90vh]">
+            <div className="p-4 bg-primary text-on-primary flex justify-between items-center shrink-0">
+              <h3 className="font-bold text-title-md flex items-center gap-2">
+                <Edit3 size={20} /> Editar Ticket de Venta
+              </h3>
+              <button 
+                onClick={() => setEditingSale(null)}
+                className="hover:bg-primary-fixed hover:text-on-primary-fixed rounded-full p-1 transition-colors"
+              >
+                <X size={20} />
               </button>
             </div>
+
+            <form onSubmit={handleSaveSaleEdit} className="p-6 flex flex-col gap-4 overflow-y-auto">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-label-caps text-on-surface-variant mb-1 block">Método de Pago</label>
+                  <select
+                    value={editPaymentMethod}
+                    onChange={(e) => setEditPaymentMethod(e.target.value)}
+                    className="w-full bg-surface border border-outline-variant rounded-lg h-10 px-3 text-body-sm font-semibold outline-none focus:border-primary cursor-pointer"
+                  >
+                    <option value="Efectivo">Efectivo</option>
+                    <option value="Tarjeta">Tarjeta</option>
+                    <option value="Transfer">Transferencia</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-label-caps text-on-surface-variant mb-1 block">Fecha y Hora</label>
+                  <input
+                    type="datetime-local"
+                    required
+                    value={editCreatedAt}
+                    onChange={(e) => setEditCreatedAt(e.target.value)}
+                    className="w-full bg-surface border border-outline-variant rounded-lg h-10 px-3 text-body-sm font-semibold outline-none focus:border-primary cursor-pointer"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-label-caps text-on-surface-variant mb-2 block font-bold">Ítems del Ticket</label>
+                <div className="border border-outline-variant rounded-xl overflow-hidden bg-surface-container-low divide-y divide-outline-variant/30">
+                  {editItems.map((item, idx) => (
+                    <div key={idx} className="p-3 flex items-center justify-between gap-3">
+                      <div className="flex-1">
+                        <p className="text-body-sm font-bold text-on-surface">{item.name}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-20">
+                          <span className="text-[10px] text-on-surface-variant block">Cant</span>
+                          <input
+                            type="number"
+                            min="1"
+                            value={item.quantity}
+                            onChange={(e) => {
+                              const val = Math.max(1, parseInt(e.target.value) || 1);
+                              setEditItems(editItems.map((it, i) => i === idx ? { ...it, quantity: val } : it));
+                            }}
+                            className="w-full bg-surface border border-outline-variant rounded-lg h-8 px-2 text-center text-body-sm font-bold outline-none"
+                          />
+                        </div>
+                        <div className="w-24">
+                          <span className="text-[10px] text-on-surface-variant block">Precio U. ($)</span>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            value={item.price_at_time}
+                            onChange={(e) => {
+                              const val = parseFloat(e.target.value) || 0;
+                              setEditItems(editItems.map((it, i) => i === idx ? { ...it, price_at_time: val } : it));
+                            }}
+                            className="w-full bg-surface border border-outline-variant rounded-lg h-8 px-2 text-right text-body-sm font-bold outline-none text-data-mono"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="bg-primary/10 border border-primary/30 p-3 rounded-xl flex items-center justify-between">
+                <span className="text-body-md font-bold text-primary">Nuevo Total Recalculado:</span>
+                <span className="text-title-lg font-extrabold text-primary text-data-mono">
+                  ${editItems.reduce((acc, it) => acc + (Number(it.quantity) * Number(it.price_at_time)), 0).toFixed(2)}
+                </span>
+              </div>
+
+              <div className="flex gap-3 mt-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingSale(null)}
+                  className="flex-1 py-3 rounded-lg border border-outline-variant text-on-surface hover:bg-surface-variant font-medium transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingSaleEdit}
+                  className="flex-1 py-3 rounded-lg bg-primary text-on-primary hover:bg-primary/90 font-bold transition-colors shadow disabled:opacity-50"
+                >
+                  {savingSaleEdit ? 'Guardando...' : 'Guardar Cambios'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
@@ -343,7 +566,7 @@ export function OrdersView() {
           onSuccess={() => {
             setIsExchangeOpen(false);
             setCompletedSale(null);
-            // fetch data again to refresh sales list? It will refresh next time component mounts or we can call fetchData again, but it's fine for now.
+            fetchSalesData();
           }}
         />
       )}
@@ -355,6 +578,9 @@ export function OrdersView() {
           onSuccess={() => {
             if (adminAction.action === 'eliminar venta') {
               handleDeleteSale(adminAction.payload);
+            } else if (adminAction.action === 'editar venta') {
+              handleStartEditSale(adminAction.payload);
+              setAdminAction(null);
             }
           }}
         />

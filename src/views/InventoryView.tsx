@@ -265,10 +265,10 @@ export function InventoryView() {
           <div className="text-title-md text-on-surface-variant animate-pulse">Cargando inventario...</div>
         </div>
       ) : (
-      <div className="flex-1 flex flex-col xl:flex-row gap-6">
+      <div className="flex-1 flex flex-col xl:flex-row gap-6 items-start">
         
         {/* Table */}
-        <div className="flex-1 bg-surface-container-lowest rounded-xl border border-outline-variant shadow-sm overflow-hidden flex flex-col min-h-[400px] xl:min-h-0">
+        <div className="flex-1 bg-surface-container-lowest rounded-xl border border-outline-variant shadow-sm overflow-hidden flex flex-col min-h-[400px] xl:min-h-0 w-full">
           <div className="overflow-x-auto flex-1 custom-scrollbar">
             <table className="w-full text-left border-collapse whitespace-nowrap min-w-[800px]">
               <thead className="bg-surface-container-low sticky top-0 z-10 border-b border-outline-variant">
@@ -347,7 +347,7 @@ export function InventoryView() {
         </div>
 
       {/* QR Preview Sidebar */}
-        <div className="w-full xl:w-80 shrink-0 bg-surface-container-lowest rounded-xl border border-outline-variant shadow-sm flex flex-col overflow-hidden">
+        <div className="w-full xl:w-80 shrink-0 bg-surface-container-lowest rounded-xl border border-outline-variant shadow-sm flex flex-col overflow-hidden xl:sticky xl:top-4 self-start">
           <div className="p-4 border-b border-outline-variant bg-surface-container-low flex justify-between items-center">
             <h3 className="text-title-md text-on-surface">Vista Previa de Etiqueta</h3>
             <span className="text-label-caps text-on-surface-variant bg-surface-variant px-2 py-1 rounded">3x3 cm</span>

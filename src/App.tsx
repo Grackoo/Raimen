@@ -15,6 +15,8 @@ import { AccountsPayableView } from './views/AccountsPayableView';
 import { CashRegisterView } from './views/CashRegisterView';
 import { Scan, Package, ShoppingBag, User } from 'lucide-react';
 
+import { DailyCashCutAlertBanner } from './components/DailyCashCutAlertBanner';
+
 export default function App() {
   const sessionUser = JSON.parse(localStorage.getItem('raimen_pos_user') || '{}');
   const [currentView, setCurrentView] = useState(() => {
@@ -56,6 +58,8 @@ export default function App() {
       <Sidebar currentView={currentView} onViewChange={setCurrentView} />
       
       <div className="flex-1 flex flex-col md:ml-60 h-screen overflow-hidden">
+        <DailyCashCutAlertBanner onGoToCashRegister={() => setCurrentView('cash_register')} />
+        
         {currentView !== 'pos' && (
           <TopBar currentView={currentView} onViewChange={setCurrentView} />
         )}
