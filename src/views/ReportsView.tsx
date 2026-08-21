@@ -138,28 +138,21 @@ export function ReportsView() {
         useCORS: true,
         allowTaint: true,
         onclone: (clonedDoc) => {
-          // Clean Tailwind 4 oklab / oklch color declarations in cloned stylesheets & inline styles
-          const styleTags = clonedDoc.querySelectorAll('style');
-          styleTags.forEach((style) => {
-            if (style.textContent) {
-              style.textContent = style.textContent
-                .replace(/oklab\([^)]+\)/g, '#000000')
-                .replace(/oklch\([^)]+\)/g, '#000000');
+          try {
+            // Replace any multi-line or single-line oklch/oklab CSS color functions in head & body HTML
+            if (clonedDoc.head) {
+              clonedDoc.head.innerHTML = clonedDoc.head.innerHTML
+                .replace(/oklch\([\s\S]*?\)/gi, '#000000')
+                .replace(/oklab\([\s\S]*?\)/gi, '#000000');
             }
-          });
-
-          const allElems = clonedDoc.querySelectorAll('*');
-          allElems.forEach((el) => {
-            const styleAttr = el.getAttribute('style');
-            if (styleAttr && (styleAttr.includes('oklab') || styleAttr.includes('oklch'))) {
-              el.setAttribute(
-                'style',
-                styleAttr
-                  .replace(/oklab\([^)]+\)/g, '#000000')
-                  .replace(/oklch\([^)]+\)/g, '#000000')
-              );
+            if (clonedDoc.body) {
+              clonedDoc.body.innerHTML = clonedDoc.body.innerHTML
+                .replace(/oklch\([\s\S]*?\)/gi, '#000000')
+                .replace(/oklab\([\s\S]*?\)/gi, '#000000');
             }
-          });
+          } catch (e) {
+            console.warn('Error sanitizando estilos para html2canvas:', e);
+          }
         }
       });
 
