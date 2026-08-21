@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { TrendingUp, FileText, Download, CheckCircle, Loader2 } from 'lucide-react';
+import { TrendingUp, FileText, Download, CheckCircle, Printer, Loader2 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
-import html2canvas from 'html2canvas';
 
 export function ReportsView() {
   const [loading, setLoading] = useState(true);
@@ -123,91 +122,6 @@ export function ReportsView() {
   const totalLiabilities = accountsPayable;
   const equity = totalAssets - totalLiabilities; 
 
-  const handleDownloadPDF = async () => {
-    setGeneratingPDF(true);
-    try {
-      const origContainer = document.getElementById('financial-report-print-container');
-      if (!origContainer) {
-        alert('No se encontró el contenedor del reporte para la descarga.');
-        return;
-      }
-
-      const canvas = await html2canvas(origContainer, {
-        scale: 2,
-        backgroundColor: '#ffffff',
-        useCORS: true,
-        allowTaint: true,
-        onclone: (clonedDoc) => {
-          const clonedContainer = clonedDoc.getElementById('financial-report-print-container');
-          if (clonedContainer && origContainer) {
-            const origElems = [origContainer, ...Array.from(origContainer.querySelectorAll('*'))];
-            const cloneElems = [clonedContainer, ...Array.from(clonedContainer.querySelectorAll('*'))];
-
-            for (let i = 0; i < origElems.length; i++) {
-              const origEl = origElems[i] as HTMLElement;
-              const cloneEl = cloneElems[i] as HTMLElement;
-              if (origEl && cloneEl && origEl.nodeType === 1) {
-                try {
-                  const computed = window.getComputedStyle(origEl);
-                  cloneEl.style.backgroundColor = computed.backgroundColor;
-                  cloneEl.style.color = computed.color;
-                  cloneEl.style.borderColor = computed.borderColor;
-                  cloneEl.style.fontSize = computed.fontSize;
-                  cloneEl.style.fontFamily = computed.fontFamily;
-                  cloneEl.style.fontWeight = computed.fontWeight;
-                  cloneEl.style.lineHeight = computed.lineHeight;
-                  cloneEl.style.padding = computed.padding;
-                  cloneEl.style.margin = computed.margin;
-                  cloneEl.style.display = computed.display;
-                  cloneEl.style.flexDirection = computed.flexDirection;
-                  cloneEl.style.justifyContent = computed.justifyContent;
-                  cloneEl.style.alignItems = computed.alignItems;
-                  cloneEl.style.width = computed.width;
-                  cloneEl.style.height = computed.height;
-                  cloneEl.style.borderRadius = computed.borderRadius;
-                  cloneEl.style.borderWidth = computed.borderWidth;
-                  cloneEl.style.borderStyle = computed.borderStyle;
-                  cloneEl.style.gap = computed.gap;
-                  cloneEl.style.gridTemplateColumns = computed.gridTemplateColumns;
-                  cloneEl.style.boxShadow = 'none';
-                } catch (e) {
-                  // ignore element style error
-                }
-              }
-            }
-          }
-
-          // Delete all stylesheet links and style tags so html2canvas doesn't parse external Tailwind 4 CSS files containing oklch
-          if (clonedDoc.head) {
-            const stylesheets = clonedDoc.head.querySelectorAll('style, link[rel="stylesheet"]');
-            stylesheets.forEach(sheet => sheet.remove());
-          }
-        }
-      });
-
-      const imgData = canvas.toDataURL('image/jpeg', 1.0);
-      const pdf = new jsPDF({
-        orientation: 'portrait',
-        unit: 'mm',
-        format: 'a4'
-      });
-
-      const imgWidth = 210; // A4 width mm
-      const pageHeight = 297; // A4 height mm
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
-
-      pdf.addImage(imgData, 'JPEG', 0, 0, imgWidth, Math.min(imgHeight, pageHeight));
-
-      const branchName = selectedBranch === 'all' ? 'Consolidado' : (branches.find(b => b.id === selectedBranch)?.name || 'Sucursal');
-      pdf.save(`Reporte_Financiero_${branchName}_${new Date().toISOString().slice(0, 10)}.pdf`);
-    } catch (err: any) {
-      console.error('Error al generar PDF:', err);
-      alert('Error al descargar el PDF: ' + (err.message || err.toString()));
-    } finally {
-      setGeneratingPDF(false);
-    }
-  };
-
   const getDateFilterLabel = () => {
     switch (dateFilter) {
       case 'today': return 'Día Actual';
@@ -222,6 +136,167 @@ export function ReportsView() {
   const getBranchLabel = () => {
     if (selectedBranch === 'all') return 'Consolidado (Todas)';
     return branches.find(b => b.id === selectedBranch)?.name || 'Sucursal';
+  };
+
+  const handlePrintPDFNative = () => {
+    const reportContent = document.getElementById('financial-report-print-container');
+    if (!reportContent) return;
+
+    const win = window.open('', '', 'width=1000,height=800');
+    if (win) {
+      win.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Reporte Financiero - RAIMEN STORE</title>
+          <style>
+            body { font-family: system-ui, -apple-system, sans-serif; margin: 0; padding: 20px; color: #111; }
+            .report-box { position: relative; background: #fff; border: 1px solid #ccc; padding: 24px; border-radius: 12px; }
+            .watermark { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; opacity: 0.12; pointer-events: none; z-index: 0; }
+            .watermark img { width: 450px; }
+            .content { position: relative; z-index: 10; }
+            .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #ddd; padding-bottom: 12px; margin-bottom: 20px; }
+            .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+            .card { background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden; }
+            .card-header { padding: 12px 16px; background: #f9fafb; border-bottom: 1px solid #e5e7eb; display: flex; justify-content: space-between; font-weight: bold; }
+            .card-body { padding: 16px; font-size: 14px; }
+            .row { display: flex; justify-content: space-between; margin-bottom: 10px; }
+            .row-sub { display: flex; justify-content: space-between; margin-bottom: 6px; padding-left: 16px; color: #666; font-size: 13px; }
+            .row-bold { font-weight: bold; }
+            .row-red { color: #dc2626; }
+            .box-highlight { padding: 12px; border-radius: 8px; margin-top: 12px; font-weight: bold; display: flex; justify-content: space-between; font-size: 16px; }
+            .bg-green { background: #ecfdf5; border: 1px solid #a7f3d0; color: #047857; }
+            .bg-red { background: #fff1f2; border: 1px solid #fecdd3; color: #be123c; }
+            .mono { font-family: monospace; font-size: 15px; }
+            @media print {
+              body { padding: 0; }
+              .no-print { display: none; }
+            }
+          </style>
+        </head>
+        <body>
+          <div className="report-box">
+            ${reportContent.innerHTML}
+          </div>
+          <script>
+            window.onload = function() {
+              setTimeout(function() {
+                window.print();
+                window.close();
+              }, 300);
+            };
+          </script>
+        </body>
+        </html>
+      `);
+      win.document.close();
+    }
+  };
+
+  const handleDownloadPDF = async () => {
+    setGeneratingPDF(true);
+    try {
+      const reportContent = document.getElementById('financial-report-print-container');
+      if (!reportContent) return;
+
+      const width = reportContent.offsetWidth || 850;
+      const height = reportContent.offsetHeight || 1100;
+
+      // Inline computed styles to convert all CSS rules into clean explicit inline styles
+      const clone = reportContent.cloneNode(true) as HTMLElement;
+      const origElems = [reportContent, ...Array.from(reportContent.querySelectorAll('*'))];
+      const cloneElems = [clone, ...Array.from(clone.querySelectorAll('*'))];
+
+      for (let i = 0; i < origElems.length; i++) {
+        const origEl = origElems[i] as HTMLElement;
+        const cloneEl = cloneElems[i] as HTMLElement;
+        if (origEl && cloneEl && origEl.nodeType === 1) {
+          const comp = window.getComputedStyle(origEl);
+          cloneEl.style.backgroundColor = comp.backgroundColor;
+          cloneEl.style.color = comp.color;
+          cloneEl.style.borderColor = comp.borderColor;
+          cloneEl.style.fontSize = comp.fontSize;
+          cloneEl.style.fontFamily = comp.fontFamily;
+          cloneEl.style.fontWeight = comp.fontWeight;
+          cloneEl.style.padding = comp.padding;
+          cloneEl.style.margin = comp.margin;
+          cloneEl.style.display = comp.display;
+          cloneEl.style.flexDirection = comp.flexDirection;
+          cloneEl.style.justifyContent = comp.justifyContent;
+          cloneEl.style.alignItems = comp.alignItems;
+          cloneEl.style.width = comp.width;
+          cloneEl.style.height = comp.height;
+          cloneEl.style.borderRadius = comp.borderRadius;
+          cloneEl.style.borderWidth = comp.borderWidth;
+          cloneEl.style.borderStyle = comp.borderStyle;
+        }
+      }
+
+      // Convert cloned HTML to SVG foreignObject data URI
+      const svg = `
+        <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">
+          <foreignObject width="100%" height="100%">
+            <div xmlns="http://www.w3.org/1999/xhtml" style="background:#ffffff; width:${width}px; height:${height}px;">
+              ${clone.outerHTML}
+            </div>
+          </foreignObject>
+        </svg>
+      `;
+
+      const blob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const img = new Image();
+
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => {
+          try {
+            const canvas = document.createElement('canvas');
+            canvas.width = width * 2;
+            canvas.height = height * 2;
+            const ctx = canvas.getContext('2d');
+            if (ctx) {
+              ctx.scale(2, 2);
+              ctx.fillStyle = '#ffffff';
+              ctx.fillRect(0, 0, width, height);
+              ctx.drawImage(img, 0, 0);
+
+              const imgData = canvas.toDataURL('image/jpeg', 0.95);
+              const pdf = new jsPDF({
+                orientation: 'portrait',
+                unit: 'mm',
+                format: 'a4'
+              });
+
+              const imgWidth = 210;
+              const pageHeight = 297;
+              const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+              pdf.addImage(imgData, 'JPEG', 0, 0, imgWidth, Math.min(imgHeight, pageHeight));
+              const branchName = selectedBranch === 'all' ? 'Consolidado' : (branches.find(b => b.id === selectedBranch)?.name || 'Sucursal');
+              pdf.save(`Reporte_Financiero_${branchName}_${new Date().toISOString().slice(0, 10)}.pdf`);
+            }
+            URL.revokeObjectURL(url);
+            resolve();
+          } catch (err) {
+            URL.revokeObjectURL(url);
+            reject(err);
+          }
+        };
+        img.onerror = (e) => {
+          URL.revokeObjectURL(url);
+          // Fallback to native print window if browser blocks SVG canvas export
+          handlePrintPDFNative();
+          resolve();
+        };
+        img.src = url;
+      });
+
+    } catch (err: any) {
+      console.warn('Fallback a impresión nativa por:', err);
+      handlePrintPDFNative();
+    } finally {
+      setGeneratingPDF(false);
+    }
   };
 
   return (
@@ -239,7 +314,7 @@ export function ReportsView() {
           </div>
           
           <div className="flex flex-wrap items-center gap-4 w-full xl:w-auto">
-            <div className="flex-1 min-w-[200px]">
+            <div className="flex-1 min-w-[180px]">
               <label className="text-label-caps text-on-surface-variant mb-1 block">Periodo</label>
               <select value={dateFilter} onChange={e => setDateFilter(e.target.value)} className="w-full bg-white border border-outline-variant/30 rounded-lg h-12 px-4 text-title-md font-bold text-on-surface shadow-sm outline-none focus:border-primary transition-colors cursor-pointer">
                 <option value="today">Día Actual</option>
@@ -249,21 +324,31 @@ export function ReportsView() {
                 <option value="year">Anual</option>
               </select>
             </div>
-            <div className="flex-1 min-w-[200px]">
+            <div className="flex-1 min-w-[180px]">
               <label className="text-label-caps text-on-surface-variant mb-1 block">Sucursal</label>
               <select value={selectedBranch} onChange={e => setSelectedBranch(e.target.value)} className="w-full bg-white border border-outline-variant/30 rounded-lg h-12 px-4 text-title-md font-bold text-primary shadow-sm outline-none focus:border-primary transition-colors cursor-pointer">
                 <option value="all">Consolidado (Todas)</option>
                 {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
               </select>
             </div>
-            <button 
-              onClick={handleDownloadPDF}
-              disabled={generatingPDF || loading}
-              className="h-12 px-6 bg-primary text-white font-bold rounded-lg hover:opacity-90 transition-opacity shadow-sm flex items-center gap-2 self-end xl:self-auto mt-2 xl:mt-0 disabled:opacity-50"
-            >
-              {generatingPDF ? <Loader2 className="animate-spin" size={20} /> : <Download size={20} />}
-              {generatingPDF ? 'Generando PDF...' : 'PDF'}
-            </button>
+            <div className="flex items-center gap-2 self-end xl:self-auto mt-2 xl:mt-0">
+              <button 
+                onClick={handleDownloadPDF}
+                disabled={generatingPDF || loading}
+                className="h-12 px-5 bg-primary text-white font-bold rounded-lg hover:opacity-90 transition-opacity shadow-sm flex items-center gap-2 disabled:opacity-50"
+              >
+                {generatingPDF ? <Loader2 className="animate-spin" size={18} /> : <Download size={18} />}
+                {generatingPDF ? 'Generando...' : 'Descargar PDF'}
+              </button>
+              <button 
+                onClick={handlePrintPDFNative}
+                disabled={loading}
+                className="h-12 px-4 bg-surface border border-outline-variant text-on-surface font-bold rounded-lg hover:bg-surface-variant transition-colors shadow-sm flex items-center gap-2"
+                title="Imprimir o Guardar como PDF (Nativo del Navegador)"
+              >
+                <Printer size={18} />
+              </button>
+            </div>
           </div>
         </div>
 
