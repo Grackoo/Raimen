@@ -39,3 +39,6 @@ CREATE TABLE IF NOT EXISTS public.layaway_payments (
 ALTER TABLE public.layaways DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.layaway_items DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.layaway_payments DISABLE ROW LEVEL SECURITY;
+
+-- Recargar la caché del esquema de PostgREST en Supabase
+NOTIFY pgrst, 'reload schema';
