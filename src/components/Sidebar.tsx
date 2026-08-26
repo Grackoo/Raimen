@@ -1,5 +1,5 @@
 import React from 'react';
-import { LayoutDashboard, Package, RefreshCw, Monitor, Settings, HelpCircle, LogOut, Plus, Users, Wallet, FileText, Lock, LineChart, X } from 'lucide-react';
+import { LayoutDashboard, Package, RefreshCw, Monitor, Settings, HelpCircle, LogOut, Plus, Users, Wallet, FileText, Lock, LineChart, X, Bookmark } from 'lucide-react';
 
 interface SidebarProps {
   currentView: string;
@@ -15,6 +15,7 @@ export function Sidebar({ currentView, onViewChange, mobileMenuOpen, onCloseMobi
   const allNavItems = [
     { id: 'dashboard', label: 'Panel de Control', icon: LayoutDashboard },
     { id: 'pos', label: 'Ventas (Caja)', icon: Monitor },
+    { id: 'layaways', label: 'Apartados', icon: Bookmark },
     { id: 'orders', label: 'Historial de Ventas', icon: RefreshCw },
     { id: 'inventory', label: 'Inventario', icon: Package },
     { id: 'customers', label: 'Clientes', icon: Users },
@@ -26,7 +27,7 @@ export function Sidebar({ currentView, onViewChange, mobileMenuOpen, onCloseMobi
   ];
 
   const navItems = userRole === 'cashier' 
-    ? allNavItems.filter(item => ['pos', 'orders', 'inventory', 'customers', 'expenses', 'cash_register'].includes(item.id))
+    ? allNavItems.filter(item => ['pos', 'layaways', 'orders', 'inventory', 'customers', 'expenses', 'cash_register'].includes(item.id))
     : allNavItems;
 
   const handleNavClick = (viewId: string) => {

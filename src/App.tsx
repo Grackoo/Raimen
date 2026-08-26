@@ -13,6 +13,7 @@ import { CustomersView } from './views/CustomersView';
 import { ExpensesView } from './views/ExpensesView';
 import { AccountsPayableView } from './views/AccountsPayableView';
 import { CashRegisterView } from './views/CashRegisterView';
+import { LayawaysView } from './views/LayawaysView';
 import { Scan, ShoppingBag, Menu, Wallet, Lock } from 'lucide-react';
 
 import { DailyCashCutAlertBanner } from './components/DailyCashCutAlertBanner';
@@ -76,6 +77,7 @@ export default function App() {
         {currentView === 'dashboard' && <DashboardView onViewChange={setCurrentView} />}
         {currentView === 'inventory' && <InventoryView />}
         {currentView === 'pos' && <POSView />}
+        {currentView === 'layaways' && <LayawaysView />}
         {currentView === 'settings' && <SettingsView />}
         {currentView === 'orders' && <OrdersView />}
         {currentView === 'reports' && <ReportsView />}

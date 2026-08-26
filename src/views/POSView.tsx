@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Scan, Search, User, MoreVertical, Minus, Plus, Banknote, CreditCard, Landmark, Receipt, ShoppingBag, Loader2, Trash2, X, Calendar, Monitor, Tag, Percent } from 'lucide-react';
+import { Scan, Search, User, MoreVertical, Minus, Plus, Banknote, CreditCard, Landmark, Receipt, ShoppingBag, Loader2, Trash2, X, Calendar, Monitor, Tag, Percent, Bookmark, Clock } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { Scanner } from '@yudiel/react-qr-scanner';
 import { AdminOverrideModal } from '../components/AdminOverrideModal';
@@ -39,6 +39,14 @@ export function POSView() {
   const [paymentMethod, setPaymentMethod] = useState('Efectivo');
   const [completedSale, setCompletedSale] = useState<any>(null);
   const [customDate, setCustomDate] = useState('');
+
+  // Layaway states
+  const [showLayawayModal, setShowLayawayModal] = useState(false);
+  const [layawayCustomerName, setLayawayCustomerName] = useState('');
+  const [layawayCustomerPhone, setLayawayCustomerPhone] = useState('');
+  const [layawayDeposit, setLayawayDeposit] = useState('');
+  const [processingLayaway, setProcessingLayaway] = useState(false);
+  const [completedLayaway, setCompletedLayaway] = useState<any>(null);
 
   const [manualDiscountEnabled, setManualDiscountEnabled] = useState(false);
   const [manualDiscountType, setManualDiscountType] = useState<'percent' | 'fixed'>('percent');
@@ -287,6 +295,138 @@ export function POSView() {
     }
   };
 
+  const handleOpenLayawayModal = () => {
+    if (cart.length === 0) return;
+    const cust = customers.find(c => c.id === selectedCustomerId);
+    if (cust && !cust.name.toLowerCase().includes('público en general')) {
+      setLayawayCustomerName(cust.name);
+      setLayawayCustomerPhone(cust.phone || '');
+    } else {
+      setLayawayCustomerName('');
+      setLayawayCustomerPhone('');
+    }
+    setLayawayDeposit('');
+    setShowLayawayModal(true);
+  };
+
+  const handleCreateLayaway = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (cart.length === 0) return;
+    if (!layawayCustomerName.trim()) {
+      alert('Por favor ingresa el nombre del cliente.');
+      return;
+    }
+    const deposit = parseFloat(layawayDeposit);
+    if (isNaN(deposit) || deposit <= 0) {
+      alert('Por favor ingresa un monto a cuenta válido (mayor a $0).');
+      return;
+    }
+    if (deposit > total) {
+      alert(`El monto a cuenta no puede exceder el total de la compra ($${total.toFixed(2)}).`);
+      return;
+    }
+
+    setProcessingLayaway(true);
+    try {
+      // Expiration date: current date + 1 month
+      const expDate = new Date();
+      expDate.setMonth(expDate.getMonth() + 1);
+
+      const code = `APT-${Math.floor(100000 + Math.random() * 900000)}`;
+      const remaining = Math.max(0, total - deposit);
+      const isCompleted = remaining === 0;
+
+      // 1. Insert into layaways
+      const layawayPayload = {
+        code: code,
+        customer_name: layawayCustomerName.trim(),
+        customer_phone: layawayCustomerPhone.trim() || null,
+        customer_id: selectedCustomerId || null,
+        total: total,
+        paid_amount: deposit,
+        remaining_amount: remaining,
+        expiration_date: expDate.toISOString(),
+        status: isCompleted ? 'completed' : 'pending',
+        payment_method: paymentMethod,
+        branch_id: sessionUser.branch_id || null,
+        cashier_id: sessionUser.id || null
+      };
+
+      const { data: layawayData, error: layawayError } = await supabase
+        .from('layaways')
+        .insert([layawayPayload])
+        .select()
+        .single();
+
+      if (layawayError) throw layawayError;
+
+      // 2. Insert items
+      const itemsPayload = cart.map(item => ({
+        layaway_id: layawayData.id,
+        product_id: item.id,
+        quantity: item.qty,
+        price: item.price
+      }));
+
+      const { error: itemsError } = await supabase
+        .from('layaway_items')
+        .insert(itemsPayload);
+
+      if (itemsError) throw itemsError;
+
+      // 3. Insert initial payment
+      const { error: payError } = await supabase
+        .from('layaway_payments')
+        .insert([{
+          layaway_id: layawayData.id,
+          amount: deposit,
+          payment_method: paymentMethod,
+          cashier_id: sessionUser.id || null
+        }]);
+
+      if (payError) throw payError;
+
+      // 4. Deduct reserved stock
+      for (const item of cart) {
+        const { data: prod } = await supabase
+          .from('products')
+          .select('stock')
+          .eq('id', item.id)
+          .single();
+        if (prod) {
+          await supabase
+            .from('products')
+            .update({ stock: Math.max(0, (prod.stock || 0) - item.qty) })
+            .eq('id', item.id);
+        }
+      }
+
+      // 5. Open ticket modal for completed layaway
+      setCompletedLayaway({
+        id: layawayData.id,
+        code: code,
+        customer_name: layawayCustomerName.trim(),
+        customer_phone: layawayCustomerPhone.trim(),
+        items: [...cart],
+        total: total,
+        deposit: deposit,
+        remaining: remaining,
+        expiration_date: expDate.toLocaleDateString('es-MX'),
+        date: new Date().toLocaleString('es-MX'),
+        payment_method: paymentMethod
+      });
+
+      setShowLayawayModal(false);
+      setCart([]);
+      setManualDiscountEnabled(false);
+    } catch (err) {
+      console.error('Error al crear el apartado:', err);
+      alert('Hubo un error al procesar el apartado.');
+    } finally {
+      setProcessingLayaway(false);
+    }
+  };
+
   return (
     <main className="flex-1 flex flex-col lg:flex-row lg:h-full overflow-y-auto lg:overflow-hidden bg-surface-container-low p-4 lg:p-6 pb-36 lg:pb-6 gap-6">
       
@@ -528,10 +668,16 @@ export function POSView() {
             </button>
           </div>
 
-          <button disabled={processingSale || cart.length === 0} onClick={handleCheckout} className="w-full bg-secondary text-on-secondary hover:bg-on-secondary-fixed-variant transition-colors rounded-xl py-4 text-title-md flex items-center justify-center gap-2 shadow-lg h-14 disabled:opacity-50 disabled:cursor-not-allowed">
-            {processingSale ? <Loader2 className="animate-spin" size={20} /> : <Receipt size={20} />}
-            {processingSale ? 'Procesando...' : 'Cobrar e Imprimir'}
-          </button>
+          <div className="flex gap-2">
+            <button disabled={processingSale || processingLayaway || cart.length === 0} onClick={handleCheckout} className="flex-1 bg-secondary text-on-secondary hover:bg-on-secondary-fixed-variant transition-colors rounded-xl py-4 text-body-lg font-bold flex items-center justify-center gap-1.5 shadow-lg h-14 disabled:opacity-50 disabled:cursor-not-allowed">
+              {processingSale ? <Loader2 className="animate-spin" size={18} /> : <Receipt size={18} />}
+              {processingSale ? 'Procesando...' : 'Cobrar'}
+            </button>
+            <button disabled={processingSale || processingLayaway || cart.length === 0} onClick={handleOpenLayawayModal} className="flex-1 bg-primary text-on-primary hover:bg-primary/90 transition-colors rounded-xl py-4 text-body-lg font-bold flex items-center justify-center gap-1.5 shadow-lg h-14 disabled:opacity-50 disabled:cursor-not-allowed">
+              <Bookmark size={18} />
+              Apartar
+            </button>
+          </div>
         </div>
       </section>
 
@@ -1019,6 +1165,233 @@ export function POSView() {
               >
                 {processingSale ? <Loader2 className="animate-spin" size={18} /> : <Receipt size={18} />}
                 {processingSale ? 'Procesando...' : `Cobrar ($${total.toFixed(2)})`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Modal para Crear Apartado */}
+      {showLayawayModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[200] p-4">
+          <div className="bg-surface-container-lowest rounded-2xl w-full max-w-md p-6 shadow-2xl border border-outline-variant">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-title-md font-bold text-primary flex items-center gap-2">
+                <Bookmark size={22} /> Sistema de Apartado
+              </h3>
+              <button onClick={() => setShowLayawayModal(false)} className="text-on-surface-variant hover:bg-surface-variant p-1 rounded-full">
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateLayaway} className="space-y-4">
+              <div>
+                <label className="block text-body-sm font-semibold text-on-surface mb-1">Nombre del Cliente *</label>
+                <input
+                  type="text"
+                  value={layawayCustomerName}
+                  onChange={(e) => setLayawayCustomerName(e.target.value)}
+                  placeholder="Ej: Juan Pérez"
+                  required
+                  className="w-full p-3 border border-outline-variant rounded-xl bg-surface focus:ring-2 focus:ring-primary outline-none text-body-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-body-sm font-semibold text-on-surface mb-1">Teléfono (Opcional)</label>
+                <input
+                  type="tel"
+                  value={layawayCustomerPhone}
+                  onChange={(e) => setLayawayCustomerPhone(e.target.value)}
+                  placeholder="Ej: 5512345678"
+                  className="w-full p-3 border border-outline-variant rounded-xl bg-surface focus:ring-2 focus:ring-primary outline-none text-body-sm"
+                />
+              </div>
+
+              <div className="bg-surface p-3 rounded-xl border border-outline-variant space-y-2 text-body-sm">
+                <div className="flex justify-between font-bold text-on-surface">
+                  <span>Total de la Compra:</span>
+                  <span className="text-data-mono font-extrabold">${total.toFixed(2)}</span>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-on-surface-variant mb-1">Monto a Cuenta (Anticipo / Enganche) *</label>
+                  <div className="relative flex items-center">
+                    <span className="absolute left-3 font-bold text-on-surface-variant">$</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="1"
+                      max={total}
+                      value={layawayDeposit}
+                      onChange={(e) => setLayawayDeposit(e.target.value)}
+                      placeholder="Ej: 200.00"
+                      required
+                      className="w-full pl-8 pr-3 py-2 border border-outline-variant rounded-lg bg-surface-container-lowest focus:ring-2 focus:ring-primary outline-none font-mono font-bold text-lg text-emerald-600"
+                    />
+                  </div>
+                </div>
+
+                {parseFloat(layawayDeposit) > 0 && parseFloat(layawayDeposit) <= total && (
+                  <div className="pt-2 border-t border-dashed border-outline-variant space-y-1">
+                    <div className="flex justify-between text-primary font-extrabold text-body-md">
+                      <span>Resta Pendiente:</span>
+                      <span className="text-data-mono">${Math.max(0, total - parseFloat(layawayDeposit)).toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between text-[11px] text-amber-700 font-semibold">
+                      <span className="flex items-center gap-1"><Clock size={12}/> Vence en 1 mes:</span>
+                      <span>{new Date(Date.now() + 30*24*60*60*1000).toLocaleDateString('es-MX')}</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-body-sm font-semibold text-on-surface mb-1">Método de Pago del Anticipo</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {['Efectivo', 'Tarjeta', 'Transfer'].map(m => (
+                    <button
+                      type="button"
+                      key={m}
+                      onClick={() => setPaymentMethod(m)}
+                      className={`py-2 rounded-lg border text-xs font-bold transition-all ${
+                        paymentMethod === m
+                          ? 'border-primary bg-primary-fixed text-primary'
+                          : 'border-outline-variant bg-surface text-on-surface-variant'
+                      }`}
+                    >
+                      {m === 'Transfer' ? 'Transferencia' : m}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="pt-2 flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowLayawayModal(false)}
+                  className="flex-1 py-3 border border-outline-variant rounded-xl font-semibold hover:bg-surface-variant text-body-sm"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={processingLayaway}
+                  className="flex-1 py-3 bg-primary text-on-primary rounded-xl font-bold hover:bg-primary/90 flex justify-center items-center gap-2 text-body-sm"
+                >
+                  {processingLayaway ? <Loader2 className="animate-spin" size={18} /> : 'Generar Apartado'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Ticket de Apartado Generado */}
+      {completedLayaway && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
+          <div className="bg-surface-container-lowest w-full max-w-sm rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="p-4 bg-primary text-on-primary flex justify-between items-center shrink-0">
+              <h3 className="font-bold flex items-center gap-2"><Bookmark size={20}/> Nota de Apartado</h3>
+              <button onClick={() => setCompletedLayaway(null)} className="hover:bg-primary-fixed hover:text-on-primary-fixed rounded-full p-1"><X size={20}/></button>
+            </div>
+
+            <div className="p-6 overflow-y-auto flex-1 font-mono text-sm bg-white text-black" id="printable-layaway-pos-ticket">
+              <div className="text-center mb-4 pb-4 border-b border-black/20">
+                <h2 className="text-xl font-bold">RAIMEN STORE</h2>
+                <p className="font-bold text-sm">--- NOTA DE APARTADO ---</p>
+                <p>Folio: {completedLayaway.code}</p>
+                <p>Fecha: {completedLayaway.date}</p>
+                <p className="font-bold text-red-600">Fecha Límite: {completedLayaway.expiration_date}</p>
+              </div>
+
+              <div className="mb-4 pb-4 border-b border-black/20">
+                <p><span className="font-bold">Cliente:</span> {completedLayaway.customer_name}</p>
+                {completedLayaway.customer_phone && <p><span className="font-bold">Teléfono:</span> {completedLayaway.customer_phone}</p>}
+              </div>
+
+              <div className="border-t border-b border-black/20 py-2 mb-4">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="text-left border-b border-black/20"><th className="pb-1">Cant</th><th className="pb-1">Producto</th><th className="text-right pb-1">Importe</th></tr>
+                  </thead>
+                  <tbody>
+                    {completedLayaway.items.map((item: any) => (
+                      <tr key={item.id}>
+                        <td className="align-top py-1 pr-2">{item.qty}</td>
+                        <td className="align-top py-1">{item.name}</td>
+                        <td className="align-top text-right py-1">${(item.price * item.qty).toFixed(2)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="space-y-1 text-xs mb-4 pb-4 border-b border-black/20">
+                <div className="flex justify-between font-bold text-sm">
+                  <span>TOTAL DE LA COMPRA:</span>
+                  <span>${completedLayaway.total.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between font-bold text-emerald-700">
+                  <span>MONTO A CUENTA:</span>
+                  <span>${completedLayaway.deposit.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between font-extrabold text-base pt-1 border-t border-dashed border-black/30 text-primary">
+                  <span>RESTA PENDIENTE:</span>
+                  <span>${completedLayaway.remaining.toFixed(2)}</span>
+                </div>
+              </div>
+
+              <div className="text-center mt-4 text-[10px] text-black/80">
+                <p className="font-bold">¡IMPORTANTE!</p>
+                <p>El cliente tiene 1 mes a partir de la fecha de expedición para liquidar su apartado.</p>
+                <p className="mt-2 font-semibold">¡Gracias por su compra!</p>
+              </div>
+            </div>
+
+            <div className="p-4 bg-surface-container-low border-t border-outline-variant flex flex-col gap-3 shrink-0">
+              <div className="flex gap-3">
+                <button onClick={() => setCompletedLayaway(null)} className="flex-1 py-2 rounded-lg border border-outline-variant text-on-surface hover:bg-surface-variant transition-colors font-medium">Nuevo Registro</button>
+                <button onClick={() => {
+                  const printContent = document.getElementById('printable-layaway-pos-ticket');
+                  const win = window.open('', '', 'width=300,height=600');
+                  if (win && printContent) {
+                    win.document.write('<html><head><title>Imprimir Nota de Apartado</title><style>body { font-family: monospace; font-size: 12px; margin: 0; padding: 10px; } table { width: 100%; border-collapse: collapse; } th { text-align: left; border-bottom: 1px dashed #000; } td { padding-top: 4px; } .text-right { text-align: right; } .text-center { text-align: center; } .font-bold { font-weight: bold; } .font-semibold { font-weight: 600; } .text-xl { font-size: 16px; } .text-lg { font-size: 14px; } .border-t { border-top: 1px dashed #000; } .border-b { border-bottom: 1px dashed #000; }</style></head><body>');
+                    win.document.write(printContent.innerHTML);
+                    win.document.write('</body></html>');
+                    win.document.close();
+                    win.focus();
+                    setTimeout(() => { win.print(); win.close(); }, 250);
+                  }
+                }} className="flex-1 py-2 rounded-lg bg-primary text-on-primary hover:bg-primary/90 transition-colors font-medium flex justify-center items-center gap-2">
+                  <Receipt size={18} /> Imprimir (Web)
+                </button>
+              </div>
+              <button onClick={() => {
+                let text = "RAIMEN STORE\n";
+                text += "--- NOTA DE APARTADO ---\n";
+                text += `Folio: ${completedLayaway.code}\n`;
+                text += `Fecha: ${completedLayaway.date}\n`;
+                text += `Fecha Limite: ${completedLayaway.expiration_date}\n`;
+                text += "--------------------------------\n";
+                text += `Cliente: ${completedLayaway.customer_name}\n`;
+                if (completedLayaway.customer_phone) text += `Tel: ${completedLayaway.customer_phone}\n`;
+                text += "--------------------------------\n";
+
+                completedLayaway.items.forEach((item: any) => {
+                  text += `${item.qty}x ${item.name}\n$${(item.price * item.qty).toFixed(2)}\n`;
+                });
+                text += "--------------------------------\n";
+                text += `TOTAL COMPRA: $${completedLayaway.total.toFixed(2)}\n`;
+                text += `MONTO A CUENTA: $${completedLayaway.deposit.toFixed(2)}\n`;
+                text += `RESTA PENDIENTE: $${completedLayaway.remaining.toFixed(2)}\n`;
+                text += "--------------------------------\n";
+                text += "Tiene 1 mes a partir de expedicion\npara liquidar su apartado.\n";
+                text += "¡Gracias por su compra!\n\n\n";
+
+                const encoded = encodeURI(text);
+                window.location.href = `intent:${encoded}#Intent;scheme=rawbt;package=ru.a402d.rawbtprinter;end;`;
+              }} className="w-full py-2 rounded-lg bg-secondary text-on-secondary hover:bg-on-secondary-fixed-variant transition-colors font-medium flex justify-center items-center gap-2">
+                <Receipt size={18} /> Imprimir Bluetooth (Móvil)
               </button>
             </div>
           </div>
