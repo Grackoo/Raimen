@@ -9,6 +9,14 @@ export function ReportsView() {
   const [branches, setBranches] = useState<any[]>([]);
   const [selectedBranch, setSelectedBranch] = useState<string>('all');
   const [dateFilter, setDateFilter] = useState('month');
+  const [customStartDate, setCustomStartDate] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 30);
+    return d.toISOString().split('T')[0];
+  });
+  const [customEndDate, setCustomEndDate] = useState(() => {
+    return new Date().toISOString().split('T')[0];
+  });
 
   // Estado de Resultados Data
   const [income, setIncome] = useState(0);
@@ -28,32 +36,50 @@ export function ReportsView() {
 
   useEffect(() => {
     fetchFinancials();
-  }, [selectedBranch, dateFilter]);
+  }, [selectedBranch, dateFilter, customStartDate, customEndDate]);
 
   async function fetchBranches() {
     const { data } = await supabase.from('branches').select('id, name');
     if (data) setBranches(data);
   }
 
-  function getStartDate() {
+  function getDateRange() {
     const now = new Date();
     let startDate = new Date();
-    if (dateFilter === 'today') startDate.setHours(0,0,0,0);
-    else if (dateFilter === 'week') startDate.setDate(now.getDate() - 7);
-    else if (dateFilter === 'month') startDate.setMonth(now.getMonth() - 1);
-    else if (dateFilter === 'quarter') startDate.setMonth(now.getMonth() - 3);
-    else if (dateFilter === 'semester') startDate.setMonth(now.getMonth() - 6);
-    else if (dateFilter === 'year') startDate.setFullYear(now.getFullYear() - 1);
-    return startDate.toISOString();
+    let endDate = new Date();
+
+    if (dateFilter === 'today') {
+      startDate.setHours(0,0,0,0);
+    } else if (dateFilter === 'week') {
+      startDate.setDate(now.getDate() - 7);
+    } else if (dateFilter === 'month') {
+      startDate.setMonth(now.getMonth() - 1);
+    } else if (dateFilter === 'quarter') {
+      startDate.setMonth(now.getMonth() - 3);
+    } else if (dateFilter === 'semester') {
+      startDate.setMonth(now.getMonth() - 6);
+    } else if (dateFilter === 'year') {
+      startDate.setFullYear(now.getFullYear() - 1);
+    } else if (dateFilter === 'custom') {
+      if (customStartDate) startDate = new Date(customStartDate + 'T00:00:00');
+      if (customEndDate) {
+        endDate = new Date(customEndDate + 'T23:59:59.999');
+      }
+    }
+
+    return {
+      startISO: startDate.toISOString(),
+      endISO: endDate.toISOString()
+    };
   }
 
   const fetchFinancials = async () => {
     setLoading(true);
     try {
-      const startDate = getStartDate();
+      const { startISO, endISO } = getDateRange();
 
       // 1. Ingresos por Ventas
-      let salesQ = supabase.from('sales').select('id, total, payment_method').gte('created_at', startDate);
+      let salesQ = supabase.from('sales').select('id, total, payment_method').gte('created_at', startISO).lte('created_at', endISO);
       if (selectedBranch !== 'all') salesQ = salesQ.eq('branch_id', selectedBranch);
       const { data: salesData } = await salesQ;
       
@@ -64,7 +90,7 @@ export function ReportsView() {
       salesData?.forEach(s => {
         totalSales += s.total;
         if (s.payment_method === 'Tarjeta') totalCard += s.total;
-        if (s.payment_method === 'Transferencia') totalTransfer += s.total;
+        if (s.payment_method === 'Transferencia' || s.payment_method === 'Transfer') totalTransfer += s.total;
       });
       
       setIncome(totalSales);
@@ -84,7 +110,7 @@ export function ReportsView() {
       setCogs(totalCogs);
 
       // 3. Gastos Operativos
-      let expQ = supabase.from('expenses').select('amount').gte('date', startDate);
+      let expQ = supabase.from('expenses').select('amount').gte('date', startISO).lte('date', endISO);
       if (selectedBranch !== 'all') expQ = expQ.eq('branch_id', selectedBranch);
       const { data: expData } = await expQ;
       const totalExp = expData?.reduce((acc, e) => acc + e.amount, 0) || 0;
@@ -129,6 +155,11 @@ export function ReportsView() {
       case 'month': return 'Mensual (30 días)';
       case 'quarter': return 'Trimestral';
       case 'year': return 'Anual';
+      case 'custom': {
+        const s = customStartDate ? new Date(customStartDate + 'T00:00:00').toLocaleDateString('es-MX') : '';
+        const e = customEndDate ? new Date(customEndDate + 'T00:00:00').toLocaleDateString('es-MX') : '';
+        return `Personalizado (${s} al ${e})`;
+      }
       default: return dateFilter;
     }
   };
@@ -456,8 +487,33 @@ export function ReportsView() {
                 <option value="month">Mensual (30 días)</option>
                 <option value="quarter">Trimestral</option>
                 <option value="year">Anual</option>
+                <option value="custom">📅 Personalizado (Rango)</option>
               </select>
             </div>
+
+            {dateFilter === 'custom' && (
+              <div className="flex items-center gap-2 flex-1 min-w-[280px]">
+                <div className="flex-1">
+                  <label className="text-label-caps text-on-surface-variant mb-1 block">Desde</label>
+                  <input
+                    type="date"
+                    value={customStartDate}
+                    onChange={e => setCustomStartDate(e.target.value)}
+                    className="w-full bg-white border border-outline-variant/30 rounded-lg h-12 px-3 text-body-sm font-bold text-on-surface shadow-sm outline-none focus:border-primary"
+                  />
+                </div>
+                <div className="flex-1">
+                  <label className="text-label-caps text-on-surface-variant mb-1 block">Hasta</label>
+                  <input
+                    type="date"
+                    value={customEndDate}
+                    onChange={e => setCustomEndDate(e.target.value)}
+                    className="w-full bg-white border border-outline-variant/30 rounded-lg h-12 px-3 text-body-sm font-bold text-on-surface shadow-sm outline-none focus:border-primary"
+                  />
+                </div>
+              </div>
+            )}
+
             <div className="flex-1 min-w-[180px]">
               <label className="text-label-caps text-on-surface-variant mb-1 block">Sucursal</label>
               <select value={selectedBranch} onChange={e => setSelectedBranch(e.target.value)} className="w-full bg-white border border-outline-variant/30 rounded-lg h-12 px-4 text-title-md font-bold text-primary shadow-sm outline-none focus:border-primary transition-colors cursor-pointer">

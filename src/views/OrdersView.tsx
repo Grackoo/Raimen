@@ -27,6 +27,7 @@ export function OrdersView() {
   const [editPaymentMethod, setEditPaymentMethod] = useState('Efectivo');
   const [editCreatedAt, setEditCreatedAt] = useState('');
   const [editItems, setEditItems] = useState<any[]>([]);
+  const [editDiscount, setEditDiscount] = useState<number>(0);
   const [savingSaleEdit, setSavingSaleEdit] = useState(false);
 
   const [startDate, setStartDate] = useState(() => {
@@ -112,10 +113,14 @@ export function OrdersView() {
         };
       });
 
+      const itemsSum = items.reduce((acc, it) => acc + (Number(it.quantity) * Number(it.price_at_time)), 0);
+      const initialDiscount = Math.max(0, itemsSum - Number(sale.total));
+
       setEditingSale(sale);
       setEditPaymentMethod(sale.payment_method || 'Efectivo');
       setEditCreatedAt(formatISOForLocalDatetime(sale.created_at));
       setEditItems(items);
+      setEditDiscount(parseFloat(initialDiscount.toFixed(2)));
     } catch (err) {
       console.error(err);
       alert('Error cargando detalles de la venta para edición');
@@ -130,7 +135,9 @@ export function OrdersView() {
 
     setSavingSaleEdit(true);
     try {
-      const newTotal = editItems.reduce((acc, item) => acc + (Number(item.quantity) * Number(item.price_at_time)), 0);
+      const itemsSum = editItems.reduce((acc, item) => acc + (Number(item.quantity) * Number(item.price_at_time)), 0);
+      const discountVal = Math.max(0, parseFloat(editDiscount.toString()) || 0);
+      const newTotal = Math.max(0, itemsSum - discountVal);
       const createdAtISO = new Date(editCreatedAt).toISOString();
 
       const { error: saleErr } = await supabase
@@ -532,12 +539,50 @@ export function OrdersView() {
                 </div>
               </div>
 
-              <div className="bg-primary/10 border border-primary/30 p-3 rounded-xl flex items-center justify-between">
-                <span className="text-body-md font-bold text-primary">Nuevo Total Recalculado:</span>
-                <span className="text-title-lg font-extrabold text-primary text-data-mono">
-                  ${editItems.reduce((acc, it) => acc + (Number(it.quantity) * Number(it.price_at_time)), 0).toFixed(2)}
-                </span>
-              </div>
+              {/* Desglose y Descuento del Ticket */}
+              {(() => {
+                const itemsSumCalc = editItems.reduce((acc, it) => acc + (Number(it.quantity) * Number(it.price_at_time)), 0);
+                const finalTotalCalc = Math.max(0, itemsSumCalc - (parseFloat(editDiscount.toString()) || 0));
+
+                return (
+                  <div className="bg-surface-container-high p-3.5 rounded-xl border border-outline-variant space-y-2.5 text-body-sm">
+                    <div className="flex justify-between text-on-surface-variant font-medium">
+                      <span>Subtotal de productos:</span>
+                      <span className="font-mono font-bold text-on-surface">
+                        ${itemsSumCalc.toFixed(2)}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between gap-4 pt-2 border-t border-outline-variant/60">
+                      <div>
+                        <label className="text-xs font-bold text-on-surface flex items-center gap-1.5">
+                          <span>🏷️ Descuento al Cliente ($):</span>
+                        </label>
+                        <span className="text-[10px] text-on-surface-variant block">Monto en $ descontado al ticket</span>
+                      </div>
+                      <div className="relative w-32">
+                        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-on-surface-variant">$</span>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          max={itemsSumCalc}
+                          value={editDiscount}
+                          onChange={(e) => setEditDiscount(Math.max(0, parseFloat(e.target.value) || 0))}
+                          className="w-full pl-6 pr-2 py-1.5 bg-surface border border-outline-variant rounded-lg text-right font-mono font-bold text-body-sm outline-none focus:border-primary text-primary"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="pt-2 border-t border-primary/20 flex items-center justify-between bg-primary/10 -mx-3.5 -mb-3.5 p-3 rounded-b-xl">
+                      <span className="text-body-md font-bold text-primary">Total Recalculado:</span>
+                      <span className="text-title-lg font-extrabold text-primary text-data-mono">
+                        ${finalTotalCalc.toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })()}
 
               <div className="flex gap-3 mt-2">
                 <button

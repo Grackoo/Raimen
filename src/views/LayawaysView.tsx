@@ -320,7 +320,7 @@ export function LayawaysView() {
                 <div>
                   <div className="flex justify-between items-start mb-3">
                     <div>
-                      <span className="text-xs font-bold font-mono text-primary bg-primary-container px-2 py-0.5 rounded">
+                      <span className="inline-flex items-center text-xs font-extrabold font-mono text-white bg-slate-900 border border-slate-700 px-2.5 py-1 rounded shadow-sm tracking-wider">
                         {l.code}
                       </span>
                       <h3 className="text-body-lg font-bold text-on-surface mt-1.5 flex items-center gap-1.5">

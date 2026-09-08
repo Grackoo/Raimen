@@ -235,9 +235,52 @@ export function CashRegisterView() {
       .eq('branch_id', selectedBranch)
       .eq('status', 'closed')
       .order('closed_at', { ascending: false })
-      .limit(10);
+      .limit(15);
 
-    setHistory(hist || []);
+    // Enrich history registers with sales and expenses data if not already present
+    const enrichedHistory = await Promise.all((hist || []).map(async (reg) => {
+      let cashSalesVal = Number(reg.cash_sales) || 0;
+      let cardSalesVal = Number(reg.card_sales) || 0;
+      let transferSalesVal = Number(reg.transfer_sales) || 0;
+      let cashExpensesVal = Number(reg.cash_expenses) || 0;
+
+      // If sales/expenses are 0 or missing, compute from database for this register's timeframe
+      if (!reg.cash_sales && !reg.card_sales && !reg.transfer_sales && !reg.cash_expenses && reg.opened_at && reg.closed_at) {
+        try {
+          const [salesRes, expRes] = await Promise.all([
+            supabase.from('sales').select('total, payment_method').eq('branch_id', reg.branch_id).gte('created_at', reg.opened_at).lte('created_at', reg.closed_at),
+            supabase.from('expenses').select('amount').eq('branch_id', reg.branch_id).gte('date', reg.opened_at).lte('date', reg.closed_at)
+          ]);
+
+          if (salesRes.data) {
+            salesRes.data.forEach(s => {
+              const t = Number(s.total) || 0;
+              if (s.payment_method === 'Efectivo') cashSalesVal += t;
+              else if (s.payment_method === 'Tarjeta') cardSalesVal += t;
+              else if (s.payment_method === 'Transfer' || s.payment_method === 'Transferencia') transferSalesVal += t;
+            });
+          }
+
+          if (expRes.data) {
+            cashExpensesVal = expRes.data.reduce((acc, e) => acc + (Number(e.amount) || 0), 0);
+          }
+        } catch (e) {
+          console.warn('Error enriqueciendo corte:', e);
+        }
+      }
+
+      const totalSalesVal = cashSalesVal + cardSalesVal + transferSalesVal;
+      return {
+        ...reg,
+        cash_sales: cashSalesVal,
+        card_sales: cardSalesVal,
+        transfer_sales: transferSalesVal,
+        total_sales: totalSalesVal,
+        cash_expenses: cashExpensesVal
+      };
+    }));
+
+    setHistory(enrichedHistory);
     
     if (!active && hist && hist.length > 0) {
       const suggested = (hist[0].next_opening_amount !== undefined && hist[0].next_opening_amount !== null)
@@ -671,6 +714,17 @@ export function CashRegisterView() {
                           <span className="text-on-surface-variant">Esperado:</span>
                           <span className="font-bold text-on-surface">${reg.expected_closing_amount.toFixed(2)}</span>
                         </div>
+
+                        {/* Ventas y Gastos del Turno */}
+                        <div className="flex justify-between bg-emerald-500/10 px-2 py-1 rounded border border-emerald-500/20">
+                          <span className="text-emerald-700 font-semibold text-xs">Ventas del Día:</span>
+                          <span className="font-extrabold text-emerald-600 text-data-mono text-xs">+${(reg.total_sales !== undefined ? reg.total_sales : (Number(reg.cash_sales) || 0) + (Number(reg.card_sales) || 0) + (Number(reg.transfer_sales) || 0)).toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between bg-red-500/10 px-2 py-1 rounded border border-red-500/20">
+                          <span className="text-red-700 font-semibold text-xs">Gastos del Día:</span>
+                          <span className="font-extrabold text-error text-data-mono text-xs">-${(Number(reg.cash_expenses) || 0).toFixed(2)}</span>
+                        </div>
+
                         <div className="flex justify-between">
                           <span className="text-on-surface-variant">Cierre Real:</span>
                           <span className="font-bold text-on-surface">${actual.toFixed(2)}</span>
@@ -681,6 +735,16 @@ export function CashRegisterView() {
                             {reg.difference > 0 ? '+' : ''}{reg.difference.toFixed(2)}
                           </span>
                         </div>
+
+                        {/* Desglose de Ventas por Método si aplica */}
+                        {((Number(reg.cash_sales) || 0) > 0 || (Number(reg.card_sales) || 0) > 0 || (Number(reg.transfer_sales) || 0) > 0) && (
+                          <div className="col-span-2 text-[10px] text-on-surface-variant/80 bg-surface px-2 py-1 rounded border border-outline-variant/40 flex justify-between font-mono">
+                            <span>Efec: ${(Number(reg.cash_sales) || 0).toFixed(2)}</span>
+                            <span>Tarj: ${(Number(reg.card_sales) || 0).toFixed(2)}</span>
+                            <span>Trans: ${(Number(reg.transfer_sales) || 0).toFixed(2)}</span>
+                          </div>
+                        )}
+
                         <div className="col-span-2 pt-2 border-t border-outline-variant flex justify-between items-center text-xs">
                           <span className="text-primary font-bold">🏦 Retiro de Negocio:</span>
                           <span className="font-extrabold text-primary text-data-mono bg-primary/10 px-2 py-0.5 rounded">
