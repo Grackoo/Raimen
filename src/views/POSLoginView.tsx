@@ -94,9 +94,18 @@ export function POSLoginView({ onLogin }: POSLoginViewProps) {
     <div className="min-h-screen flex flex-col items-center justify-center p-4 md:p-8 bg-background text-on-background w-full">
       <div className="w-full max-w-lg">
         {/* Logo Section */}
-        <div className="hidden md:flex flex-col items-center justify-center mb-8">
-          <span className="text-display-lg font-bold text-primary">RAIMEN</span>
-          <p className="text-body-sm text-on-surface-variant mt-2">Retail Management System</p>
+        <div className="flex flex-col items-center justify-center mb-6 md:mb-8 text-center">
+          <img 
+            src="/logo.png" 
+            alt="RAIMEN Logo" 
+            className="w-20 h-20 md:w-24 md:h-24 object-contain mb-3 drop-shadow-md"
+            onError={(e) => {
+              // Hide if fails
+              (e.target as HTMLElement).style.display = 'none';
+            }}
+          />
+          <span className="text-display-md md:text-display-lg font-bold text-primary tracking-wide">RAIMEN</span>
+          <p className="text-body-sm text-on-surface-variant mt-1">Retail Management System</p>
         </div>
 
         {/* Login Card */}

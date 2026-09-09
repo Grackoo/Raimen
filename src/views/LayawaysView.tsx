@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { Bookmark, Search, Calendar, User, DollarSign, Clock, CheckCircle2, AlertTriangle, Receipt, X, Loader2, PlusCircle, Trash2 } from 'lucide-react';
+import { Bookmark, Search, Calendar, User, DollarSign, Clock, CheckCircle2, AlertTriangle, Receipt, X, Loader2, PlusCircle, Trash2, Share2 } from 'lucide-react';
 
 interface LayawayItem {
   id: string;
@@ -246,6 +246,20 @@ export function LayawaysView() {
     window.location.href = `intent:${encoded}#Intent;scheme=rawbt;package=ru.a402d.rawbtprinter;end;`;
   };
 
+  const shareWhatsApp = () => {
+    if (!selectedLayaway) return;
+    const phone = selectedLayaway.customer_phone?.replace(/\D/g, '') || '';
+    const text = encodeURIComponent(
+      `Hola ${selectedLayaway.customer_name}! Tu nota de apartado en *RAIMEN STORE* ha sido registrada con Folio: *${selectedLayaway.code}*.\n` +
+      `Total: $${selectedLayaway.total.toFixed(2)}\n` +
+      `Abonado: $${selectedLayaway.paid_amount.toFixed(2)}\n` +
+      `Resta pendiente: $${selectedLayaway.remaining_amount.toFixed(2)}\n` +
+      `Fecha límite: ${new Date(selectedLayaway.expiration_date).toLocaleDateString('es-MX')}\n\n` +
+      `Puedes consultar tu apartado y nuestro catálogo en:\nhttps://raimen.vercel.app/#tienda?codigo=${selectedLayaway.code}`
+    );
+    window.open(`https://api.whatsapp.com/send?${phone ? `phone=${phone}&` : ''}text=${text}`, '_blank');
+  };
+
   return (
     <div className="flex-1 flex flex-col h-full bg-surface-container-low p-4 lg:p-6 overflow-y-auto">
       {/* Header */}
@@ -409,7 +423,8 @@ export function LayawaysView() {
             <div className="p-6 overflow-y-auto flex-1 space-y-6">
               {/* Ticket printable content */}
               <div id="printable-layaway-ticket" className="bg-white p-4 text-black font-mono text-sm border border-gray-200 rounded-lg">
-                <div className="text-center mb-3 pb-3 border-b border-black/20">
+                <div className="text-center mb-3 pb-3 border-b border-black/20 flex flex-col items-center">
+                  <img src="/logo.png" alt="RAIMEN" className="w-14 h-14 object-contain mx-auto mb-1.5" />
                   <h2 className="text-xl font-bold">RAIMEN STORE</h2>
                   <p className="font-bold text-sm">--- NOTA DE APARTADO ---</p>
                   <p className="text-xs">Folio: {selectedLayaway.code}</p>
@@ -486,10 +501,13 @@ export function LayawaysView() {
             <div className="p-4 bg-surface-container-low border-t border-outline-variant flex flex-col gap-2 shrink-0">
               <div className="flex gap-2">
                 <button onClick={printTicket} className="flex-1 py-2 bg-primary text-on-primary rounded-lg text-body-sm font-semibold hover:bg-primary/90 flex justify-center items-center gap-1.5">
-                  <Receipt size={16} /> Imprimir Web
+                  <Receipt size={16} /> Web
                 </button>
                 <button onClick={printRawBT} className="flex-1 py-2 bg-secondary text-on-secondary rounded-lg text-body-sm font-semibold hover:bg-on-secondary-fixed-variant flex justify-center items-center gap-1.5">
-                  <Receipt size={16} /> Imprimir Bluetooth
+                  <Receipt size={16} /> Bluetooth
+                </button>
+                <button onClick={shareWhatsApp} className="flex-1 py-2 bg-emerald-600 text-white rounded-lg text-body-sm font-semibold hover:bg-emerald-700 flex justify-center items-center gap-1.5 shadow-sm" title="Compartir apartado por WhatsApp">
+                  <Share2 size={16} /> WhatsApp
                 </button>
               </div>
 

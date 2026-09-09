@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Scan, Search, User, MoreVertical, Minus, Plus, Banknote, CreditCard, Landmark, Receipt, ShoppingBag, Loader2, Trash2, X, Calendar, Monitor, Tag, Percent, Bookmark, Clock } from 'lucide-react';
+import { Scan, Search, User, MoreVertical, Minus, Plus, Banknote, CreditCard, Landmark, Receipt, ShoppingBag, Loader2, Trash2, X, Calendar, Monitor, Tag, Percent, Bookmark, Clock, Share2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { Scanner } from '@yudiel/react-qr-scanner';
 import { AdminOverrideModal } from '../components/AdminOverrideModal';
@@ -690,7 +690,8 @@ export function POSView() {
               <button onClick={() => setCompletedSale(null)} className="hover:bg-primary-fixed hover:text-on-primary-fixed rounded-full p-1"><X size={20}/></button>
             </div>
             <div className="p-6 overflow-y-auto flex-1 font-mono text-sm bg-white text-black" id="printable-ticket">
-              <div className="text-center mb-4 pb-4 border-b border-black/20">
+              <div className="text-center mb-4 pb-4 border-b border-black/20 flex flex-col items-center">
+                <img src="/logo.png" alt="RAIMEN" className="w-14 h-14 object-contain mx-auto mb-2" />
                 <h2 className="text-xl font-bold">RAIMEN STORE</h2>
                 <p>Sucursal Principal</p>
                 <p>Fecha: {completedSale.date}</p>
@@ -1296,7 +1297,8 @@ export function POSView() {
             </div>
 
             <div className="p-6 overflow-y-auto flex-1 font-mono text-sm bg-white text-black" id="printable-layaway-pos-ticket">
-              <div className="text-center mb-4 pb-4 border-b border-black/20">
+              <div className="text-center mb-4 pb-4 border-b border-black/20 flex flex-col items-center">
+                <img src="/logo.png" alt="RAIMEN" className="w-14 h-14 object-contain mx-auto mb-2" />
                 <h2 className="text-xl font-bold">RAIMEN STORE</h2>
                 <p className="font-bold text-sm">--- NOTA DE APARTADO ---</p>
                 <p>Folio: {completedLayaway.code}</p>
@@ -1349,8 +1351,8 @@ export function POSView() {
             </div>
 
             <div className="p-4 bg-surface-container-low border-t border-outline-variant flex flex-col gap-3 shrink-0">
-              <div className="flex gap-3">
-                <button onClick={() => setCompletedLayaway(null)} className="flex-1 py-2 rounded-lg border border-outline-variant text-on-surface hover:bg-surface-variant transition-colors font-medium">Nuevo Registro</button>
+              <div className="flex gap-2">
+                <button onClick={() => setCompletedLayaway(null)} className="py-2 px-3 rounded-lg border border-outline-variant text-on-surface hover:bg-surface-variant transition-colors font-medium">Nuevo</button>
                 <button onClick={() => {
                   const printContent = document.getElementById('printable-layaway-pos-ticket');
                   const win = window.open('', '', 'width=300,height=600');
@@ -1362,8 +1364,22 @@ export function POSView() {
                     win.focus();
                     setTimeout(() => { win.print(); win.close(); }, 250);
                   }
-                }} className="flex-1 py-2 rounded-lg bg-primary text-on-primary hover:bg-primary/90 transition-colors font-medium flex justify-center items-center gap-2">
-                  <Receipt size={18} /> Imprimir (Web)
+                }} className="flex-1 py-2 rounded-lg bg-primary text-on-primary hover:bg-primary/90 transition-colors font-medium flex justify-center items-center gap-1.5 text-xs">
+                  <Receipt size={16} /> Web
+                </button>
+                <button onClick={() => {
+                  const phone = completedLayaway.customer_phone?.replace(/\D/g, '') || '';
+                  const text = encodeURIComponent(
+                    `Hola ${completedLayaway.customer_name}! Tu nota de apartado en *RAIMEN STORE* ha sido registrada con Folio: *${completedLayaway.code}*.\n` +
+                    `Total: $${completedLayaway.total.toFixed(2)}\n` +
+                    `Abonado: $${completedLayaway.deposit.toFixed(2)}\n` +
+                    `Resta pendiente: $${completedLayaway.remaining.toFixed(2)}\n` +
+                    `Fecha límite: ${completedLayaway.expiration_date}\n\n` +
+                    `Puedes consultar tu apartado y catálogo en:\nhttps://raimen.vercel.app/#tienda?codigo=${completedLayaway.code}`
+                  );
+                  window.open(`https://api.whatsapp.com/send?${phone ? `phone=${phone}&` : ''}text=${text}`, '_blank');
+                }} className="flex-1 py-2 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition-colors font-medium flex justify-center items-center gap-1.5 text-xs shadow-sm">
+                  <Share2 size={16} /> WhatsApp
                 </button>
               </div>
               <button onClick={() => {

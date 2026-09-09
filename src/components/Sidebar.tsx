@@ -40,15 +40,11 @@ export function Sidebar({ currentView, onViewChange, mobileMenuOpen, onCloseMobi
       {/* Header */}
       <div className="mb-6 px-2 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          {currentView === 'pos' ? (
-            <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-on-primary font-bold">
-              <Monitor size={20} />
-            </div>
-          ) : (
-             <div className="w-10 h-10 rounded-lg bg-primary-container flex items-center justify-center shrink-0">
-               <span className="text-title-md font-bold text-on-primary-container">R</span>
-             </div>
-          )}
+          <img 
+            src="/logo.png" 
+            alt="RAIMEN Logo" 
+            className="w-10 h-10 object-contain rounded-lg shrink-0 bg-surface p-0.5 border border-outline-variant" 
+          />
           <div>
             <h1 className="text-headline-lg font-bold text-primary leading-tight tracking-tight text-xl">RAIMEN</h1>
             <p className="text-label-caps text-on-surface-variant">Retail Management ({userRole.toUpperCase()})</p>

@@ -16,6 +16,7 @@ interface Sale {
 export function OrdersView() {
   const [sales, setSales] = useState<Sale[]>([]);
   const [products, setProducts] = useState<any[]>([]);
+  const [customers, setCustomers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingTicketId, setLoadingTicketId] = useState<string | null>(null);
   const [completedSale, setCompletedSale] = useState<any>(null);
@@ -55,12 +56,13 @@ export function OrdersView() {
       const e = new Date(endDate);
       e.setHours(23,59,59,999);
 
-      const [salesRes, productsRes] = await Promise.all([
+      const [salesRes, productsRes, custRes] = await Promise.all([
         supabase.from('sales').select('*')
           .gte('created_at', s.toISOString())
           .lte('created_at', e.toISOString())
           .order('created_at', { ascending: false }),
-        supabase.from('products').select('*')
+        supabase.from('products').select('*'),
+        supabase.from('customers').select('*')
       ]);
       
       if (salesRes.error) throw salesRes.error;
@@ -68,6 +70,7 @@ export function OrdersView() {
       
       setSales(salesRes.data || []);
       setProducts(productsRes.data || []);
+      setCustomers(custRes.data || []);
     } catch (err) {
       console.error('Error fetching data:', err);
     } finally {
@@ -175,7 +178,7 @@ export function OrdersView() {
     }
   };
 
-  const handleViewTicket = async (sale: Sale) => {
+  const handleViewTicket = async (sale: any) => {
     if (loadingTicketId) return;
     setLoadingTicketId(sale.id);
     try {
@@ -187,23 +190,36 @@ export function OrdersView() {
         return {
           id: item.id,
           product_id: item.product_id,
-          name: product ? product.name : 'Producto Desconocido',
+          name: product ? product.name : 'Producto',
           qty: item.quantity,
           price: item.price_at_time
         };
       });
 
+      const sumProducts = items.reduce((acc, it) => acc + (Number(it.qty) * Number(it.price)), 0);
+      const discountAmount = Math.max(0, sumProducts - Number(sale.total));
+      const hasDiscount = discountAmount > 0.05;
+
+      const is5Percent = hasDiscount && Math.abs(discountAmount - (sumProducts * 0.05)) < 0.5;
+      const discountLabel = is5Percent ? 'Descuento (5%)' : `Descuento Cliente (-$${discountAmount.toFixed(2)})`;
+
       const subtotal = sale.total / 1.16;
       const taxes = sale.total - subtotal;
+      const customer = customers.find(c => c.id === sale.customer_id);
 
       setCompletedSale({
         id: sale.id,
         items,
-        total: sale.total,
+        sumProducts,
+        discountAmount,
+        hasDiscount,
+        discountLabel,
+        total: Number(sale.total),
         subtotal,
         taxes,
-        payment_method: sale.payment_method,
-        date: new Date(sale.created_at).toLocaleString('es-MX')
+        payment_method: sale.payment_method || 'Efectivo',
+        date: new Date(sale.created_at).toLocaleString('es-MX'),
+        customer
       });
     } catch (err) {
       console.error(err);
@@ -357,12 +373,34 @@ export function OrdersView() {
               <button onClick={() => setCompletedSale(null)} className="hover:bg-primary-fixed hover:text-on-primary-fixed rounded-full p-1"><X size={20}/></button>
             </div>
             <div className="p-6 overflow-y-auto flex-1 font-mono text-sm bg-white text-black" id="printable-ticket">
-              <div className="text-center mb-6">
+              <div className="text-center mb-4 pb-4 border-b border-black/20 flex flex-col items-center">
+                <img src="/logo.png" alt="RAIMEN" className="w-14 h-14 object-contain mx-auto mb-2" />
                 <h2 className="text-xl font-bold">RAIMEN STORE</h2>
                 <p>Sucursal Principal</p>
                 <p>Fecha: {completedSale.date}</p>
                 <p>Ticket: {completedSale.id.substring(0,8).toUpperCase()}</p>
               </div>
+
+              <div className="mb-4 pb-4 border-b border-black/20">
+                <p><span className="font-bold">Cliente:</span> {completedSale.customer?.name || 'Público en General'}</p>
+                {completedSale.customer?.rfc && completedSale.customer.rfc !== 'XAXX010101000' && (
+                  <p>RFC: {completedSale.customer.rfc}</p>
+                )}
+                {completedSale.customer?.email && (
+                  <p>Email: {completedSale.customer.email}</p>
+                )}
+                {completedSale.customer?.phone && (
+                  <p>Tel: {completedSale.customer.phone}</p>
+                )}
+              </div>
+              
+              {completedSale.hasDiscount && (
+                <div className="text-center mb-4 py-2 border-y-2 border-dashed border-black">
+                  <p className="font-bold text-lg">🎉 ¡Descuento Aplicado! 🎉</p>
+                  <p className="text-sm font-bold mt-1">{completedSale.discountLabel || 'Obtuviste un descuento especial'}</p>
+                </div>
+              )}
+
               <div className="border-t border-b border-black/20 py-2 mb-4">
                 <table className="w-full">
                   <thead>
@@ -379,8 +417,20 @@ export function OrdersView() {
                   </tbody>
                 </table>
               </div>
-              <div className="flex justify-between mb-1"><span>SUBTOTAL:</span><span>${completedSale.subtotal.toFixed(2)}</span></div>
-              <div className="flex justify-between mb-1"><span>IVA (16% incl):</span><span>${completedSale.taxes.toFixed(2)}</span></div>
+              
+              {completedSale.hasDiscount && (
+                <div className="flex justify-between text-sm mt-2">
+                  <span>Subtotal:</span>
+                  <span>${completedSale.sumProducts.toFixed(2)}</span>
+                </div>
+              )}
+              {completedSale.hasDiscount && (
+                <div className="flex justify-between text-sm font-bold">
+                  <span>{completedSale.discountLabel || 'Descuento'}:</span>
+                  <span>-${completedSale.discountAmount.toFixed(2)}</span>
+                </div>
+              )}
+
               <div className="flex justify-between font-bold text-lg mt-2 pt-2 border-t border-black/20"><span>TOTAL:</span><span>${completedSale.total.toFixed(2)}</span></div>
               <div className="text-center mt-6 text-xs text-black/60">
                 <p>PAGO EN: {completedSale.payment_method.toUpperCase()}</p>
@@ -430,14 +480,25 @@ export function OrdersView() {
                   text += `Fecha: ${completedSale.date}\n`;
                   text += `Ticket: ${completedSale.id.substring(0,8).toUpperCase()}\n`;
                   text += "--------------------------------\n";
-                  text += "Cant | Descripcion | Importe\n";
+                  text += `Cliente: ${completedSale.customer?.name || 'Publico en General'}\n`;
                   text += "--------------------------------\n";
+                  
+                  if (completedSale.hasDiscount) {
+                    text += "*** ¡Descuento Aplicado! ***\n";
+                    text += `${completedSale.discountLabel || 'Descuento especial'}\n`;
+                    text += "--------------------------------\n";
+                  }
+
                   completedSale.items.forEach((item: any) => {
                     text += `${item.qty}x ${item.name}\n$${(item.price * item.qty).toFixed(2)}\n`;
                   });
                   text += "--------------------------------\n";
-                  text += `SUBTOTAL: $${completedSale.subtotal.toFixed(2)}\n`;
-                  text += `IVA (16%): $${completedSale.taxes.toFixed(2)}\n`;
+                  
+                  if (completedSale.hasDiscount) {
+                    text += `Subtotal: $${completedSale.sumProducts.toFixed(2)}\n`;
+                    text += `${completedSale.discountLabel || 'Descuento'}: -$${completedSale.discountAmount.toFixed(2)}\n`;
+                  }
+
                   text += `TOTAL: $${completedSale.total.toFixed(2)}\n`;
                   text += "--------------------------------\n";
                   text += `PAGO EN: ${completedSale.payment_method.toUpperCase()}\n`;

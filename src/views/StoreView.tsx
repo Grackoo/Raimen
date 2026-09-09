@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { ShoppingBag, Search, Filter, Loader2, ChevronRight, Menu } from 'lucide-react';
+import { ShoppingBag, Search, Filter, Loader2, ChevronRight, Menu, Bookmark, X, Receipt, Clock, CheckCircle2, AlertTriangle } from 'lucide-react';
 
 interface Product {
   id: string;
@@ -12,12 +12,115 @@ interface Product {
   stock: number;
 }
 
+interface LayawayLookupItem {
+  id: string;
+  product_name: string;
+  quantity: number;
+  price: number;
+}
+
+interface LayawayLookupData {
+  id: string;
+  code: string;
+  customer_name: string;
+  customer_phone?: string;
+  total: number;
+  paid_amount: number;
+  remaining_amount: number;
+  expiration_date: string;
+  created_at: string;
+  status: string;
+  items: LayawayLookupItem[];
+}
+
 export function StoreView() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [categories, setCategories] = useState<string[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('Todos');
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Apartado lookup state
+  const [showLookupModal, setShowLookupModal] = useState(false);
+  const [searchCode, setSearchCode] = useState('');
+  const [lookingUp, setLookingUp] = useState(false);
+  const [lookupError, setLookupError] = useState<string | null>(null);
+  const [consultedLayaway, setConsultedLayaway] = useState<LayawayLookupData | null>(null);
+
+  const lookupLayaway = async (codeToSearch: string) => {
+    if (!codeToSearch.trim()) return;
+    setLookingUp(true);
+    setLookupError(null);
+    setShowLookupModal(true);
+    try {
+      const { data, error } = await supabase
+        .from('layaways')
+        .select('*')
+        .ilike('code', codeToSearch.trim())
+        .single();
+
+      if (error || !data) {
+        setLookupError('No se encontró ningún apartado con ese código. Verifica el folio proporcionado.');
+        setConsultedLayaway(null);
+        return;
+      }
+
+      // Fetch items
+      const { data: items } = await supabase
+        .from('layaway_items')
+        .select('*')
+        .eq('layaway_id', data.id);
+
+      const itemsWithNames: LayawayLookupItem[] = await Promise.all((items || []).map(async (it: any) => {
+        if (it.product_id) {
+          const { data: prod } = await supabase.from('products').select('name').eq('id', it.product_id).single();
+          return {
+            id: it.id,
+            product_name: prod?.name || 'Producto',
+            quantity: it.quantity,
+            price: Number(it.price)
+          };
+        }
+        return {
+          id: it.id,
+          product_name: 'Producto',
+          quantity: it.quantity,
+          price: Number(it.price)
+        };
+      }));
+
+      setConsultedLayaway({
+        id: data.id,
+        code: data.code,
+        customer_name: data.customer_name,
+        customer_phone: data.customer_phone,
+        total: Number(data.total),
+        paid_amount: Number(data.paid_amount),
+        remaining_amount: Number(data.remaining_amount),
+        expiration_date: data.expiration_date,
+        created_at: data.created_at,
+        status: data.status,
+        items: itemsWithNames
+      });
+    } catch (err) {
+      console.error('Error looking up layaway:', err);
+      setLookupError('Error al consultar el apartado. Intenta nuevamente.');
+    } finally {
+      setLookingUp(false);
+    }
+  };
+
+  useEffect(() => {
+    // Check if URL has code parameter in search or hash
+    const searchParams = new URLSearchParams(window.location.search);
+    const hashSplit = window.location.hash.includes('?') ? window.location.hash.split('?')[1] : '';
+    const hashParams = new URLSearchParams(hashSplit);
+    const codeParam = searchParams.get('codigo') || hashParams.get('codigo') || searchParams.get('code') || hashParams.get('code');
+    if (codeParam) {
+      setSearchCode(codeParam);
+      lookupLayaway(codeParam);
+    }
+  }, []);
 
   useEffect(() => {
     async function fetchStoreData() {
@@ -59,10 +162,12 @@ export function StoreView() {
       <nav className="bg-surface/80 backdrop-blur-xl border-b border-outline-variant sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center text-on-primary font-bold shadow-md">
-                R
-              </div>
+            <div className="flex items-center gap-2.5 sm:gap-3">
+              <img 
+                src="/logo.png" 
+                alt="RAIMEN Logo" 
+                className="w-10 h-10 object-contain rounded-xl shadow-md bg-white p-1 border border-outline-variant"
+              />
               <span className="text-title-lg font-bold tracking-tight">Raimen Store</span>
             </div>
             
@@ -77,13 +182,26 @@ export function StoreView() {
               />
             </div>
             
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2.5 sm:gap-3">
+              <button 
+                onClick={() => {
+                  setLookupError(null);
+                  setShowLookupModal(true);
+                }}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-primary/10 hover:bg-primary/20 text-primary text-xs font-bold transition-all border border-primary/20"
+                title="Consultar Apartado por Código"
+              >
+                <Bookmark size={15} />
+                <span className="hidden sm:inline">Consultar Apartado</span>
+                <span className="sm:hidden">Apartado</span>
+              </button>
+
               <button className="relative p-2 text-on-surface hover:bg-surface-variant rounded-full transition-colors">
-                <ShoppingBag size={24} />
+                <ShoppingBag size={22} />
                 <span className="absolute top-1 right-1 w-4 h-4 bg-error text-on-error rounded-full text-[10px] flex items-center justify-center font-bold">0</span>
               </button>
               <button className="md:hidden p-2 text-on-surface hover:bg-surface-variant rounded-full transition-colors">
-                <Menu size={24} />
+                <Menu size={22} />
               </button>
             </div>
           </div>
@@ -188,10 +306,155 @@ export function StoreView() {
       </main>
       
       <footer className="bg-surface-container-low border-t border-outline-variant py-8 mt-auto">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center text-body-sm text-on-surface-variant">
-          &copy; {new Date().getFullYear()} Raimen Store. Todos los derechos reservados.
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-2.5">
+            <img src="/logo.png" alt="RAIMEN" className="w-8 h-8 object-contain rounded-lg bg-white p-0.5 border border-outline-variant" />
+            <span className="font-bold text-body-md text-on-surface">RAIMEN STORE</span>
+          </div>
+          <div className="text-center sm:text-right text-body-sm text-on-surface-variant">
+            &copy; {new Date().getFullYear()} Raimen Store. Todos los derechos reservados.
+          </div>
         </div>
       </footer>
+
+      {/* Modal Consulta de Apartado */}
+      {showLookupModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[150] flex items-center justify-center p-4">
+          <div className="bg-surface-container-lowest w-full max-w-md rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="p-4 bg-primary text-on-primary flex justify-between items-center shrink-0">
+              <div className="flex items-center gap-2">
+                <Bookmark size={20} />
+                <span className="font-bold text-title-md">Consulta tu Apartado</span>
+              </div>
+              <button 
+                onClick={() => setShowLookupModal(false)}
+                className="hover:bg-primary-fixed hover:text-on-primary-fixed rounded-full p-1 transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="p-5 overflow-y-auto flex-1 space-y-4">
+              <div className="text-center">
+                <img src="/logo.png" alt="RAIMEN" className="w-16 h-16 object-contain mx-auto mb-2 drop-shadow-sm" />
+                <p className="text-body-sm text-on-surface-variant">
+                  Ingresa tu código o folio de apartado para consultar tus abonos, saldo pendiente y fecha límite.
+                </p>
+              </div>
+
+              <form 
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  lookupLayaway(searchCode);
+                }} 
+                className="flex gap-2"
+              >
+                <input 
+                  type="text" 
+                  value={searchCode}
+                  onChange={(e) => setSearchCode(e.target.value.toUpperCase())}
+                  placeholder="Ej: AP-7842"
+                  className="flex-1 uppercase bg-surface-container-low border border-outline-variant rounded-xl px-4 py-2.5 text-body-md font-mono focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary text-on-surface"
+                />
+                <button 
+                  type="submit" 
+                  disabled={lookingUp || !searchCode.trim()}
+                  className="px-4 py-2.5 bg-primary text-on-primary rounded-xl font-bold text-body-sm hover:bg-primary/90 transition-all disabled:opacity-50 flex items-center gap-1.5 shadow-sm"
+                >
+                  {lookingUp ? <Loader2 size={16} className="animate-spin" /> : <Search size={16} />}
+                  <span>Buscar</span>
+                </button>
+              </form>
+
+              {lookupError && (
+                <div className="p-3 bg-error-container text-on-error-container rounded-xl text-body-sm flex items-start gap-2 border border-error/20">
+                  <AlertTriangle size={18} className="shrink-0 text-error mt-0.5" />
+                  <span>{lookupError}</span>
+                </div>
+              )}
+
+              {consultedLayaway && (
+                <div className="bg-white text-black p-4 rounded-xl border border-gray-300 font-mono text-xs shadow-sm space-y-3">
+                  <div className="text-center pb-3 border-b border-black/20 flex flex-col items-center">
+                    <img src="/logo.png" alt="RAIMEN" className="w-14 h-14 object-contain mx-auto mb-1" />
+                    <h3 className="font-bold text-base">RAIMEN STORE</h3>
+                    <p className="font-bold text-xs text-gray-700">--- NOTA DE APARTADO ---</p>
+                    <p className="font-bold text-sm text-primary mt-1">Folio: {consultedLayaway.code}</p>
+                    <p className="text-[11px] text-gray-600">Fecha: {new Date(consultedLayaway.created_at).toLocaleString('es-MX')}</p>
+                    <p className="text-[11px] font-bold text-red-600">Fecha Límite: {new Date(consultedLayaway.expiration_date).toLocaleDateString('es-MX')}</p>
+                  </div>
+
+                  <div className="text-xs pb-2 border-b border-black/20">
+                    <p><span className="font-bold">Cliente:</span> {consultedLayaway.customer_name}</p>
+                    {consultedLayaway.customer_phone && <p><span className="font-bold">Teléfono:</span> {consultedLayaway.customer_phone}</p>}
+                  </div>
+
+                  <div className="border-b border-black/20 pb-3">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="border-b border-black/20 text-left">
+                          <th className="pb-1">Cant</th>
+                          <th className="pb-1">Producto</th>
+                          <th className="text-right pb-1">Importe</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {consultedLayaway.items.map((it) => (
+                          <tr key={it.id}>
+                            <td className="py-1 align-top">{it.quantity}</td>
+                            <td className="py-1 align-top">{it.product_name}</td>
+                            <td className="py-1 text-right align-top">${(it.price * it.quantity).toFixed(2)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div className="space-y-1 text-xs pb-3 border-b border-black/20">
+                    <div className="flex justify-between font-bold text-sm">
+                      <span>TOTAL DE LA COMPRA:</span>
+                      <span>${consultedLayaway.total.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between text-emerald-700 font-bold">
+                      <span>MONTO A CUENTA (ABONADO):</span>
+                      <span>${consultedLayaway.paid_amount.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between font-extrabold text-base text-primary pt-1 border-t border-dashed border-black/30">
+                      <span>RESTA PENDIENTE:</span>
+                      <span>${consultedLayaway.remaining_amount.toFixed(2)}</span>
+                    </div>
+                  </div>
+
+                  <div className={`p-2.5 rounded-lg text-center font-bold text-xs flex items-center justify-center gap-1.5 ${
+                    consultedLayaway.status === 'completed' || consultedLayaway.remaining_amount <= 0
+                      ? 'bg-emerald-100 text-emerald-800'
+                      : 'bg-amber-100 text-amber-900'
+                  }`}>
+                    {consultedLayaway.status === 'completed' || consultedLayaway.remaining_amount <= 0 ? (
+                      <>
+                        <CheckCircle2 size={16} /> ¡Apartado Liquidado!
+                      </>
+                    ) : (
+                      <>
+                        <Clock size={16} /> Apartado Activo (Pendiente de Liquidar)
+                      </>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="p-3 bg-surface-container-low border-t border-outline-variant flex justify-end">
+              <button 
+                onClick={() => setShowLookupModal(false)}
+                className="px-4 py-2 bg-surface-container hover:bg-surface-variant rounded-xl text-body-sm font-semibold text-on-surface transition-colors"
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
