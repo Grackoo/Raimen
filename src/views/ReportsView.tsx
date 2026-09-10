@@ -7,15 +7,22 @@ export function ReportsView() {
   const [loading, setLoading] = useState(true);
   const [generatingPDF, setGeneratingPDF] = useState(false);
   const [branches, setBranches] = useState<any[]>([]);
+  const getLocalDateString = (d: Date = new Date()) => {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
   const [selectedBranch, setSelectedBranch] = useState<string>('all');
   const [dateFilter, setDateFilter] = useState('month');
   const [customStartDate, setCustomStartDate] = useState(() => {
     const d = new Date();
     d.setDate(d.getDate() - 30);
-    return d.toISOString().split('T')[0];
+    return getLocalDateString(d);
   });
   const [customEndDate, setCustomEndDate] = useState(() => {
-    return new Date().toISOString().split('T')[0];
+    return getLocalDateString(new Date());
   });
 
   // Estado de Resultados Data
@@ -61,9 +68,13 @@ export function ReportsView() {
     } else if (dateFilter === 'year') {
       startDate.setFullYear(now.getFullYear() - 1);
     } else if (dateFilter === 'custom') {
-      if (customStartDate) startDate = new Date(customStartDate + 'T00:00:00');
+      if (customStartDate) {
+        const [sy, sm, sd] = customStartDate.split('-').map(Number);
+        startDate = new Date(sy, sm - 1, sd, 0, 0, 0, 0);
+      }
       if (customEndDate) {
-        endDate = new Date(customEndDate + 'T23:59:59.999');
+        const [ey, em, ed] = customEndDate.split('-').map(Number);
+        endDate = new Date(ey, em - 1, ed, 23, 59, 59, 999);
       }
     }
 

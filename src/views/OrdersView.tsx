@@ -31,14 +31,21 @@ export function OrdersView() {
   const [editDiscount, setEditDiscount] = useState<number>(0);
   const [savingSaleEdit, setSavingSaleEdit] = useState(false);
 
+  const getLocalDateString = (d: Date = new Date()) => {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
   const [startDate, setStartDate] = useState(() => {
     const d = new Date();
     d.setDate(d.getDate() - 7);
-    return d.toISOString().split('T')[0];
+    return getLocalDateString(d);
   });
   
   const [endDate, setEndDate] = useState(() => {
-    return new Date().toISOString().split('T')[0];
+    return getLocalDateString(new Date());
   });
 
   const formatISOForLocalDatetime = (isoStr?: string) => {
@@ -51,10 +58,12 @@ export function OrdersView() {
   const fetchSalesData = async () => {
     setLoading(true);
     try {
-      const s = new Date(startDate);
-      s.setHours(0,0,0,0);
-      const e = new Date(endDate);
-      e.setHours(23,59,59,999);
+      // Parse dates explicitly in local time to avoid UTC shift bug
+      const [sYear, sMonth, sDay] = startDate.split('-').map(Number);
+      const s = new Date(sYear, sMonth - 1, sDay, 0, 0, 0, 0);
+
+      const [eYear, eMonth, eDay] = endDate.split('-').map(Number);
+      const e = new Date(eYear, eMonth - 1, eDay, 23, 59, 59, 999);
 
       const [salesRes, productsRes, custRes] = await Promise.all([
         supabase.from('sales').select('*')
@@ -80,6 +89,18 @@ export function OrdersView() {
 
   useEffect(() => {
     fetchSalesData();
+
+    // Subscribe to realtime sales insertions/updates
+    const channel = supabase
+      .channel('realtime_orders_view')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'sales' }, () => {
+        fetchSalesData();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [startDate, endDate]);
 
   const handleDeleteSale = async (saleId: string) => {
