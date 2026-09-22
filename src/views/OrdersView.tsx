@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { ShoppingCart, ExternalLink, Box, Truck, User, Receipt, X, Loader2, RefreshCw, Trash2, Edit3, DollarSign, Calendar, Clock } from 'lucide-react';
+import { ShoppingCart, ExternalLink, Box, Truck, User, Receipt, X, Loader2, RefreshCw, Trash2, Edit3, DollarSign, Calendar, Clock, FileText } from 'lucide-react';
 import { ExchangeModal } from '../components/ExchangeModal';
 import { AdminOverrideModal } from '../components/AdminOverrideModal';
 
@@ -273,6 +273,369 @@ export function OrdersView() {
     document.body.removeChild(link);
   };
 
+  const buildSalesReportHTML = () => {
+    let totalAmount = 0;
+    let totalCash = 0;
+    let totalCard = 0;
+    let totalTransfer = 0;
+    let totalOther = 0;
+
+    sales.forEach(s => {
+      const tot = Number(s.total) || 0;
+      totalAmount += tot;
+      const pm = (s.payment_method || '').toLowerCase();
+      if (pm.includes('efectivo') || pm.includes('cash')) {
+        totalCash += tot;
+      } else if (pm.includes('tarjeta') || pm.includes('card')) {
+        totalCard += tot;
+      } else if (pm.includes('transferencia') || pm.includes('transfer')) {
+        totalTransfer += tot;
+      } else {
+        totalOther += tot;
+      }
+    });
+
+    const avgTicket = sales.length > 0 ? totalAmount / sales.length : 0;
+
+    const rowsHTML = sales.map((s, idx) => {
+      const cust = customers.find(c => c.id === s.customer_id);
+      const customerName = cust ? cust.name : 'Público en General';
+      const dateStr = new Date(s.created_at).toLocaleString('es-MX', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+      const shortId = s.id ? s.id.substring(0, 8).toUpperCase() : '---';
+
+      return `
+        <tr style="border-bottom: 1px solid #e5e7eb; ${idx % 2 === 1 ? 'background-color: #f9fafb;' : ''}">
+          <td style="padding: 8px 10px; font-size: 11px; text-align: center; color: #6b7280;">${idx + 1}</td>
+          <td style="padding: 8px 10px; font-family: monospace; font-size: 11px; font-weight: 600; color: #111827;">${shortId}</td>
+          <td style="padding: 8px 10px; font-size: 11px; color: #374151;">${dateStr}</td>
+          <td style="padding: 8px 10px; font-size: 11px; color: #111827; font-weight: 500;">${customerName}</td>
+          <td style="padding: 8px 10px; font-size: 11px; color: #4b5563;">
+            <span style="display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 600; background: #f3f4f6; color: #374151;">
+              ${s.payment_method || 'Efectivo'}
+            </span>
+          </td>
+          <td style="padding: 8px 10px; font-family: monospace; font-size: 12px; font-weight: 700; text-align: right; color: #047857;">
+            $${Number(s.total).toFixed(2)}
+          </td>
+        </tr>
+      `;
+    }).join('');
+
+    return `
+      <!DOCTYPE html>
+      <html lang="es">
+      <head>
+        <meta charset="UTF-8">
+        <title>Reporte de Ventas - RAIMEN STORE</title>
+        <style>
+          * { box-sizing: border-box; margin: 0; padding: 0; }
+          body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background: #f3f4f6;
+            color: #111827;
+            padding: 24px;
+          }
+          .action-bar {
+            max-width: 950px;
+            margin: 0 auto 16px auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+          }
+          .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 9px 16px;
+            font-size: 13px;
+            font-weight: 600;
+            border-radius: 8px;
+            border: none;
+            cursor: pointer;
+            text-decoration: none;
+            transition: all 0.2s;
+          }
+          .btn-primary {
+            background: #4f46e5;
+            color: #ffffff;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+          }
+          .btn-primary:hover { background: #4338ca; }
+          .btn-secondary {
+            background: #ffffff;
+            color: #374151;
+            border: 1px solid #d1d5db;
+          }
+          .btn-secondary:hover { background: #f9fafb; }
+          .report-container {
+            max-width: 950px;
+            margin: 0 auto;
+            background: #ffffff;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+            border: 1px solid #e5e7eb;
+            overflow: hidden;
+            position: relative;
+          }
+          .watermark-bg {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 480px;
+            opacity: 0.04;
+            pointer-events: none;
+            z-index: 1;
+          }
+          .report-body {
+            position: relative;
+            z-index: 2;
+            padding: 32px;
+          }
+          .header-grid {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            border-bottom: 2px solid #f3f4f6;
+            padding-bottom: 20px;
+            margin-bottom: 24px;
+          }
+          .brand-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+          }
+          .brand-logo {
+            width: 52px;
+            height: 52px;
+            object-fit: contain;
+            border-radius: 10px;
+            border: 1px solid #e5e7eb;
+            padding: 2px;
+          }
+          .brand-title {
+            font-size: 22px;
+            font-weight: 800;
+            color: #111827;
+            letter-spacing: -0.02em;
+          }
+          .brand-subtitle {
+            font-size: 13px;
+            color: #6b7280;
+            font-weight: 500;
+          }
+          .meta-info {
+            text-align: right;
+            font-size: 12px;
+            color: #4b5563;
+            line-height: 1.6;
+          }
+          .meta-info strong {
+            color: #111827;
+          }
+          .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
+            margin-bottom: 24px;
+          }
+          .kpi-card {
+            background: #f9fafb;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 12px 14px;
+          }
+          .kpi-label {
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #6b7280;
+            margin-bottom: 4px;
+          }
+          .kpi-val {
+            font-size: 17px;
+            font-weight: 800;
+            color: #111827;
+            font-family: monospace;
+          }
+          .kpi-sub {
+            font-size: 11px;
+            color: #6b7280;
+            margin-top: 2px;
+          }
+          .table-title-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+          }
+          .table-title {
+            font-size: 14px;
+            font-weight: 700;
+            color: #111827;
+          }
+          .table-badge {
+            font-size: 11px;
+            font-weight: 600;
+            color: #4f46e5;
+            background: #eef2ff;
+            padding: 3px 8px;
+            border-radius: 9999px;
+          }
+          table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+          }
+          th {
+            background: #f9fafb;
+            padding: 10px;
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #4b5563;
+            border-bottom: 1px solid #d1d5db;
+          }
+          .footer-note {
+            margin-top: 24px;
+            padding-top: 16px;
+            border-top: 1px solid #e5e7eb;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 11px;
+            color: #9ca3af;
+          }
+          @media print {
+            body { background: #ffffff !important; padding: 0 !important; }
+            .action-bar { display: none !important; }
+            .report-container {
+              box-shadow: none !important;
+              border: none !important;
+              max-width: 100% !important;
+            }
+            .report-body { padding: 12px !important; }
+            tr { page-break-inside: avoid; }
+            thead { display: table-header-group; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="action-bar no-print">
+          <button onclick="window.print()" class="btn btn-primary">
+            🖨️ Imprimir / Guardar como PDF
+          </button>
+          <button onclick="window.close()" class="btn btn-secondary">
+            Cerrar Ventana
+          </button>
+        </div>
+
+        <div class="report-container">
+          <img src="/MARCA DE AGUA.png" class="watermark-bg" alt="" onerror="this.style.display='none'" />
+          
+          <div class="report-body">
+            <div class="header-grid">
+              <div class="brand-info">
+                <img src="/logo.png" class="brand-logo" alt="RAIMEN" onerror="this.style.display='none'" />
+                <div>
+                  <h1 class="brand-title">RAIMEN STORE</h1>
+                  <p class="brand-subtitle">Reporte Detallado de Ventas</p>
+                </div>
+              </div>
+              <div class="meta-info">
+                <p><strong>Periodo:</strong> Del ${startDate} al ${endDate}</p>
+                <p><strong>Emisión:</strong> ${new Date().toLocaleString('es-MX')}</p>
+                <p><strong>Total Registros:</strong> ${sales.length} ventas</p>
+              </div>
+            </div>
+
+            <div class="kpi-grid">
+              <div class="kpi-card" style="border-left: 4px solid #10b981;">
+                <div class="kpi-label">Ventas Totales</div>
+                <div class="kpi-val" style="color: #047857;">$${totalAmount.toFixed(2)}</div>
+                <div class="kpi-sub">${sales.length} transacciones</div>
+              </div>
+              <div class="kpi-card" style="border-left: 4px solid #3b82f6;">
+                <div class="kpi-label">Ticket Promedio</div>
+                <div class="kpi-val">$${avgTicket.toFixed(2)}</div>
+                <div class="kpi-sub">Por transacción</div>
+              </div>
+              <div class="kpi-card" style="border-left: 4px solid #f59e0b;">
+                <div class="kpi-label">Efectivo</div>
+                <div class="kpi-val">$${totalCash.toFixed(2)}</div>
+                <div class="kpi-sub">${((totalCash / (totalAmount || 1)) * 100).toFixed(0)}% del total</div>
+              </div>
+              <div class="kpi-card" style="border-left: 4px solid #8b5cf6;">
+                <div class="kpi-label">Tarjeta / Transf.</div>
+                <div class="kpi-val">$${(totalCard + totalTransfer).toFixed(2)}</div>
+                <div class="kpi-sub">Tarj: $${totalCard.toFixed(2)} | Trans: $${totalTransfer.toFixed(2)}</div>
+              </div>
+            </div>
+
+            <div class="table-title-bar">
+              <span class="table-title">Desglose de Transacciones</span>
+              <span class="table-badge">${sales.length} registros encontrados</span>
+            </div>
+
+            <table>
+              <thead>
+                <tr>
+                  <th style="width: 40px; text-align: center;">#</th>
+                  <th style="width: 110px;">ID Venta</th>
+                  <th style="width: 150px;">Fecha y Hora</th>
+                  <th>Cliente</th>
+                  <th style="width: 120px;">Método de Pago</th>
+                  <th style="width: 110px; text-align: right;">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${rowsHTML || '<tr><td colspan="6" style="padding: 24px; text-align: center; color: #9ca3af;">No hay ventas registradas en el periodo seleccionado.</td></tr>'}
+              </tbody>
+              ${sales.length > 0 ? `
+              <tfoot>
+                <tr style="background: #f3f4f6; border-top: 2px solid #d1d5db; font-weight: 800;">
+                  <td colspan="5" style="padding: 10px; text-align: right; font-size: 12px; text-transform: uppercase;">Total General:</td>
+                  <td style="padding: 10px; font-family: monospace; font-size: 14px; text-align: right; color: #047857;">$${totalAmount.toFixed(2)}</td>
+                </tr>
+              </tfoot>
+              ` : ''}
+            </table>
+
+            <div class="footer-note">
+              <span>RAIMEN POS & ERP &bull; Reporte Oficial de Auditoría de Ventas</span>
+              <span>Página 1</span>
+            </div>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+  };
+
+  const handleViewSalesReportPDF = () => {
+    if (sales.length === 0) {
+      alert('No hay ventas registradas en el periodo seleccionado para generar el reporte.');
+      return;
+    }
+    const win = window.open('', '', 'width=980,height=850');
+    if (win) {
+      win.document.write(buildSalesReportHTML());
+      win.document.close();
+      win.focus();
+      setTimeout(() => {
+        win.print();
+      }, 400);
+    }
+  };
+
   return (
     <main className="flex-1 overflow-y-auto p-4 md:p-8 pb-24 md:pb-8 bg-background">
       <div className="max-w-7xl mx-auto space-y-6">
@@ -302,9 +665,18 @@ export function OrdersView() {
                 />
               </div>
             </div>
-            <button onClick={exportToCSV} className="h-[42px] px-4 bg-primary text-on-primary rounded-lg text-title-md flex items-center gap-2 hover:opacity-90 transition-opacity shadow-sm">
-              <ExternalLink size={18} /> Exportar CSV
-            </button>
+            <div className="flex items-center gap-2">
+              <button 
+                onClick={handleViewSalesReportPDF}
+                className="h-[42px] px-4 bg-secondary-container text-on-secondary-container hover:bg-secondary hover:text-on-secondary rounded-lg text-title-md flex items-center gap-2 transition-colors shadow-sm font-semibold"
+                title="Ver e imprimir Reporte de Ventas en PDF"
+              >
+                <FileText size={18} /> Ver Reporte PDF
+              </button>
+              <button onClick={exportToCSV} className="h-[42px] px-4 bg-primary text-on-primary rounded-lg text-title-md flex items-center gap-2 hover:opacity-90 transition-opacity shadow-sm font-semibold">
+                <ExternalLink size={18} /> Exportar CSV
+              </button>
+            </div>
           </div>
         </div>
 
