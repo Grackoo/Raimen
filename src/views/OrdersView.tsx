@@ -273,55 +273,120 @@ export function OrdersView() {
     document.body.removeChild(link);
   };
 
-  const buildSalesReportHTML = () => {
+  const [generatingReport, setGeneratingReport] = useState(false);
+
+  const buildSalesReportHTML = (saleItems: any[] = [], sessionUser: any = {}) => {
     let totalAmount = 0;
-    let totalCash = 0;
-    let totalCard = 0;
-    let totalTransfer = 0;
-    let totalOther = 0;
+    let cashCount = 0, cashAmount = 0;
+    let cardCount = 0, cardAmount = 0;
+    let transferCount = 0, transferAmount = 0;
+    let otherCount = 0, otherAmount = 0;
 
     sales.forEach(s => {
       const tot = Number(s.total) || 0;
       totalAmount += tot;
       const pm = (s.payment_method || '').toLowerCase();
       if (pm.includes('efectivo') || pm.includes('cash')) {
-        totalCash += tot;
-      } else if (pm.includes('tarjeta') || pm.includes('card')) {
-        totalCard += tot;
-      } else if (pm.includes('transferencia') || pm.includes('transfer')) {
-        totalTransfer += tot;
+        cashCount++;
+        cashAmount += tot;
+      } else if (pm.includes('tarjeta') || pm.includes('card') || pm.includes('débito') || pm.includes('debito') || pm.includes('crédito') || pm.includes('credito')) {
+        cardCount++;
+        cardAmount += tot;
+      } else if (pm.includes('transferencia') || pm.includes('spei') || pm.includes('transfer')) {
+        transferCount++;
+        transferAmount += tot;
       } else {
-        totalOther += tot;
+        otherCount++;
+        otherAmount += tot;
       }
     });
 
     const avgTicket = sales.length > 0 ? totalAmount / sales.length : 0;
+    const safeTotal = totalAmount > 0 ? totalAmount : 1;
+    const cashPct = totalAmount > 0 ? ((cashAmount / safeTotal) * 100).toFixed(1) : '0.0';
+    const cardPct = totalAmount > 0 ? ((cardAmount / safeTotal) * 100).toFixed(1) : '0.0';
+    const transferPct = totalAmount > 0 ? ((transferAmount / safeTotal) * 100).toFixed(1) : '0.0';
+    const otherPct = totalAmount > 0 ? ((otherAmount / safeTotal) * 100).toFixed(1) : '0.0';
 
-    const rowsHTML = sales.map((s, idx) => {
+    // Aggregate Top Products
+    const itemMap: { [productId: string]: { sku: string; name: string; qty: number; subtotal: number } } = {};
+    saleItems.forEach(item => {
+      const prod = products.find(p => p.id === item.product_id);
+      const sku = prod?.sku || 'SKU-DESC';
+      const name = prod?.name || item.name || 'Artículo Desconocido';
+      const q = Number(item.quantity) || 1;
+      const price = Number(item.price_at_time) || 0;
+      const pId = item.product_id || item.id || Math.random().toString();
+      
+      if (!itemMap[pId]) {
+        itemMap[pId] = { sku, name, qty: 0, subtotal: 0 };
+      }
+      itemMap[pId].qty += q;
+      itemMap[pId].subtotal += (q * price);
+    });
+
+    const topProducts = Object.values(itemMap)
+      .sort((a, b) => b.qty - a.qty)
+      .slice(0, 10);
+
+    const nowFormatted = new Date().toLocaleString('es-MX', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+
+    const folioCode = `REP-VEN-${startDate.replace(/-/g, '')}-${endDate.replace(/-/g, '')}-${sales.length.toString().padStart(3, '0')}`;
+    const emisorName = sessionUser.name || 'Administración RAIMEN';
+
+    const topProductsHTML = topProducts.length > 0 ? topProducts.map((p, idx) => `
+      <tr style="border-bottom: 1px solid #e2e8f0; ${idx % 2 === 1 ? 'background-color: #f8fafc;' : ''}">
+        <td style="padding: 7px 10px; font-size: 11px; font-weight: 600; color: #64748b; text-align: center;">${idx + 1}</td>
+        <td style="padding: 7px 10px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; font-weight: 700; color: #1e293b;">${p.sku}</td>
+        <td style="padding: 7px 10px; font-size: 11px; font-weight: 600; color: #0f172a;">${p.name}</td>
+        <td style="padding: 7px 10px; font-size: 11px; font-weight: 700; color: #2563eb; text-align: center;">${p.qty} pzas</td>
+        <td style="padding: 7px 10px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11.5px; font-weight: 700; color: #059669; text-align: right;">$${p.subtotal.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+      </tr>
+    `).join('') : `
+      <tr>
+        <td colspan="5" style="text-align: center; padding: 18px 10px; color: #64748b; font-size: 11px; font-style: italic;">
+          No se registraron artículos vendidos en las ventas seleccionadas.
+        </td>
+      </tr>
+    `;
+
+    const operationsRowsHTML = sales.map((s, idx) => {
       const cust = customers.find(c => c.id === s.customer_id);
       const customerName = cust ? cust.name : 'Público en General';
-      const dateStr = new Date(s.created_at).toLocaleString('es-MX', {
+      const dateFormatted = new Date(s.created_at).toLocaleString('es-MX', {
         day: '2-digit',
         month: '2-digit',
         year: 'numeric',
         hour: '2-digit',
         minute: '2-digit'
       });
-      const shortId = s.id ? s.id.substring(0, 8).toUpperCase() : '---';
+      const folioShort = `#VEN-${(s.id || '').substring(0, 8).toUpperCase()}`;
+      const pm = s.payment_method || 'Efectivo';
 
       return `
-        <tr style="border-bottom: 1px solid #e5e7eb; ${idx % 2 === 1 ? 'background-color: #f9fafb;' : ''}">
-          <td style="padding: 8px 10px; font-size: 11px; text-align: center; color: #6b7280;">${idx + 1}</td>
-          <td style="padding: 8px 10px; font-family: monospace; font-size: 11px; font-weight: 600; color: #111827;">${shortId}</td>
-          <td style="padding: 8px 10px; font-size: 11px; color: #374151;">${dateStr}</td>
-          <td style="padding: 8px 10px; font-size: 11px; color: #111827; font-weight: 500;">${customerName}</td>
-          <td style="padding: 8px 10px; font-size: 11px; color: #4b5563;">
-            <span style="display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 600; background: #f3f4f6; color: #374151;">
-              ${s.payment_method || 'Efectivo'}
+        <tr style="border-bottom: 1px solid #e2e8f0; ${idx % 2 === 1 ? 'background-color: #f8fafc;' : ''}">
+          <td style="padding: 6px 8px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 10.5px; font-weight: 700; color: #1e293b;">${folioShort}</td>
+          <td style="padding: 6px 8px; font-size: 10.5px; color: #475569; white-space: nowrap;">${dateFormatted}</td>
+          <td style="padding: 6px 8px; font-size: 10.5px; font-weight: 600; color: #0f172a; max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${customerName}</td>
+          <td style="padding: 6px 8px; font-size: 10px; color: #64748b;">MATRIZ CENTRAL</td>
+          <td style="padding: 6px 8px; font-size: 10px;">
+            <span style="display: inline-block; padding: 2px 7px; border-radius: 4px; font-weight: 600; background: #f1f5f9; color: #334155; border: 1px solid #e2e8f0;">
+              ${pm}
             </span>
           </td>
-          <td style="padding: 8px 10px; font-family: monospace; font-size: 12px; font-weight: 700; text-align: right; color: #047857;">
-            $${Number(s.total).toFixed(2)}
+          <td style="padding: 6px 8px; font-size: 10px; text-align: center;">
+            <span style="display: inline-block; padding: 2px 6px; border-radius: 9999px; font-weight: 700; font-size: 9.5px; background: #ecfdf5; color: #059669; border: 1px solid #a7f3d0;">
+              COMPLETADA
+            </span>
+          </td>
+          <td style="padding: 6px 8px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; font-weight: 700; text-align: right; color: #0f172a;">
+            $${Number(s.total).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </td>
         </tr>
       `;
@@ -332,307 +397,747 @@ export function OrdersView() {
       <html lang="es">
       <head>
         <meta charset="UTF-8">
-        <title>Reporte de Ventas - RAIMEN STORE</title>
+        <title>Reporte Ejecutivo de Ventas - RAIMEN</title>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
         <style>
           * { box-sizing: border-box; margin: 0; padding: 0; }
           body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            background: #f3f4f6;
-            color: #111827;
-            padding: 24px;
+            background: #0f172a;
+            color: #0f172a;
+            min-height: 100vh;
+            padding-bottom: 40px;
           }
-          .action-bar {
-            max-width: 950px;
-            margin: 0 auto 16px auto;
+          /* Top Dark Toolbar */
+          .toolbar {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: #0f172a;
+            border-bottom: 1px solid #1e293b;
+            padding: 10px 24px;
             display: flex;
             justify-content: space-between;
             align-items: center;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.3);
           }
-          .btn {
+          .toolbar-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+          }
+          .pdf-badge {
+            background: #ef4444;
+            color: #ffffff;
+            font-weight: 900;
+            font-size: 11px;
+            padding: 4px 7px;
+            border-radius: 4px;
+            letter-spacing: 0.5px;
+          }
+          .toolbar-title {
+            color: #ffffff;
+            font-weight: 700;
+            font-size: 14px;
+          }
+          .toolbar-pill {
+            background: #1e293b;
+            color: #93c5fd;
+            border: 1px solid rgba(59, 130, 246, 0.4);
+            font-size: 11px;
+            font-weight: 600;
+            padding: 2px 10px;
+            border-radius: 9999px;
+          }
+          .toolbar-actions {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+          }
+          .t-btn {
             display: inline-flex;
             align-items: center;
             gap: 6px;
-            padding: 9px 16px;
-            font-size: 13px;
+            padding: 7px 14px;
+            font-size: 12.5px;
             font-weight: 600;
-            border-radius: 8px;
+            border-radius: 6px;
             border: none;
             cursor: pointer;
-            text-decoration: none;
-            transition: all 0.2s;
+            transition: all 0.15s ease-in-out;
           }
-          .btn-primary {
-            background: #4f46e5;
+          .t-btn-blue {
+            background: #2563eb;
             color: #ffffff;
-            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
           }
-          .btn-primary:hover { background: #4338ca; }
-          .btn-secondary {
-            background: #ffffff;
-            color: #374151;
-            border: 1px solid #d1d5db;
+          .t-btn-blue:hover { background: #1d4ed8; }
+          .t-btn-green {
+            background: #10b981;
+            color: #ffffff;
           }
-          .btn-secondary:hover { background: #f9fafb; }
-          .report-container {
-            max-width: 950px;
+          .t-btn-green:hover { background: #059669; }
+          .t-btn-gray {
+            background: #334155;
+            color: #f1f5f9;
+          }
+          .t-btn-gray:hover { background: #475569; }
+
+          /* White Document Sheet */
+          .document-wrapper {
+            padding: 20px 14px;
+          }
+          .document-sheet {
+            max-width: 900px;
             margin: 0 auto;
             background: #ffffff;
-            border-radius: 12px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-            border: 1px solid #e5e7eb;
-            overflow: hidden;
+            border-radius: 4px;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.3);
+            padding: 36px 40px;
             position: relative;
+            overflow: hidden;
           }
-          .watermark-bg {
+          .watermark-img {
             position: absolute;
-            top: 50%;
+            top: 42%;
             left: 50%;
             transform: translate(-50%, -50%);
-            width: 480px;
-            opacity: 0.04;
+            width: 440px;
+            opacity: 0.035;
             pointer-events: none;
             z-index: 1;
           }
-          .report-body {
+          .doc-content {
             position: relative;
             z-index: 2;
-            padding: 32px;
           }
-          .header-grid {
+
+          /* Header Section */
+          .doc-header {
             display: flex;
             justify-content: space-between;
             align-items: flex-start;
-            border-bottom: 2px solid #f3f4f6;
-            padding-bottom: 20px;
-            margin-bottom: 24px;
+            border-bottom: 2px solid #0f172a;
+            padding-bottom: 16px;
           }
-          .brand-info {
+          .brand-box {
             display: flex;
             align-items: center;
-            gap: 12px;
+            gap: 14px;
           }
-          .brand-logo {
-            width: 52px;
-            height: 52px;
+          .brand-logo-img {
+            width: 60px;
+            height: 60px;
             object-fit: contain;
-            border-radius: 10px;
-            border: 1px solid #e5e7eb;
-            padding: 2px;
           }
-          .brand-title {
-            font-size: 22px;
+          .brand-name {
+            font-size: 20px;
+            font-weight: 900;
+            letter-spacing: -0.5px;
+            color: #0f172a;
+            line-height: 1.1;
+          }
+          .brand-sys {
+            font-size: 10px;
             font-weight: 800;
-            color: #111827;
-            letter-spacing: -0.02em;
+            color: #475569;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            margin-top: 3px;
           }
-          .brand-subtitle {
-            font-size: 13px;
-            color: #6b7280;
+          .brand-desc {
+            font-size: 9.5px;
+            color: #64748b;
             font-weight: 500;
           }
-          .meta-info {
+          .report-tag-box {
             text-align: right;
-            font-size: 12px;
-            color: #4b5563;
-            line-height: 1.6;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
           }
-          .meta-info strong {
-            color: #111827;
+          .report-tag {
+            background: #0f172a;
+            color: #ffffff;
+            font-size: 11px;
+            font-weight: 800;
+            letter-spacing: 0.5px;
+            padding: 4px 10px;
+            border-radius: 4px;
+            text-transform: uppercase;
           }
-          .kpi-grid {
+          .report-folio {
+            font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+            font-size: 11px;
+            font-weight: 700;
+            color: #1e293b;
+            margin-top: 5px;
+          }
+          .report-audit-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            background: #ecfdf5;
+            color: #047857;
+            border: 1px solid #a7f3d0;
+            font-size: 10px;
+            font-weight: 700;
+            padding: 2px 8px;
+            border-radius: 9999px;
+            margin-top: 5px;
+          }
+
+          /* Meta Card Box */
+          .meta-box {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
             gap: 12px;
-            margin-bottom: 24px;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            padding: 10px 16px;
+            margin: 16px 0 20px 0;
+          }
+          .meta-item-label {
+            font-size: 9px;
+            font-weight: 800;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 2px;
+          }
+          .meta-item-val {
+            font-size: 11.5px;
+            font-weight: 700;
+            color: #0f172a;
+          }
+
+          /* 4 KPI Cards */
+          .kpi-row {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
+            margin-bottom: 20px;
           }
           .kpi-card {
-            background: #f9fafb;
-            border: 1px solid #e5e7eb;
-            border-radius: 8px;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
             padding: 12px 14px;
           }
+          .kpi-c-blue { border-left: 4px solid #2563eb; }
+          .kpi-c-green { border-left: 4px solid #059669; }
+          .kpi-c-purple { border-left: 4px solid #7c3aed; }
+          .kpi-c-amber { border-left: 4px solid #d97706; }
+
           .kpi-label {
-            font-size: 10px;
-            font-weight: 700;
+            font-size: 9px;
+            font-weight: 800;
             text-transform: uppercase;
-            letter-spacing: 0.05em;
-            color: #6b7280;
-            margin-bottom: 4px;
+            letter-spacing: 0.5px;
+            color: #64748b;
+            margin-bottom: 3px;
           }
           .kpi-val {
-            font-size: 17px;
-            font-weight: 800;
-            color: #111827;
-            font-family: monospace;
+            font-size: 19px;
+            font-weight: 900;
+            font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+            line-height: 1.1;
           }
           .kpi-sub {
-            font-size: 11px;
-            color: #6b7280;
-            margin-top: 2px;
+            font-size: 9.5px;
+            color: #64748b;
+            margin-top: 3px;
+            font-weight: 500;
           }
-          .table-title-bar {
+
+          /* Dual Breakdown Tables Grid */
+          .dual-tables-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin-bottom: 22px;
+          }
+          .section-heading {
+            font-size: 11.5px;
+            font-weight: 800;
+            color: #0f172a;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            margin-bottom: 8px;
             display: flex;
-            justify-content: space-between;
             align-items: center;
-            margin-bottom: 12px;
+            gap: 6px;
           }
-          .table-title {
-            font-size: 14px;
-            font-weight: 700;
-            color: #111827;
-          }
-          .table-badge {
-            font-size: 11px;
-            font-weight: 600;
-            color: #4f46e5;
-            background: #eef2ff;
-            padding: 3px 8px;
-            border-radius: 9999px;
-          }
-          table {
+          .report-table {
             width: 100%;
             border-collapse: collapse;
+            font-size: 11px;
+            border: 1px solid #e2e8f0;
+            border-radius: 4px;
+            overflow: hidden;
+          }
+          .report-table th {
+            background: #f1f5f9;
+            color: #475569;
+            font-size: 9.5px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+            padding: 6px 8px;
+            border-bottom: 1px solid #cbd5e1;
             text-align: left;
           }
-          th {
-            background: #f9fafb;
-            padding: 10px;
-            font-size: 10px;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            color: #4b5563;
-            border-bottom: 1px solid #d1d5db;
+          .report-table td {
+            padding: 5px 8px;
+            color: #1e293b;
           }
-          .footer-note {
-            margin-top: 24px;
-            padding-top: 16px;
-            border-top: 1px solid #e5e7eb;
+          .report-table tfoot td {
+            background: #f8fafc;
+            border-top: 2px solid #cbd5e1;
+            font-weight: 800;
+            padding: 6px 8px;
+          }
+
+          /* Consolidated Bottom Bar */
+          .consolidated-bar {
+            background: #0f172a;
+            color: #ffffff;
+            padding: 10px 16px;
+            border-radius: 6px;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            font-size: 11px;
-            color: #9ca3af;
+            font-size: 13.5px;
+            font-weight: 800;
+            margin-top: 10px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
           }
+          .consolidated-bar-title {
+            letter-spacing: 0.5px;
+            font-size: 12px;
+            color: #cbd5e1;
+            text-transform: uppercase;
+          }
+          .consolidated-bar-amount {
+            font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+            font-size: 17px;
+            color: #34d399;
+          }
+
+          /* Signature Blocks */
+          .signatures-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 40px;
+            margin-top: 28px;
+            padding-top: 14px;
+          }
+          .signature-box {
+            text-align: center;
+            padding: 0 10px;
+          }
+          .signature-line {
+            border-bottom: 1px solid #94a3b8;
+            width: 80%;
+            margin: 32px auto 8px auto;
+          }
+          .signature-title {
+            font-size: 10px;
+            font-weight: 800;
+            color: #0f172a;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+          }
+          .signature-name {
+            font-size: 10px;
+            font-weight: 600;
+            color: #475569;
+            margin-top: 2px;
+          }
+          .signature-sub {
+            font-size: 9px;
+            color: #94a3b8;
+            margin-top: 1px;
+            font-style: italic;
+          }
+
+          /* Document Footer */
+          .doc-footer {
+            margin-top: 22px;
+            padding-top: 12px;
+            border-top: 1px solid #e2e8f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 9.5px;
+            color: #94a3b8;
+          }
+
+          /* Print Overrides */
           @media print {
-            body { background: #ffffff !important; padding: 0 !important; }
-            .action-bar { display: none !important; }
-            .report-container {
+            body {
+              background: #ffffff !important;
+              padding: 0 !important;
+            }
+            .no-print {
+              display: none !important;
+            }
+            .document-wrapper {
+              padding: 0 !important;
+            }
+            .document-sheet {
               box-shadow: none !important;
               border: none !important;
               max-width: 100% !important;
+              padding: 10mm !important;
+              width: 100% !important;
             }
-            .report-body { padding: 12px !important; }
-            tr { page-break-inside: avoid; }
-            thead { display: table-header-group; }
+            tr {
+              page-break-inside: avoid;
+            }
+            thead {
+              display: table-header-group;
+            }
           }
         </style>
       </head>
       <body>
-        <div class="action-bar no-print">
-          <button onclick="window.print()" class="btn btn-primary">
-            🖨️ Imprimir / Guardar como PDF
-          </button>
-          <button onclick="window.close()" class="btn btn-secondary">
-            Cerrar Ventana
-          </button>
+        <!-- Top Toolbar -->
+        <div class="toolbar no-print">
+          <div class="toolbar-left">
+            <span class="pdf-badge">PDF</span>
+            <span class="toolbar-title">Reporte Ejecutivo de Ventas y Facturación</span>
+            <span class="toolbar-pill">Formato PDF / Carta</span>
+          </div>
+          <div class="toolbar-actions">
+            <button id="btn-download" onclick="downloadReportPDF()" class="t-btn t-btn-blue">
+              📥 Descargar PDF
+            </button>
+            <button onclick="window.print()" class="t-btn t-btn-green">
+              🖨️ Imprimir / Guardar como PDF
+            </button>
+            <button onclick="window.close()" class="t-btn t-btn-gray">
+              ✕ Cerrar
+            </button>
+          </div>
         </div>
 
-        <div class="report-container">
-          <img src="/MARCA DE AGUA.png" class="watermark-bg" alt="" onerror="this.style.display='none'" />
-          
-          <div class="report-body">
-            <div class="header-grid">
-              <div class="brand-info">
-                <img src="/logo.png" class="brand-logo" alt="RAIMEN" onerror="this.style.display='none'" />
-                <div>
-                  <h1 class="brand-title">RAIMEN STORE</h1>
-                  <p class="brand-subtitle">Reporte Detallado de Ventas</p>
+        <div class="document-wrapper">
+          <div class="document-sheet" id="report-document">
+            <img src="/MARCA DE AGUA.png" class="watermark-img" alt="" onerror="this.style.display='none'" />
+            
+            <div class="doc-content">
+              <!-- Header -->
+              <div class="doc-header">
+                <div class="brand-box">
+                  <img src="/logo.png" class="brand-logo-img" alt="RAIMEN" onerror="this.style.display='none'" />
+                  <div>
+                    <h1 class="brand-name">RAIMEN STORE</h1>
+                    <div class="brand-sys">RAIMEN RETAIL MANAGEMENT & POS SYSTEM</div>
+                    <div class="brand-desc">Sistema ERP & Control Integral de Sucursales</div>
+                  </div>
+                </div>
+                <div class="report-tag-box">
+                  <div class="report-tag">REPORTE OFICIAL DE VENTAS</div>
+                  <div class="report-folio">Folio: ${folioCode}</div>
+                  <div class="report-audit-pill">● AUDITADO & CONCILIADO</div>
                 </div>
               </div>
-              <div class="meta-info">
-                <p><strong>Periodo:</strong> Del ${startDate} al ${endDate}</p>
-                <p><strong>Emisión:</strong> ${new Date().toLocaleString('es-MX')}</p>
-                <p><strong>Total Registros:</strong> ${sales.length} ventas</p>
-              </div>
-            </div>
 
-            <div class="kpi-grid">
-              <div class="kpi-card" style="border-left: 4px solid #10b981;">
-                <div class="kpi-label">Ventas Totales</div>
-                <div class="kpi-val" style="color: #047857;">$${totalAmount.toFixed(2)}</div>
-                <div class="kpi-sub">${sales.length} transacciones</div>
+              <!-- Meta Box -->
+              <div class="meta-box">
+                <div>
+                  <div class="meta-item-label">SUCURSAL / PLAZA</div>
+                  <div class="meta-item-val">MATRIZ CENTRAL - PLAZA</div>
+                </div>
+                <div>
+                  <div class="meta-item-label">PERÍODO EVALUADO</div>
+                  <div class="meta-item-val">${startDate} AL ${endDate}</div>
+                </div>
+                <div>
+                  <div class="meta-item-label">FECHA Y HORA EMISIÓN</div>
+                  <div class="meta-item-val">${nowFormatted}</div>
+                </div>
+                <div>
+                  <div class="meta-item-label">GENERADO POR</div>
+                  <div class="meta-item-val">${emisorName}</div>
+                </div>
               </div>
-              <div class="kpi-card" style="border-left: 4px solid #3b82f6;">
-                <div class="kpi-label">Ticket Promedio</div>
-                <div class="kpi-val">$${avgTicket.toFixed(2)}</div>
-                <div class="kpi-sub">Por transacción</div>
-              </div>
-              <div class="kpi-card" style="border-left: 4px solid #f59e0b;">
-                <div class="kpi-label">Efectivo</div>
-                <div class="kpi-val">$${totalCash.toFixed(2)}</div>
-                <div class="kpi-sub">${((totalCash / (totalAmount || 1)) * 100).toFixed(0)}% del total</div>
-              </div>
-              <div class="kpi-card" style="border-left: 4px solid #8b5cf6;">
-                <div class="kpi-label">Tarjeta / Transf.</div>
-                <div class="kpi-val">$${(totalCard + totalTransfer).toFixed(2)}</div>
-                <div class="kpi-sub">Tarj: $${totalCard.toFixed(2)} | Trans: $${totalTransfer.toFixed(2)}</div>
-              </div>
-            </div>
 
-            <div class="table-title-bar">
-              <span class="table-title">Desglose de Transacciones</span>
-              <span class="table-badge">${sales.length} registros encontrados</span>
-            </div>
+              <!-- 4 KPI Cards -->
+              <div class="kpi-row">
+                <div class="kpi-card kpi-c-blue">
+                  <div class="kpi-label">VENTAS REGISTRADAS</div>
+                  <div class="kpi-val" style="color: #1e3a8a;">${sales.length}</div>
+                  <div class="kpi-sub">Operaciones concluidas</div>
+                </div>
+                <div class="kpi-card kpi-c-green">
+                  <div class="kpi-label">MONTO TOTAL VENDIDO</div>
+                  <div class="kpi-val" style="color: #065f46;">$${totalAmount.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                  <div class="kpi-sub">Ingreso bruto facturado</div>
+                </div>
+                <div class="kpi-card kpi-c-purple">
+                  <div class="kpi-label">TICKET PROMEDIO</div>
+                  <div class="kpi-val" style="color: #581c87;">$${avgTicket.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                  <div class="kpi-sub">Por cliente / orden</div>
+                </div>
+                <div class="kpi-card kpi-c-amber">
+                  <div class="kpi-label">EFECTIVO EN CAJA</div>
+                  <div class="kpi-val" style="color: #92400e;">$${cashAmount.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                  <div class="kpi-sub">${cashPct}% del total ingresado</div>
+                </div>
+              </div>
 
-            <table>
-              <thead>
-                <tr>
-                  <th style="width: 40px; text-align: center;">#</th>
-                  <th style="width: 110px;">ID Venta</th>
-                  <th style="width: 150px;">Fecha y Hora</th>
-                  <th>Cliente</th>
-                  <th style="width: 120px;">Método de Pago</th>
-                  <th style="width: 110px; text-align: right;">Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${rowsHTML || '<tr><td colspan="6" style="padding: 24px; text-align: center; color: #9ca3af;">No hay ventas registradas en el periodo seleccionado.</td></tr>'}
-              </tbody>
-              ${sales.length > 0 ? `
-              <tfoot>
-                <tr style="background: #f3f4f6; border-top: 2px solid #d1d5db; font-weight: 800;">
-                  <td colspan="5" style="padding: 10px; text-align: right; font-size: 12px; text-transform: uppercase;">Total General:</td>
-                  <td style="padding: 10px; font-family: monospace; font-size: 14px; text-align: right; color: #047857;">$${totalAmount.toFixed(2)}</td>
-                </tr>
-              </tfoot>
-              ` : ''}
-            </table>
+              <!-- Dual Breakdown Tables -->
+              <div class="dual-tables-grid">
+                <div>
+                  <div class="section-heading">1. Desglose por Método de Pago</div>
+                  <table class="report-table">
+                    <thead>
+                      <tr>
+                        <th>Método</th>
+                        <th style="text-align: center;">Opers.</th>
+                        <th style="text-align: right;">Monto</th>
+                        <th style="text-align: right;">%</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td><strong>Efectivo</strong></td>
+                        <td style="text-align: center;">${cashCount}</td>
+                        <td style="text-align: right; font-family: ui-monospace, monospace;">$${cashAmount.toFixed(2)}</td>
+                        <td style="text-align: right; font-weight: 600;">${cashPct}%</td>
+                      </tr>
+                      <tr style="background: #f8fafc;">
+                        <td><strong>Tarjeta Débito / Crédito</strong></td>
+                        <td style="text-align: center;">${cardCount}</td>
+                        <td style="text-align: right; font-family: ui-monospace, monospace;">$${cardAmount.toFixed(2)}</td>
+                        <td style="text-align: right; font-weight: 600;">${cardPct}%</td>
+                      </tr>
+                      <tr>
+                        <td><strong>Transferencia SPEI</strong></td>
+                        <td style="text-align: center;">${transferCount}</td>
+                        <td style="text-align: right; font-family: ui-monospace, monospace;">$${transferAmount.toFixed(2)}</td>
+                        <td style="text-align: right; font-weight: 600;">${transferPct}%</td>
+                      </tr>
+                      <tr style="background: #f8fafc;">
+                        <td><strong>Otros / Apartados</strong></td>
+                        <td style="text-align: center;">${otherCount}</td>
+                        <td style="text-align: right; font-family: ui-monospace, monospace;">$${otherAmount.toFixed(2)}</td>
+                        <td style="text-align: right; font-weight: 600;">${otherPct}%</td>
+                      </tr>
+                    </tbody>
+                    <tfoot>
+                      <tr>
+                        <td>TOTAL CONCILIADO</td>
+                        <td style="text-align: center;">${sales.length}</td>
+                        <td style="text-align: right; font-family: ui-monospace, monospace; color: #047857;">$${totalAmount.toFixed(2)}</td>
+                        <td style="text-align: right;">100.0%</td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
 
-            <div class="footer-note">
-              <span>RAIMEN POS & ERP &bull; Reporte Oficial de Auditoría de Ventas</span>
-              <span>Página 1</span>
+                <div>
+                  <div class="section-heading">2. Modalidad Comercial</div>
+                  <table class="report-table">
+                    <thead>
+                      <tr>
+                        <th>Modalidad</th>
+                        <th style="text-align: center;">Opers.</th>
+                        <th style="text-align: right;">Monto</th>
+                        <th style="text-align: right;">%</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td><strong>Venta en Mostrador / Tienda</strong></td>
+                        <td style="text-align: center;">${sales.length}</td>
+                        <td style="text-align: right; font-family: ui-monospace, monospace;">$${totalAmount.toFixed(2)}</td>
+                        <td style="text-align: right; font-weight: 600;">100.0%</td>
+                      </tr>
+                      <tr style="background: #f8fafc;">
+                        <td><strong>Sistema de Apartado</strong></td>
+                        <td style="text-align: center;">0</td>
+                        <td style="text-align: right; font-family: ui-monospace, monospace;">$0.00</td>
+                        <td style="text-align: right; font-weight: 600;">0.0%</td>
+                      </tr>
+                      <tr>
+                        <td><strong>Venta en Línea / Envíos</strong></td>
+                        <td style="text-align: center;">0</td>
+                        <td style="text-align: right; font-family: ui-monospace, monospace;">$0.00</td>
+                        <td style="text-align: right; font-weight: 600;">0.0%</td>
+                      </tr>
+                      <tr style="background: #f8fafc;">
+                        <td><strong>Mayoreo / Especial</strong></td>
+                        <td style="text-align: center;">0</td>
+                        <td style="text-align: right; font-family: ui-monospace, monospace;">$0.00</td>
+                        <td style="text-align: right; font-weight: 600;">0.0%</td>
+                      </tr>
+                    </tbody>
+                    <tfoot>
+                      <tr>
+                        <td>TOTAL TRANSACCIONES</td>
+                        <td style="text-align: center;">${sales.length}</td>
+                        <td style="text-align: right; font-family: ui-monospace, monospace; color: #047857;">$${totalAmount.toFixed(2)}</td>
+                        <td style="text-align: right;">100.0%</td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </div>
+
+              <!-- Section 3: Top Articles -->
+              <div style="margin-bottom: 22px;">
+                <div class="section-heading">3. Top Artículos y Productos Vendidos en el Período</div>
+                <table class="report-table">
+                  <thead>
+                    <tr>
+                      <th style="width: 32px; text-align: center;">#</th>
+                      <th style="width: 140px;">SKU / Código</th>
+                      <th>Descripción del Artículo</th>
+                      <th style="width: 100px; text-align: center;">Unidades</th>
+                      <th style="width: 120px; text-align: right;">Subtotal</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${topProductsHTML}
+                  </tbody>
+                </table>
+              </div>
+
+              <!-- Section 4: Operations Detailed -->
+              <div style="margin-bottom: 16px;">
+                <div class="section-heading">4. Relación Detallada de Operaciones (${sales.length} registros)</div>
+                <table class="report-table">
+                  <thead>
+                    <tr>
+                      <th style="width: 105px;">Folio</th>
+                      <th style="width: 125px;">Fecha / Hora</th>
+                      <th>Cliente</th>
+                      <th style="width: 110px;">Vendedor / Suc</th>
+                      <th style="width: 105px;">Tipo / Pago</th>
+                      <th style="width: 90px; text-align: center;">Estado</th>
+                      <th style="width: 100px; text-align: right;">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${operationsRowsHTML || '<tr><td colspan="7" style="text-align: center; padding: 20px; color: #94a3b8;">No se registraron ventas en el periodo.</td></tr>'}
+                  </tbody>
+                </table>
+
+                <div class="consolidated-bar">
+                  <span class="consolidated-bar-title">Monto Neto Vendido Consolidado:</span>
+                  <span class="consolidated-bar-amount">$${totalAmount.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} MXN</span>
+                </div>
+              </div>
+
+              <!-- Section 5: Signatures -->
+              <div class="signatures-grid">
+                <div class="signature-box">
+                  <div class="signature-line"></div>
+                  <div class="signature-title">CAJERO / RESPONSABLE DE TURNO</div>
+                  <div class="signature-name">${emisorName}</div>
+                  <div class="signature-sub">Firma y Entrega de Corte</div>
+                </div>
+                <div class="signature-box">
+                  <div class="signature-line"></div>
+                  <div class="signature-title">DIRECCIÓN GENERAL / AUDITORÍA ADMINISTRATIVA</div>
+                  <div class="signature-name">Supervisión & Control Interno</div>
+                  <div class="signature-sub">Revisión, Verificación y Archivo Contable</div>
+                </div>
+              </div>
+
+              <!-- Footer -->
+              <div class="doc-footer">
+                <span>Documento confidencial generado por RAIMEN ERP & POS &bull; Válido para control contable y arqueo interno.</span>
+                <span>Página 1</span>
+              </div>
             </div>
           </div>
         </div>
+
+        <script>
+          function downloadReportPDF() {
+            const btn = document.getElementById('btn-download');
+            if (btn) {
+              btn.innerText = '⏳ Generando PDF...';
+              btn.disabled = true;
+            }
+            const element = document.getElementById('report-document');
+            const opt = {
+              margin: [6, 6, 6, 6],
+              filename: 'Reporte_Ejecutivo_Ventas_RAIMEN_${startDate}_al_${endDate}.pdf',
+              image: { type: 'jpeg', quality: 0.98 },
+              html2canvas: { scale: 2, useCORS: true, logging: false },
+              jsPDF: { unit: 'mm', format: 'letter', orientation: 'portrait' }
+            };
+            if (window.html2pdf) {
+              window.html2pdf().set(opt).from(element).save().then(() => {
+                if (btn) {
+                  btn.innerText = '📥 Descargar PDF';
+                  btn.disabled = false;
+                }
+              }).catch(err => {
+                console.error(err);
+                window.print();
+                if (btn) {
+                  btn.innerText = '📥 Descargar PDF';
+                  btn.disabled = false;
+                }
+              });
+            } else {
+              window.print();
+              if (btn) {
+                btn.innerText = '📥 Descargar PDF';
+                btn.disabled = false;
+              }
+            }
+          }
+        </script>
       </body>
       </html>
     `;
   };
 
-  const handleViewSalesReportPDF = () => {
+  const handleViewSalesReportPDF = async () => {
     if (sales.length === 0) {
       alert('No hay ventas registradas en el periodo seleccionado para generar el reporte.');
       return;
     }
-    const win = window.open('', '', 'width=980,height=850');
-    if (win) {
-      win.document.write(buildSalesReportHTML());
-      win.document.close();
-      win.focus();
-      setTimeout(() => {
-        win.print();
-      }, 400);
+    setGeneratingReport(true);
+    try {
+      const saleIds = sales.map(s => s.id);
+      let allSaleItems: any[] = [];
+      const chunkSize = 100;
+      for (let i = 0; i < saleIds.length; i += chunkSize) {
+        const chunk = saleIds.slice(i, i + chunkSize);
+        const { data: itemsChunk, error: itemsErr } = await supabase
+          .from('sale_items')
+          .select('*')
+          .in('sale_id', chunk);
+        if (itemsErr) console.warn('Error fetching sale items chunk:', itemsErr);
+        if (itemsChunk) {
+          allSaleItems.push(...itemsChunk);
+        }
+      }
+
+      const sessionUser = JSON.parse(localStorage.getItem('raimen_pos_user') || '{}');
+      const html = buildSalesReportHTML(allSaleItems, sessionUser);
+      const win = window.open('', '_blank', 'width=1120,height=900,menubar=no,toolbar=no,location=no,status=no');
+      if (win) {
+        win.document.open();
+        win.document.write(html);
+        win.document.close();
+        win.focus();
+      } else {
+        alert('Por favor permite abrir ventanas emergentes para visualizar el reporte.');
+      }
+    } catch (err: any) {
+      console.error('Error generando reporte PDF:', err);
+      alert('Error preparando datos del reporte: ' + (err.message || err.toString()));
+    } finally {
+      setGeneratingReport(false);
     }
   };
 
@@ -668,10 +1173,12 @@ export function OrdersView() {
             <div className="flex items-center gap-2">
               <button 
                 onClick={handleViewSalesReportPDF}
-                className="h-[42px] px-4 bg-secondary-container text-on-secondary-container hover:bg-secondary hover:text-on-secondary rounded-lg text-title-md flex items-center gap-2 transition-colors shadow-sm font-semibold"
-                title="Ver e imprimir Reporte de Ventas en PDF"
+                disabled={generatingReport || loading}
+                className="h-[42px] px-4 bg-secondary-container text-on-secondary-container hover:bg-secondary hover:text-on-secondary rounded-lg text-title-md flex items-center gap-2 transition-colors shadow-sm font-semibold disabled:opacity-50"
+                title="Ver e imprimir Reporte Ejecutivo de Ventas en PDF"
               >
-                <FileText size={18} /> Ver Reporte PDF
+                {generatingReport ? <Loader2 size={18} className="animate-spin" /> : <FileText size={18} />} 
+                {generatingReport ? 'Generando Reporte...' : 'Ver Reporte PDF'}
               </button>
               <button onClick={exportToCSV} className="h-[42px] px-4 bg-primary text-on-primary rounded-lg text-title-md flex items-center gap-2 hover:opacity-90 transition-opacity shadow-sm font-semibold">
                 <ExternalLink size={18} /> Exportar CSV
