@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Scan, Search, User, MoreVertical, Minus, Plus, Banknote, CreditCard, Landmark, Receipt, ShoppingBag, Loader2, Trash2, X, Calendar, Monitor, Tag, Percent, Bookmark, Clock, Share2 } from 'lucide-react';
+import { Scan, Search, User, MoreVertical, Minus, Plus, Banknote, CreditCard, Landmark, Receipt, ShoppingBag, Loader2, Trash2, X, Calendar, Monitor, Tag, Percent, Bookmark, Clock, Share2, Edit3, DollarSign, RotateCcw, Check } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { Scanner } from '@yudiel/react-qr-scanner';
 import { AdminOverrideModal } from '../components/AdminOverrideModal';
@@ -24,6 +24,7 @@ interface Customer {
 
 interface CartItem extends Product {
   qty: number;
+  originalPrice?: number;
 }
 
 export function POSView() {
@@ -143,18 +144,88 @@ export function POSView() {
     return matchCat && matchSearch;
   });
 
+  // State for modifying price of an item already in cart
+  const [editingPriceItem, setEditingPriceItem] = useState<{
+    id: string;
+    name: string;
+    sku: string;
+    currentPrice: number;
+    originalPrice: number;
+    qty: number;
+    image?: string;
+  } | null>(null);
+  const [newPriceInput, setNewPriceInput] = useState<string>('');
+
+  // State for "ask price when adding" toggle / prompt
+  const [askPriceOnAdd, setAskPriceOnAdd] = useState<boolean>(false);
+  const [pendingAddProduct, setPendingAddProduct] = useState<Product | null>(null);
+  const [pendingPriceInput, setPendingPriceInput] = useState<string>('');
+
   const updateQty = (id: string, delta: number) => {
     setCart(cart.map(c => c.id === id ? { ...c, qty: Math.max(0, c.qty + delta) } : c).filter(c => c.qty > 0));
   };
 
-  const addToCart = (product: Product) => {
+  const addToCart = (product: Product, customPrice?: number) => {
     if (product.stock <= 0) return;
+    const finalPrice = typeof customPrice === 'number' && !isNaN(customPrice) ? Math.max(0, customPrice) : product.price;
     const existing = cart.find(c => c.id === product.id);
     if (existing) {
-      updateQty(product.id, 1);
+      if (typeof customPrice === 'number' && !isNaN(customPrice)) {
+        setCart(cart.map(c => c.id === product.id ? { ...c, qty: c.qty + 1, price: finalPrice } : c));
+      } else {
+        updateQty(product.id, 1);
+      }
     } else {
-      setCart([...cart, { ...product, qty: 1 }]);
+      setCart([...cart, { ...product, price: finalPrice, originalPrice: product.price, qty: 1 }]);
     }
+  };
+
+  const updateItemPrice = (id: string, newPrice: number) => {
+    const validPrice = Math.max(0, isNaN(newPrice) ? 0 : newPrice);
+    setCart(cart.map(c => c.id === id ? { ...c, price: validPrice } : c));
+  };
+
+  const handleOpenPriceModal = (item: CartItem) => {
+    const orig = item.originalPrice ?? (products.find(p => p.id === item.id)?.price ?? item.price);
+    setEditingPriceItem({
+      id: item.id,
+      name: item.name,
+      sku: item.sku,
+      currentPrice: item.price,
+      originalPrice: orig,
+      qty: item.qty,
+      image: item.image
+    });
+    setNewPriceInput(item.price.toString());
+  };
+
+  const handleSavePriceModal = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!editingPriceItem) return;
+    const p = parseFloat(newPriceInput);
+    if (!isNaN(p) && p >= 0) {
+      updateItemPrice(editingPriceItem.id, p);
+    }
+    setEditingPriceItem(null);
+  };
+
+  const handleProductClick = (product: Product) => {
+    if (product.stock <= 0) return;
+    if (askPriceOnAdd) {
+      setPendingAddProduct(product);
+      setPendingPriceInput(product.price.toString());
+    } else {
+      addToCart(product);
+    }
+  };
+
+  const handleConfirmPendingAdd = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!pendingAddProduct) return;
+    const p = parseFloat(pendingPriceInput);
+    const finalPrice = (!isNaN(p) && p >= 0) ? p : pendingAddProduct.price;
+    addToCart(pendingAddProduct, finalPrice);
+    setPendingAddProduct(null);
   };
 
   const requestRemoveFromCart = (id: string) => {
@@ -193,7 +264,12 @@ export function POSView() {
       const sku = detectedCodes[0].rawValue;
       const product = products.find(p => p.sku === sku);
       if (product) {
-        addToCart(product);
+        if (askPriceOnAdd) {
+          setPendingAddProduct(product);
+          setPendingPriceInput(product.price.toString());
+        } else {
+          addToCart(product);
+        }
       }
     }
   };
@@ -482,8 +558,23 @@ export function POSView() {
 
         {/* Product Grid */}
         <section className="w-full xl:w-2/3 flex flex-col lg:h-full">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-title-md text-primary">Más Vendidos</h2>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+            <div className="flex items-center gap-3">
+              <h2 className="text-title-md text-primary">Más Vendidos</h2>
+              <button
+                type="button"
+                onClick={() => setAskPriceOnAdd(!askPriceOnAdd)}
+                className={`px-2.5 py-1 rounded-full text-[11px] font-bold transition-all flex items-center gap-1.5 border shadow-xs ${
+                  askPriceOnAdd
+                    ? 'bg-amber-500 text-white border-amber-600 ring-2 ring-amber-400/30'
+                    : 'bg-surface text-on-surface-variant border-outline-variant hover:border-primary hover:text-primary'
+                }`}
+                title="Activar para ingresar el precio al hacer clic en cualquier producto"
+              >
+                <Edit3 size={12} />
+                <span>{askPriceOnAdd ? 'Pedir precio al añadir: ACTIVADO' : 'Editar precio al añadir'}</span>
+              </button>
+            </div>
             <div className="flex gap-2 overflow-x-auto custom-scrollbar pb-1">
               {categories.map(cat => (
                 <button 
@@ -506,7 +597,7 @@ export function POSView() {
                 No hay productos en esta categoría o búsqueda.
               </div>
             ) : filteredProducts.map((p, i) => (
-              <div key={p.id} onClick={() => addToCart(p)} className={`bg-white/70 backdrop-blur-md rounded-xl p-3 flex flex-col cursor-pointer hover:shadow-md hover:-translate-y-1 transition-all border border-white/50 ${p.stock <= 0 ? 'opacity-60' : ''}`}>
+              <div key={p.id} onClick={() => handleProductClick(p)} className={`bg-white/70 backdrop-blur-md rounded-xl p-3 flex flex-col cursor-pointer hover:shadow-md hover:-translate-y-1 transition-all border border-white/50 ${p.stock <= 0 ? 'opacity-60' : ''}`}>
                 <div className="aspect-square bg-surface-variant rounded-lg mb-3 overflow-hidden relative flex items-center justify-center">
                   {p.stock <= 0 && <span className="absolute inset-0 bg-white/50 z-10 flex items-center justify-center text-label-caps text-primary font-bold">SIN STOCK</span>}
                   {p.image ? (
@@ -515,7 +606,18 @@ export function POSView() {
                     <ShoppingBag size={36} className="text-primary opacity-50" />
                   )}
                   {p.stock > 0 && p.price && (
-                     <div className="absolute top-2 right-2 bg-surface/90 rounded-full px-2 py-0.5 text-label-caps text-[10px] text-primary shadow-sm">${p.price}</div>
+                     <div 
+                       onClick={(e) => {
+                         e.stopPropagation();
+                         setPendingAddProduct(p);
+                         setPendingPriceInput(p.price.toString());
+                       }}
+                       title="Haz clic aquí para añadir este producto con precio personalizado"
+                       className="absolute top-2 right-2 bg-surface/90 hover:bg-primary hover:text-on-primary rounded-full px-2 py-0.5 text-label-caps text-[10px] text-primary shadow-sm flex items-center gap-1 transition-colors group/badge"
+                     >
+                       <span>${p.price}</span>
+                       <Edit3 size={10} className="opacity-70 group-hover/badge:opacity-100" />
+                     </div>
                   )}
                 </div>
                 <h3 className="text-body-sm font-semibold text-on-surface truncate">{p.name}</h3>
@@ -567,31 +669,53 @@ export function POSView() {
         </div>
 
         <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-3">
-          {cart.map((item) => (
-            <div key={item.id} className="flex items-center gap-3 py-2 border-b border-outline-variant border-dashed last:border-0">
-              <div className="w-12 h-12 bg-surface-variant rounded-md overflow-hidden flex-shrink-0">
-                <img src={item.image} className="w-full h-full object-cover" alt={item.name} />
-              </div>
-              <div className="flex-1 min-w-0">
-                <h4 className="text-body-sm font-semibold text-on-surface truncate">{item.name}</h4>
-                <div className="flex items-center gap-2 mt-1">
-                  <span className="text-data-mono text-on-surface-variant">${item.price.toFixed(2)}</span>
-                  <span className="text-outline-variant text-[10px]">x{item.qty}</span>
+          {cart.map((item) => {
+            const origPrice = item.originalPrice ?? (products.find(p => p.id === item.id)?.price ?? item.price);
+            const isPriceModified = Math.abs(origPrice - item.price) > 0.01;
+
+            return (
+              <div key={item.id} className="flex items-center gap-3 py-2 border-b border-outline-variant border-dashed last:border-0">
+                <div className="w-12 h-12 bg-surface-variant rounded-md overflow-hidden flex-shrink-0">
+                  <img src={item.image} className="w-full h-full object-cover" alt={item.name} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h4 className="text-body-sm font-semibold text-on-surface truncate">{item.name}</h4>
+                  <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                    <button
+                      type="button"
+                      onClick={() => handleOpenPriceModal(item)}
+                      className={`flex items-center gap-1 px-1.5 py-0.5 rounded border text-left transition-all ${
+                        isPriceModified
+                          ? 'bg-amber-500/10 border-amber-500/40 text-amber-700 dark:text-amber-300 font-bold'
+                          : 'bg-surface-container hover:bg-primary-fixed/30 border-outline-variant hover:border-primary text-on-surface-variant hover:text-primary font-medium'
+                      }`}
+                      title="Haz clic para modificar el precio de este producto"
+                    >
+                      <span className="text-data-mono text-[11px]">${item.price.toFixed(2)}</span>
+                      <Edit3 size={11} className="opacity-70" />
+                    </button>
+                    <span className="text-outline-variant text-[10px]">x{item.qty}</span>
+                    {isPriceModified && (
+                      <span className="text-[9px] bg-surface-variant text-on-surface-variant px-1 rounded font-medium line-through" title="Precio original de catálogo">
+                        ${origPrice.toFixed(2)}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-data-mono font-bold text-primary">${(item.price * item.qty).toFixed(2)}</span>
+                    <button onClick={() => requestRemoveFromCart(item.id)} className="text-error hover:bg-error-container p-1 rounded-md transition-colors" title="Eliminar"><Trash2 size={16} /></button>
+                  </div>
+                  <div className="flex items-center bg-surface-container rounded-full overflow-hidden border border-outline-variant">
+                    <button onClick={() => updateQty(item.id, -1)} className="w-6 h-6 flex items-center justify-center hover:bg-surface-variant text-on-surface"><Minus size={14} /></button>
+                    <span className="w-6 text-center text-body-sm text-[12px]">{item.qty}</span>
+                    <button onClick={() => updateQty(item.id, 1)} className="w-6 h-6 flex items-center justify-center hover:bg-surface-variant text-on-surface"><Plus size={14} /></button>
+                  </div>
                 </div>
               </div>
-              <div className="flex flex-col items-end gap-1 flex-shrink-0">
-                <div className="flex items-center gap-2">
-                  <span className="text-data-mono font-bold text-primary">${(item.price * item.qty).toFixed(2)}</span>
-                  <button onClick={() => requestRemoveFromCart(item.id)} className="text-error hover:bg-error-container p-1 rounded-md transition-colors"><Trash2 size={16} /></button>
-                </div>
-                <div className="flex items-center bg-surface-container rounded-full overflow-hidden border border-outline-variant">
-                  <button onClick={() => updateQty(item.id, -1)} className="w-6 h-6 flex items-center justify-center hover:bg-surface-variant text-on-surface"><Minus size={14} /></button>
-                  <span className="w-6 text-center text-body-sm text-[12px]">{item.qty}</span>
-                  <button onClick={() => updateQty(item.id, 1)} className="w-6 h-6 flex items-center justify-center hover:bg-surface-variant text-on-surface"><Plus size={14} /></button>
-                </div>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         <div className="p-4 bg-surface rounded-b-xl border-t border-outline-variant">
@@ -1068,31 +1192,53 @@ export function POSView() {
 
             {/* Cart items scrollable area */}
             <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-3 min-h-[150px]">
-              {cart.map((item) => (
-                <div key={item.id} className="flex items-center gap-3 py-2 border-b border-outline-variant border-dashed last:border-0">
-                  <div className="w-12 h-12 bg-surface-variant rounded-md overflow-hidden flex-shrink-0">
-                    <img src={item.image} className="w-full h-full object-cover" alt={item.name} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <h4 className="text-body-sm font-semibold text-on-surface truncate">{item.name}</h4>
-                    <div className="flex items-center gap-2 mt-1">
-                      <span className="text-data-mono text-on-surface-variant">${item.price.toFixed(2)}</span>
-                      <span className="text-outline-variant text-[10px]">x{item.qty}</span>
+              {cart.map((item) => {
+                const origPrice = item.originalPrice ?? (products.find(p => p.id === item.id)?.price ?? item.price);
+                const isPriceModified = Math.abs(origPrice - item.price) > 0.01;
+
+                return (
+                  <div key={item.id} className="flex items-center gap-3 py-2 border-b border-outline-variant border-dashed last:border-0">
+                    <div className="w-12 h-12 bg-surface-variant rounded-md overflow-hidden flex-shrink-0">
+                      <img src={item.image} className="w-full h-full object-cover" alt={item.name} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h4 className="text-body-sm font-semibold text-on-surface truncate">{item.name}</h4>
+                      <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                        <button
+                          type="button"
+                          onClick={() => handleOpenPriceModal(item)}
+                          className={`flex items-center gap-1 px-1.5 py-0.5 rounded border text-left transition-all ${
+                            isPriceModified
+                              ? 'bg-amber-500/10 border-amber-500/40 text-amber-700 dark:text-amber-300 font-bold'
+                              : 'bg-surface-container hover:bg-primary-fixed/30 border-outline-variant hover:border-primary text-on-surface-variant hover:text-primary font-medium'
+                          }`}
+                          title="Haz clic para modificar el precio de este producto"
+                        >
+                          <span className="text-data-mono text-[11px]">${item.price.toFixed(2)}</span>
+                          <Edit3 size={11} className="opacity-70" />
+                        </button>
+                        <span className="text-outline-variant text-[10px]">x{item.qty}</span>
+                        {isPriceModified && (
+                          <span className="text-[9px] bg-surface-variant text-on-surface-variant px-1 rounded font-medium line-through" title="Precio original de catálogo">
+                            ${origPrice.toFixed(2)}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-data-mono font-bold text-primary">${(item.price * item.qty).toFixed(2)}</span>
+                        <button onClick={() => requestRemoveFromCart(item.id)} className="text-error hover:bg-error-container p-1 rounded-md transition-colors"><Trash2 size={16} /></button>
+                      </div>
+                      <div className="flex items-center bg-surface-container rounded-full overflow-hidden border border-outline-variant">
+                        <button onClick={() => updateQty(item.id, -1)} className="w-7 h-7 flex items-center justify-center hover:bg-surface-variant text-on-surface"><Minus size={14} /></button>
+                        <span className="w-7 text-center text-body-sm font-bold text-[12px]">{item.qty}</span>
+                        <button onClick={() => updateQty(item.id, 1)} className="w-7 h-7 flex items-center justify-center hover:bg-surface-variant text-on-surface"><Plus size={14} /></button>
+                      </div>
                     </div>
                   </div>
-                  <div className="flex flex-col items-end gap-1 flex-shrink-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-data-mono font-bold text-primary">${(item.price * item.qty).toFixed(2)}</span>
-                      <button onClick={() => requestRemoveFromCart(item.id)} className="text-error hover:bg-error-container p-1 rounded-md transition-colors"><Trash2 size={16} /></button>
-                    </div>
-                    <div className="flex items-center bg-surface-container rounded-full overflow-hidden border border-outline-variant">
-                      <button onClick={() => updateQty(item.id, -1)} className="w-7 h-7 flex items-center justify-center hover:bg-surface-variant text-on-surface"><Minus size={14} /></button>
-                      <span className="w-7 text-center text-body-sm font-bold text-[12px]">{item.qty}</span>
-                      <button onClick={() => updateQty(item.id, 1)} className="w-7 h-7 flex items-center justify-center hover:bg-surface-variant text-on-surface"><Plus size={14} /></button>
-                    </div>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
             {/* Totals and Checkout */}
@@ -1410,6 +1556,229 @@ export function POSView() {
                 <Receipt size={18} /> Imprimir Bluetooth (Móvil)
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal para Modificar Precio de Producto en Carrito */}
+      {editingPriceItem && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[220] p-4 animate-in fade-in duration-150">
+          <div className="bg-surface-container-lowest rounded-2xl w-full max-w-sm p-5 shadow-2xl border border-outline-variant">
+            <div className="flex justify-between items-center mb-3">
+              <h3 className="text-title-md font-bold text-primary flex items-center gap-2">
+                <Edit3 size={18} /> Modificar Precio Unitario
+              </h3>
+              <button 
+                type="button" 
+                onClick={() => setEditingPriceItem(null)} 
+                className="text-on-surface-variant hover:bg-surface-variant p-1 rounded-full transition-colors"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="flex items-center gap-3 p-3 bg-surface-container-high rounded-xl mb-4 border border-outline-variant/60">
+              {editingPriceItem.image ? (
+                <img src={editingPriceItem.image} alt={editingPriceItem.name} className="w-12 h-12 object-cover rounded-lg shrink-0" />
+              ) : (
+                <div className="w-12 h-12 rounded-lg bg-surface-variant flex items-center justify-center shrink-0">
+                  <ShoppingBag size={20} className="text-primary" />
+                </div>
+              )}
+              <div className="min-w-0 flex-1">
+                <p className="text-body-sm font-bold text-on-surface truncate">{editingPriceItem.name}</p>
+                <p className="text-[10px] text-on-surface-variant font-mono">SKU: {editingPriceItem.sku}</p>
+                <p className="text-[11px] text-on-surface-variant mt-0.5">
+                  Precio de Catálogo: <strong className="text-on-surface font-mono">${editingPriceItem.originalPrice.toFixed(2)}</strong>
+                </p>
+              </div>
+            </div>
+
+            <form onSubmit={handleSavePriceModal} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-on-surface-variant uppercase mb-1.5">
+                  Nuevo Precio Unitario ($)
+                </label>
+                <div className="relative flex items-center">
+                  <span className="absolute left-3.5 text-lg font-bold text-primary">$</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    autoFocus
+                    required
+                    value={newPriceInput}
+                    onChange={(e) => setNewPriceInput(e.target.value)}
+                    onFocus={(e) => e.target.select()}
+                    className="w-full bg-surface border-2 border-primary rounded-xl h-12 pl-9 pr-4 text-on-surface font-mono font-bold text-xl outline-none focus:ring-2 focus:ring-primary/20"
+                    placeholder="0.00"
+                  />
+                </div>
+              </div>
+
+              {/* Accesos rápidos de descuento */}
+              <div>
+                <label className="block text-[11px] font-semibold text-on-surface-variant mb-1.5">
+                  Descuentos rápidos o restablecer:
+                </label>
+                <div className="grid grid-cols-4 gap-1.5">
+                  {[5, 10, 15, 20].map((pct) => {
+                    const discounted = Math.max(0, editingPriceItem.originalPrice * (1 - pct / 100));
+                    return (
+                      <button
+                        type="button"
+                        key={pct}
+                        onClick={() => setNewPriceInput(discounted.toFixed(2))}
+                        className="py-1.5 text-[11px] font-bold rounded-lg border border-outline-variant bg-surface hover:bg-primary-fixed hover:border-primary hover:text-primary transition-all text-on-surface"
+                      >
+                        -{pct}%
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="mt-1.5 flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setNewPriceInput(editingPriceItem.originalPrice.toFixed(2))}
+                    className="text-[11px] text-primary hover:underline font-semibold flex items-center gap-1"
+                  >
+                    <RotateCcw size={12} /> Restablecer precio original (${editingPriceItem.originalPrice.toFixed(2)})
+                  </button>
+                </div>
+              </div>
+
+              {/* Vista previa de subtotal del artículo */}
+              {(() => {
+                const parsed = parseFloat(newPriceInput);
+                const validP = !isNaN(parsed) && parsed >= 0 ? parsed : 0;
+                return (
+                  <div className="bg-surface p-2.5 rounded-lg border border-outline-variant text-body-sm flex justify-between items-center">
+                    <span className="text-on-surface-variant text-xs">Subtotal ({editingPriceItem.qty} {editingPriceItem.qty === 1 ? 'unidad' : 'unidades'}):</span>
+                    <span className="font-mono font-bold text-primary text-sm">${(validP * editingPriceItem.qty).toFixed(2)}</span>
+                  </div>
+                );
+              })()}
+
+              <div className="flex gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setEditingPriceItem(null)}
+                  className="flex-1 py-2.5 rounded-xl border border-outline-variant text-on-surface hover:bg-surface-variant text-body-sm font-semibold transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 py-2.5 rounded-xl bg-primary text-on-primary hover:bg-primary/90 text-body-sm font-bold shadow-md transition-colors flex items-center justify-center gap-1.5"
+                >
+                  <Check size={16} /> Guardar Precio
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal para Definir Precio al Añadir Producto */}
+      {pendingAddProduct && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[220] p-4 animate-in fade-in duration-150">
+          <div className="bg-surface-container-lowest rounded-2xl w-full max-w-sm p-5 shadow-2xl border border-outline-variant">
+            <div className="flex justify-between items-center mb-3">
+              <h3 className="text-title-md font-bold text-primary flex items-center gap-2">
+                <DollarSign size={18} /> Asignar Precio a la Cuenta
+              </h3>
+              <button 
+                type="button" 
+                onClick={() => setPendingAddProduct(null)} 
+                className="text-on-surface-variant hover:bg-surface-variant p-1 rounded-full transition-colors"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="flex items-center gap-3 p-3 bg-surface-container-high rounded-xl mb-4 border border-outline-variant/60">
+              {pendingAddProduct.image ? (
+                <img src={pendingAddProduct.image} alt={pendingAddProduct.name} className="w-12 h-12 object-cover rounded-lg shrink-0" />
+              ) : (
+                <div className="w-12 h-12 rounded-lg bg-surface-variant flex items-center justify-center shrink-0">
+                  <ShoppingBag size={20} className="text-primary" />
+                </div>
+              )}
+              <div className="min-w-0 flex-1">
+                <p className="text-body-sm font-bold text-on-surface truncate">{pendingAddProduct.name}</p>
+                <p className="text-[10px] text-on-surface-variant font-mono">SKU: {pendingAddProduct.sku}</p>
+                <p className="text-[11px] text-on-surface-variant mt-0.5">
+                  Precio de Catálogo: <strong className="text-on-surface font-mono">${pendingAddProduct.price.toFixed(2)}</strong>
+                </p>
+              </div>
+            </div>
+
+            <form onSubmit={handleConfirmPendingAdd} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-on-surface-variant uppercase mb-1.5">
+                  Precio Unitario para el Cliente ($)
+                </label>
+                <div className="relative flex items-center">
+                  <span className="absolute left-3.5 text-lg font-bold text-primary">$</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    autoFocus
+                    required
+                    value={pendingPriceInput}
+                    onChange={(e) => setPendingPriceInput(e.target.value)}
+                    onFocus={(e) => e.target.select()}
+                    className="w-full bg-surface border-2 border-primary rounded-xl h-12 pl-9 pr-4 text-on-surface font-mono font-bold text-xl outline-none focus:ring-2 focus:ring-primary/20"
+                    placeholder="0.00"
+                  />
+                </div>
+              </div>
+
+              {/* Accesos rápidos de descuento */}
+              <div>
+                <div className="grid grid-cols-4 gap-1.5">
+                  {[5, 10, 15, 20].map((pct) => {
+                    const discounted = Math.max(0, pendingAddProduct.price * (1 - pct / 100));
+                    return (
+                      <button
+                        type="button"
+                        key={pct}
+                        onClick={() => setPendingPriceInput(discounted.toFixed(2))}
+                        className="py-1.5 text-[11px] font-bold rounded-lg border border-outline-variant bg-surface hover:bg-primary-fixed hover:border-primary hover:text-primary transition-all text-on-surface"
+                      >
+                        -{pct}%
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="mt-1.5 flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setPendingPriceInput(pendingAddProduct.price.toFixed(2))}
+                    className="text-[11px] text-primary hover:underline font-semibold flex items-center gap-1"
+                  >
+                    <RotateCcw size={12} /> Usar precio de catálogo (${pendingAddProduct.price.toFixed(2)})
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setPendingAddProduct(null)}
+                  className="flex-1 py-2.5 rounded-xl border border-outline-variant text-on-surface hover:bg-surface-variant text-body-sm font-semibold transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 py-2.5 rounded-xl bg-primary text-on-primary hover:bg-primary/90 text-body-sm font-bold shadow-md transition-colors flex items-center justify-center gap-1.5"
+                >
+                  <Plus size={16} /> Añadir a la Cuenta
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
