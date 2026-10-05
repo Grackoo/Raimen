@@ -208,10 +208,11 @@ export function OrdersView() {
       
       const items = (data || []).map(item => {
         const product = products.find(p => p.id === item.product_id);
+        const fallbackName = !item.product_id ? 'Abono / Liquidación de Apartado' : 'Producto';
         return {
           id: item.id,
           product_id: item.product_id,
-          name: product ? product.name : 'Producto',
+          name: product ? product.name : fallbackName,
           qty: item.quantity,
           price: item.price_at_time
         };

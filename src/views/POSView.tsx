@@ -462,6 +462,29 @@ export function POSView() {
 
       if (payError) throw payError;
 
+      // 3b. Register in sales table so it automatically reflects in the active cash register and reports
+      try {
+        const { data: insertedDepositSale, error: depSaleErr } = await supabase.from('sales').insert([{
+          total: deposit,
+          payment_method: paymentMethod,
+          branch_id: sessionUser.branch_id || null,
+          cashier_id: sessionUser.id || null,
+          customer_id: selectedCustomerId || null,
+          type: 'sale'
+        }]).select().single();
+
+        if (!depSaleErr && insertedDepositSale) {
+          await supabase.from('sale_items').insert([{
+            sale_id: insertedDepositSale.id,
+            product_id: null,
+            quantity: 1,
+            price_at_time: deposit
+          }]);
+        }
+      } catch (depErr) {
+        console.warn('Error al registrar anticipo de apartado en ventas:', depErr);
+      }
+
       // 4. Deduct reserved stock
       for (const item of cart) {
         const { data: prod } = await supabase

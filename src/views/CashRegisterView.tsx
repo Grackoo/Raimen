@@ -311,9 +311,11 @@ export function CashRegisterView() {
       sales.forEach(s => {
         const val = Number(s.total) || 0;
         grandTotal += val;
-        if (s.payment_method === 'Efectivo') cashSum += val;
-        else if (s.payment_method === 'Tarjeta') cardSum += val;
-        else if (s.payment_method === 'Transfer') transferSum += val;
+        const pm = (s.payment_method || '').toLowerCase().trim();
+        if (pm.includes('efectivo') || pm.includes('cash')) cashSum += val;
+        else if (pm.includes('tarjeta') || pm.includes('card') || pm.includes('débito') || pm.includes('debito') || pm.includes('crédito') || pm.includes('credito')) cardSum += val;
+        else if (pm.includes('transfer') || pm.includes('spei')) transferSum += val;
+        else cashSum += val; // Default fallback to cash
       });
     }
 

@@ -31,6 +31,9 @@ interface Layaway {
   status: 'pending' | 'completed' | 'cancelled' | 'expired';
   payment_method: string;
   notes?: string;
+  branch_id?: string;
+  cashier_id?: string;
+  customer_id?: string;
 }
 
 export function LayawaysView() {
@@ -133,7 +136,33 @@ export function LayawaysView() {
       }]);
       if (payErr) throw payErr;
 
-      // 2. Update layaway total paid and remaining
+      // 2. Insert into sales table so it is accounted for in cash registers and reports
+      try {
+        const branchId = selectedLayaway.branch_id || sessionUser.branch_id || null;
+        const cashierId = sessionUser.id || selectedLayaway.cashier_id || null;
+        const { data: insertedSale, error: saleErr } = await supabase.from('sales').insert([{
+          total: amount,
+          payment_method: abonoMethod,
+          branch_id: branchId,
+          cashier_id: cashierId,
+          customer_id: selectedLayaway.customer_id || null,
+          type: 'sale'
+        }]).select().single();
+
+        if (!saleErr && insertedSale) {
+          const isFullLiquidation = (selectedLayaway.paid_amount + amount) >= selectedLayaway.total;
+          await supabase.from('sale_items').insert([{
+            sale_id: insertedSale.id,
+            product_id: null,
+            quantity: 1,
+            price_at_time: amount
+          }]);
+        }
+      } catch (saleInsertErr) {
+        console.warn('Error al reflejar abono en ventas:', saleInsertErr);
+      }
+
+      // 3. Update layaway total paid and remaining
       const newPaid = selectedLayaway.paid_amount + amount;
       const newRemaining = Math.max(0, selectedLayaway.total - newPaid);
       const newStatus = newRemaining === 0 ? 'completed' : selectedLayaway.status;
