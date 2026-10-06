@@ -597,6 +597,19 @@ export function POSView() {
                 <Edit3 size={12} />
                 <span>{askPriceOnAdd ? 'Pedir precio al añadir: ACTIVADO' : 'Editar precio al añadir'}</span>
               </button>
+              {cart.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const el = document.getElementById('pos-cart-section');
+                    if (el) el.scrollIntoView({ behavior: 'smooth' });
+                  }}
+                  className="lg:hidden px-3 py-1 bg-primary text-on-primary rounded-full text-xs font-bold flex items-center gap-1 shadow-md animate-bounce"
+                >
+                  <Bookmark size={13} />
+                  <span>Ver Carrito ({cart.reduce((a, b) => a + b.qty, 0)})</span>
+                </button>
+              )}
             </div>
             <div className="flex gap-2 overflow-x-auto custom-scrollbar pb-1">
               {categories.map(cat => (
@@ -652,7 +665,7 @@ export function POSView() {
       </div>
 
       {/* Right Sidebar: Cart */}
-      <section className="w-full lg:w-96 bg-surface-container-lowest rounded-xl shadow-sm border border-outline-variant flex flex-col lg:h-full min-h-[500px] flex-shrink-0 z-10">
+      <section id="pos-cart-section" className="w-full lg:w-96 bg-surface-container-lowest rounded-xl shadow-sm border border-outline-variant flex flex-col lg:h-full min-h-[500px] flex-shrink-0 z-10 scroll-mt-20">
         <div className="p-4 border-b border-outline-variant flex flex-col gap-3 bg-surface/50 rounded-t-xl">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3 flex-1">

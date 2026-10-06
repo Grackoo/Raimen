@@ -14,7 +14,7 @@ import { ExpensesView } from './views/ExpensesView';
 import { AccountsPayableView } from './views/AccountsPayableView';
 import { CashRegisterView } from './views/CashRegisterView';
 import { LayawaysView } from './views/LayawaysView';
-import { Scan, ShoppingBag, Menu, Wallet, Lock } from 'lucide-react';
+import { Scan, ShoppingBag, Menu, Wallet, Lock, Bookmark } from 'lucide-react';
 
 import { DailyCashCutAlertBanner } from './components/DailyCashCutAlertBanner';
 
@@ -86,55 +86,65 @@ export default function App() {
         {currentView === 'accounts_payable' && <AccountsPayableView />}
         {currentView === 'cash_register' && <CashRegisterView />}
         
-        {/* Mobile bottom nav with direct access to Caja, Gastos, Corte, Ventas & Menú across all views */}
+        {/* Mobile bottom nav with direct access to Caja, Apartados, Gastos, Corte, Ventas & Menú across all views */}
         {currentView !== 'pos-login' && (
-          <nav className="md:hidden bg-surface-container-highest docked full-width bottom-0 fixed z-50 rounded-t-xl shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] left-0 w-full flex justify-around items-center px-2 py-2">
+          <nav className="md:hidden bg-surface-container-highest docked full-width bottom-0 fixed z-50 rounded-t-xl shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] left-0 w-full flex justify-between items-center px-1 py-1.5 border-t border-outline-variant/30">
             <button 
               onClick={() => setCurrentView('pos')} 
-              className={`flex flex-col items-center justify-center p-1.5 rounded-xl transition-all text-label-caps w-14 ${
+              className={`flex flex-col items-center justify-center p-1 rounded-xl transition-all text-label-caps flex-1 min-w-0 ${
                 currentView === 'pos' ? 'bg-primary text-on-primary font-bold shadow' : 'bg-secondary-container text-on-secondary-container font-bold'
               }`}
             >
-              <Scan className="mb-0.5" size={18} />
-              <span className="text-[10px]">Caja</span>
+              <Scan className="mb-0.5" size={17} />
+              <span className="text-[9px] truncate">Caja</span>
+            </button>
+
+            <button 
+              onClick={() => setCurrentView('layaways')} 
+              className={`flex flex-col items-center justify-center p-1 rounded-xl transition-colors text-label-caps flex-1 min-w-0 ${
+                currentView === 'layaways' ? 'text-primary font-bold bg-white/60 shadow-sm' : 'text-on-surface-variant'
+              }`}
+            >
+              <Bookmark className="mb-0.5" size={17} />
+              <span className="text-[9px] truncate">Apartados</span>
             </button>
 
             <button 
               onClick={() => setCurrentView('expenses')} 
-              className={`flex flex-col items-center justify-center p-1.5 rounded-xl transition-colors text-label-caps w-14 ${
+              className={`flex flex-col items-center justify-center p-1 rounded-xl transition-colors text-label-caps flex-1 min-w-0 ${
                 currentView === 'expenses' ? 'text-primary font-bold bg-white/60 shadow-sm' : 'text-on-surface-variant'
               }`}
             >
-              <Wallet className="mb-0.5" size={18} />
-              <span className="text-[10px]">Gastos</span>
+              <Wallet className="mb-0.5" size={17} />
+              <span className="text-[9px] truncate">Gastos</span>
             </button>
 
             <button 
               onClick={() => setCurrentView('cash_register')} 
-              className={`flex flex-col items-center justify-center p-1.5 rounded-xl transition-colors text-label-caps w-14 ${
+              className={`flex flex-col items-center justify-center p-1 rounded-xl transition-colors text-label-caps flex-1 min-w-0 ${
                 currentView === 'cash_register' ? 'text-primary font-bold bg-white/60 shadow-sm' : 'text-on-surface-variant'
               }`}
             >
-              <Lock className="mb-0.5" size={18} />
-              <span className="text-[10px]">Corte</span>
+              <Lock className="mb-0.5" size={17} />
+              <span className="text-[9px] truncate">Corte</span>
             </button>
             
             <button 
               onClick={() => setCurrentView('orders')} 
-              className={`flex flex-col items-center justify-center p-1.5 rounded-xl transition-colors text-label-caps w-14 ${
+              className={`flex flex-col items-center justify-center p-1 rounded-xl transition-colors text-label-caps flex-1 min-w-0 ${
                 currentView === 'orders' ? 'text-primary font-bold bg-white/60 shadow-sm' : 'text-on-surface-variant'
               }`}
             >
-              <ShoppingBag className="mb-0.5" size={18} />
-              <span className="text-[10px]">Ventas</span>
+              <ShoppingBag className="mb-0.5" size={17} />
+              <span className="text-[9px] truncate">Ventas</span>
             </button>
 
             <button 
               onClick={() => setIsMobileMenuOpen(true)} 
-              className="flex flex-col items-center justify-center p-1.5 rounded-xl transition-colors text-label-caps w-14 text-on-surface-variant hover:text-primary"
+              className="flex flex-col items-center justify-center p-1 rounded-xl transition-colors text-label-caps flex-1 min-w-0 text-on-surface-variant hover:text-primary"
             >
-              <Menu className="mb-0.5" size={18} />
-              <span className="text-[10px]">Menú</span>
+              <Menu className="mb-0.5" size={17} />
+              <span className="text-[9px] truncate">Menú</span>
             </button>
           </nav>
         )}
