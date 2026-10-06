@@ -1338,17 +1338,30 @@ export function POSView() {
                 </button>
               </div>
 
-              <button 
-                disabled={processingSale || cart.length === 0} 
-                onClick={async () => {
-                  await handleCheckout();
-                  setShowMobileCartModal(false);
-                }} 
-                className="w-full bg-secondary text-on-secondary hover:bg-on-secondary-fixed-variant transition-colors rounded-xl py-3 text-title-md flex items-center justify-center gap-2 shadow-lg h-12 disabled:opacity-50 disabled:cursor-not-allowed font-bold"
-              >
-                {processingSale ? <Loader2 className="animate-spin" size={18} /> : <Receipt size={18} />}
-                {processingSale ? 'Procesando...' : `Cobrar ($${total.toFixed(2)})`}
-              </button>
+              <div className="flex gap-2">
+                <button 
+                  disabled={processingSale || processingLayaway || cart.length === 0} 
+                  onClick={async () => {
+                    await handleCheckout();
+                    setShowMobileCartModal(false);
+                  }} 
+                  className="flex-1 bg-secondary text-on-secondary hover:bg-on-secondary-fixed-variant transition-colors rounded-xl py-3 text-title-md flex items-center justify-center gap-1.5 shadow-lg h-12 disabled:opacity-50 disabled:cursor-not-allowed font-bold"
+                >
+                  {processingSale ? <Loader2 className="animate-spin" size={18} /> : <Receipt size={18} />}
+                  {processingSale ? 'Procesando...' : `Cobrar ($${total.toFixed(2)})`}
+                </button>
+                <button 
+                  disabled={processingSale || processingLayaway || cart.length === 0} 
+                  onClick={() => {
+                    setShowMobileCartModal(false);
+                    handleOpenLayawayModal();
+                  }} 
+                  className="flex-1 bg-primary text-on-primary hover:bg-primary/90 transition-colors rounded-xl py-3 text-title-md flex items-center justify-center gap-1.5 shadow-lg h-12 disabled:opacity-50 disabled:cursor-not-allowed font-bold"
+                >
+                  <Bookmark size={18} />
+                  Apartar
+                </button>
+              </div>
             </div>
           </div>
         </div>
