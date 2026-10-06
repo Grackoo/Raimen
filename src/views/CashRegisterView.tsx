@@ -53,8 +53,27 @@ export function CashRegisterView() {
   const [editClosedClosedAt, setEditClosedClosedAt] = useState('');
   const [editClosedNotes, setEditClosedNotes] = useState('');
   const [editClosedAdminPin, setEditClosedAdminPin] = useState('');
-  const [editClosedPinError, setEditClosedPinError] = useState('');
   const [savingClosedEdit, setSavingClosedEdit] = useState(false);
+
+  // History filters to optimize queries and avoid overfetching
+  const [historyPeriod, setHistoryPeriod] = useState('all'); // 'all', 'today', 'week', 'month', 'last_month_end_to_this_month_end', 'custom'
+  const [historyLimit, setHistoryLimit] = useState(15); // 10, 15, 30, 50, 100
+  const getLocalDateString = (d: Date = new Date()) => {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+  const getLastDayOfPreviousMonth = () => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), 0);
+  };
+  const getLastDayOfCurrentMonth = () => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  };
+  const [customHistoryStartDate, setCustomHistoryStartDate] = useState(() => getLocalDateString(getLastDayOfPreviousMonth()));
+  const [customHistoryEndDate, setCustomHistoryEndDate] = useState(() => getLocalDateString(getLastDayOfCurrentMonth()));
 
   const sessionUser = JSON.parse(localStorage.getItem('raimen_pos_user') || '{}');
 
@@ -180,7 +199,7 @@ export function CashRegisterView() {
 
   useEffect(() => {
     fetchRegisters();
-  }, [selectedBranch]);
+  }, [selectedBranch, historyPeriod, historyLimit, customHistoryStartDate, customHistoryEndDate]);
 
   useEffect(() => {
     if (currentRegister) {
@@ -228,14 +247,40 @@ export function CashRegisterView() {
 
     setCurrentRegister(active || null);
 
-    // Get history
-    const { data: hist } = await supabase
+    // Get history with filters to optimize DB load
+    let histQuery = supabase
       .from('cash_registers')
       .select('*')
       .eq('branch_id', selectedBranch)
       .eq('status', 'closed')
-      .order('closed_at', { ascending: false })
-      .limit(15);
+      .order('closed_at', { ascending: false });
+
+    const now = new Date();
+    if (historyPeriod === 'today') {
+      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+      histQuery = histQuery.gte('closed_at', todayStart.toISOString());
+    } else if (historyPeriod === 'week') {
+      const weekStart = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      histQuery = histQuery.gte('closed_at', weekStart.toISOString());
+    } else if (historyPeriod === 'month') {
+      const monthStart = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate(), 0, 0, 0, 0);
+      histQuery = histQuery.gte('closed_at', monthStart.toISOString());
+    } else if (historyPeriod === 'last_month_end_to_this_month_end') {
+      const prevLast = getLastDayOfPreviousMonth();
+      const prevStart = new Date(prevLast.getFullYear(), prevLast.getMonth(), prevLast.getDate(), 0, 0, 0, 0);
+      const currLast = getLastDayOfCurrentMonth();
+      const currEnd = new Date(currLast.getFullYear(), currLast.getMonth(), currLast.getDate(), 23, 59, 59, 999);
+      histQuery = histQuery.gte('closed_at', prevStart.toISOString()).lte('closed_at', currEnd.toISOString());
+    } else if (historyPeriod === 'custom') {
+      const [sy, sm, sd] = (customHistoryStartDate || getLocalDateString(getLastDayOfPreviousMonth())).split('-').map(Number);
+      const customStart = new Date(sy, sm - 1, sd, 0, 0, 0, 0);
+      const [ey, em, ed] = (customHistoryEndDate || getLocalDateString(getLastDayOfCurrentMonth())).split('-').map(Number);
+      const customEnd = new Date(ey, em - 1, ed, 23, 59, 59, 999);
+      histQuery = histQuery.gte('closed_at', customStart.toISOString()).lte('closed_at', customEnd.toISOString());
+    }
+
+    histQuery = histQuery.limit(historyLimit);
+    const { data: hist } = await histQuery;
 
     // Enrich history registers with sales and expenses data if not already present
     const enrichedHistory = await Promise.all((hist || []).map(async (reg) => {
@@ -675,7 +720,69 @@ export function CashRegisterView() {
 
             {/* History Panel */}
             <div className="bg-surface-container-lowest rounded-xl border border-outline-variant p-6 shadow-sm flex flex-col">
-              <h3 className="text-title-md font-bold text-on-surface mb-4">Últimos Cortes Realizados</h3>
+              <div className="flex flex-col gap-3 mb-4 border-b border-outline-variant/40 pb-3">
+                <div className="flex justify-between items-center">
+                  <h3 className="text-title-md font-bold text-on-surface">Últimos Cortes Realizados</h3>
+                  <div className="flex items-center gap-1.5 text-xs">
+                    <span className="text-[10px] text-on-surface-variant font-semibold">Mostrar:</span>
+                    <select
+                      value={historyLimit}
+                      onChange={(e) => setHistoryLimit(Number(e.target.value))}
+                      className="bg-surface border border-outline-variant/40 rounded px-2 py-0.5 text-xs font-bold text-on-surface outline-none cursor-pointer"
+                    >
+                      <option value={5}>5 cortes</option>
+                      <option value={10}>10 cortes</option>
+                      <option value={15}>15 cortes</option>
+                      <option value={30}>30 cortes</option>
+                      <option value={50}>50 cortes</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Period filters */}
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="flex items-center gap-1.5 bg-surface-container-low px-2 py-1 rounded-lg border border-outline-variant/40 text-xs">
+                    <Calendar size={13} className="text-primary opacity-80" />
+                    <select
+                      value={historyPeriod}
+                      onChange={(e) => setHistoryPeriod(e.target.value)}
+                      className="bg-transparent font-semibold text-on-surface outline-none cursor-pointer text-xs"
+                    >
+                      <option value="all">Todos los recientes</option>
+                      <option value="today">Hoy</option>
+                      <option value="week">Últimos 7 días</option>
+                      <option value="month">Último mes</option>
+                      <option value="last_month_end_to_this_month_end">
+                        Últ. día mes ant. al últ. día mes actual ({getLocalDateString(getLastDayOfPreviousMonth())} al {getLocalDateString(getLastDayOfCurrentMonth())})
+                      </option>
+                      <option value="custom">Personalizado (Elegir fechas)</option>
+                    </select>
+                  </div>
+
+                  {historyPeriod === 'custom' && (
+                    <div className="flex items-center gap-1.5 bg-surface-container-low px-2 py-1 rounded-lg border border-outline-variant/40 text-xs">
+                      <span className="text-[10px] font-semibold text-on-surface-variant">Desde:</span>
+                      <input
+                        type="date"
+                        value={customHistoryStartDate}
+                        onChange={(e) => setCustomHistoryStartDate(e.target.value)}
+                        className="bg-transparent font-medium text-on-surface outline-none cursor-pointer text-[11px]"
+                      />
+                      <span className="text-[10px] font-semibold text-on-surface-variant">Hasta:</span>
+                      <input
+                        type="date"
+                        value={customHistoryEndDate}
+                        onChange={(e) => setCustomHistoryEndDate(e.target.value)}
+                        className="bg-transparent font-medium text-on-surface outline-none cursor-pointer text-[11px]"
+                      />
+                    </div>
+                  )}
+
+                  <div className="text-[10px] text-on-surface-variant font-medium ml-auto">
+                    {history.length} {history.length === 1 ? 'corte encontrado' : 'cortes encontrados'}
+                  </div>
+                </div>
+              </div>
               <div className="flex-1 overflow-y-auto custom-scrollbar flex flex-col gap-3">
                 {history.map((reg) => {
                   const actual = reg.actual_closing_amount !== undefined ? reg.actual_closing_amount : 0;
