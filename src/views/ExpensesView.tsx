@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { Plus, Trash2, Filter } from 'lucide-react';
+import { Plus, Trash2, Filter, Calendar } from 'lucide-react';
 
 interface Expense {
   id: string;
@@ -18,7 +18,29 @@ export function ExpensesView() {
   const [showModal, setShowModal] = useState(false);
   const [branches, setBranches] = useState<any[]>([]);
   const [selectedBranch, setSelectedBranch] = useState<string>('all');
-  const [dateFilter, setDateFilter] = useState('month'); // today, week, month, year
+  const [dateFilter, setDateFilter] = useState('last_month_end_to_this_month_end'); // today, week, month, year, last_month_end_to_this_month_end, custom
+
+  const getLocalDateString = (d: Date = new Date()) => {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  // Helper: Get last day of previous month (e.g. Sept 30)
+  const getLastDayOfPreviousMonth = () => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), 0);
+  };
+
+  // Helper: Get last day of current month (e.g. Oct 31)
+  const getLastDayOfCurrentMonth = () => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  };
+
+  const [customStartDate, setCustomStartDate] = useState(() => getLocalDateString(getLastDayOfPreviousMonth()));
+  const [customEndDate, setCustomEndDate] = useState(() => getLocalDateString(getLastDayOfCurrentMonth()));
 
   const getNowISOForInput = () => {
     const d = new Date();
@@ -54,7 +76,7 @@ export function ExpensesView() {
 
   useEffect(() => {
     fetchExpenses();
-  }, [selectedBranch, dateFilter]);
+  }, [selectedBranch, dateFilter, customStartDate, customEndDate]);
 
   async function fetchBranches() {
     const { data } = await supabase.from('branches').select('id, name');
@@ -78,13 +100,35 @@ export function ExpensesView() {
 
     // Date filtering
     const now = new Date();
-    let startDate = new Date();
-    if (dateFilter === 'today') startDate.setHours(0,0,0,0);
-    else if (dateFilter === 'week') startDate.setDate(now.getDate() - 7);
-    else if (dateFilter === 'month') startDate.setMonth(now.getMonth() - 1);
-    else if (dateFilter === 'year') startDate.setFullYear(now.getFullYear() - 1);
+    let startDate: Date;
+    let endDate: Date | null = null;
+
+    if (dateFilter === 'today') {
+      startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+    } else if (dateFilter === 'week') {
+      startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    } else if (dateFilter === 'month') {
+      startDate = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate(), 0, 0, 0, 0);
+    } else if (dateFilter === 'year') {
+      startDate = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate(), 0, 0, 0, 0);
+    } else if (dateFilter === 'last_month_end_to_this_month_end') {
+      const prevMonthLastDay = getLastDayOfPreviousMonth();
+      startDate = new Date(prevMonthLastDay.getFullYear(), prevMonthLastDay.getMonth(), prevMonthLastDay.getDate(), 0, 0, 0, 0);
+      const currMonthLastDay = getLastDayOfCurrentMonth();
+      endDate = new Date(currMonthLastDay.getFullYear(), currMonthLastDay.getMonth(), currMonthLastDay.getDate(), 23, 59, 59, 999);
+    } else if (dateFilter === 'custom') {
+      const [sy, sm, sd] = (customStartDate || getLocalDateString(getLastDayOfPreviousMonth())).split('-').map(Number);
+      startDate = new Date(sy, sm - 1, sd, 0, 0, 0, 0);
+      const [ey, em, ed] = (customEndDate || getLocalDateString(getLastDayOfCurrentMonth())).split('-').map(Number);
+      endDate = new Date(ey, em - 1, ed, 23, 59, 59, 999);
+    } else {
+      startDate = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate(), 0, 0, 0, 0);
+    }
 
     query = query.gte('date', startDate.toISOString());
+    if (endDate) {
+      query = query.lte('date', endDate.toISOString());
+    }
 
     const { data, error } = await query;
     if (!error && data) setExpenses(data);
@@ -146,14 +190,40 @@ export function ExpensesView() {
             </select>
           </div>
           <div className="flex items-center gap-2 px-3 py-1.5 bg-surface-container-low rounded-lg border border-transparent">
-            <span className="text-label-caps text-on-surface-variant">PERIODO:</span>
+            <span className="text-label-caps text-on-surface-variant flex items-center gap-1">
+              <Calendar size={14} className="opacity-70" /> PERIODO:
+            </span>
             <select value={dateFilter} onChange={(e) => setDateFilter(e.target.value)} className="bg-transparent text-body-sm font-semibold text-on-surface outline-none cursor-pointer">
+              <option value="last_month_end_to_this_month_end">
+                Últ. día mes ant. al últ. día mes actual ({getLocalDateString(getLastDayOfPreviousMonth())} al {getLocalDateString(getLastDayOfCurrentMonth())})
+              </option>
               <option value="today">Hoy</option>
               <option value="week">Últimos 7 días</option>
               <option value="month">Último mes</option>
               <option value="year">Último año</option>
+              <option value="custom">Personalizado (Elegir fechas)</option>
             </select>
           </div>
+
+          {dateFilter === 'custom' && (
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-surface-container-low rounded-lg border border-outline-variant/60">
+              <span className="text-label-caps text-on-surface-variant text-[11px]">Desde:</span>
+              <input
+                type="date"
+                value={customStartDate}
+                onChange={(e) => setCustomStartDate(e.target.value)}
+                className="bg-transparent text-body-sm font-semibold text-on-surface outline-none cursor-pointer text-xs"
+              />
+              <span className="text-label-caps text-on-surface-variant text-[11px]">Hasta:</span>
+              <input
+                type="date"
+                value={customEndDate}
+                onChange={(e) => setCustomEndDate(e.target.value)}
+                className="bg-transparent text-body-sm font-semibold text-on-surface outline-none cursor-pointer text-xs"
+              />
+            </div>
+          )}
+
           <div className="flex-1"></div>
           <div className="px-4 py-1.5 bg-error/10 text-error font-bold rounded-lg border border-error/20 flex items-center gap-2">
             Total Gastos: <span className="text-lg">${totalExpenses.toFixed(2)}</span>

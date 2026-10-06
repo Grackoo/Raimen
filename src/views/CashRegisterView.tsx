@@ -685,9 +685,25 @@ export function CashRegisterView() {
 
                   return (
                     <div key={reg.id} className="p-3 border border-outline-variant rounded-lg bg-surface-container-low flex flex-col gap-2 relative">
-                      <div className="flex justify-between items-center text-label-caps text-on-surface-variant pr-16">
-                        <span>{new Date(reg.closed_at).toLocaleDateString()}</span>
-                        <span>{new Date(reg.closed_at).toLocaleTimeString()}</span>
+                      <div className="flex flex-col gap-1 pr-16 border-b border-outline-variant/40 pb-2">
+                        {reg.opened_at && (
+                          <div className="flex items-center justify-between text-[11px] text-emerald-700 dark:text-emerald-400 font-semibold">
+                            <span className="flex items-center gap-1">
+                              <Unlock size={12} className="opacity-80" /> Apertura:
+                            </span>
+                            <span className="font-mono">
+                              {new Date(reg.opened_at).toLocaleDateString('es-MX')} {new Date(reg.opened_at).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                            </span>
+                          </div>
+                        )}
+                        <div className="flex items-center justify-between text-[11px] text-error font-semibold">
+                          <span className="flex items-center gap-1">
+                            <Lock size={12} className="opacity-80" /> Cierre:
+                          </span>
+                          <span className="font-mono">
+                            {new Date(reg.closed_at).toLocaleDateString('es-MX')} {new Date(reg.closed_at).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                          </span>
+                        </div>
                       </div>
                       {sessionUser?.role === 'admin' && (
                         <div className="absolute top-2 right-2 flex items-center gap-1">
