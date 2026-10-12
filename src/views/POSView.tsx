@@ -3,6 +3,7 @@ import { Scan, Search, User, MoreVertical, Minus, Plus, Banknote, CreditCard, La
 import { supabase } from '../lib/supabase';
 import { Scanner } from '@yudiel/react-qr-scanner';
 import { AdminOverrideModal } from '../components/AdminOverrideModal';
+import html2canvas from 'html2canvas';
 
 interface Product {
   id: string;
@@ -48,6 +49,7 @@ export function POSView() {
   const [layawayDeposit, setLayawayDeposit] = useState('');
   const [processingLayaway, setProcessingLayaway] = useState(false);
   const [completedLayaway, setCompletedLayaway] = useState<any>(null);
+  const [printingRawBT, setPrintingRawBT] = useState(false);
 
   const [manualDiscountEnabled, setManualDiscountEnabled] = useState(false);
   const [manualDiscountType, setManualDiscountType] = useState<'percent' | 'fixed'>('percent');
@@ -851,7 +853,12 @@ export function POSView() {
             </div>
             <div className="p-6 overflow-y-auto flex-1 font-mono text-sm bg-white text-black" id="printable-ticket">
               <div className="text-center mb-4 pb-4 border-b border-black/20 flex flex-col items-center">
-                <img src="/logo.png" alt="RAIMEN" className="w-14 h-14 object-contain mx-auto mb-2" />
+                <img 
+                  src="/logo.png" 
+                  alt="RAIMEN" 
+                  className="w-14 h-14 object-contain mx-auto mb-2" 
+                  style={{ maxWidth: '60px', maxHeight: '60px', width: '60px', height: '60px', objectFit: 'contain', margin: '0 auto 8px auto', display: 'block' }}
+                />
                 <h2 className="text-xl font-bold">RAIMEN STORE</h2>
                 <p>Sucursal Principal</p>
                 <p>Fecha: {completedSale.date}</p>
@@ -919,9 +926,9 @@ export function POSView() {
                 <button onClick={() => setCompletedSale(null)} className="flex-1 py-2 rounded-lg border border-outline-variant text-on-surface hover:bg-surface-variant transition-colors font-medium">Nueva Venta</button>
                 <button onClick={() => {
                   const printContent = document.getElementById('printable-ticket');
-                  const win = window.open('', '', 'width=300,height=600');
+                  const win = window.open('', '', 'width=320,height=600');
                   if(win && printContent) {
-                    win.document.write('<html><head><title>Imprimir Ticket</title><style>body { font-family: monospace; font-size: 12px; margin: 0; padding: 10px; } table { width: 100%; border-collapse: collapse; } th { text-align: left; border-bottom: 1px dashed #000; } td { padding-top: 4px; } .text-right { text-align: right; } .text-center { text-align: center; } .font-bold { font-weight: bold; } .font-semibold { font-weight: 600; } .text-xl { font-size: 16px; } .text-lg { font-size: 14px; } .border-t { border-top: 1px dashed #000; } .border-b { border-bottom: 1px dashed #000; } .border-y-2 { border-top: 2px dashed #000; border-bottom: 2px dashed #000; } .dashed { border-style: dashed; } .my-4 { margin: 10px 0; } .py-2 { padding: 5px 0; } .mt-1 { margin-top: 4px; } .mt-2 { margin-top: 8px; } .mt-3 { margin-top: 12px; }</style></head><body>');
+                    win.document.write('<html><head><title>Imprimir Ticket</title><style>@page { size: auto; margin: 0; } body { font-family: monospace; font-size: 12px; margin: 0; padding: 10px; max-width: 300px; margin: 0 auto; color: #000; background: #fff; } img { max-width: 60px !important; max-height: 60px !important; width: 60px !important; height: 60px !important; object-fit: contain !important; margin: 0 auto 8px auto !important; display: block !important; } table { width: 100%; border-collapse: collapse; } th { text-align: left; border-bottom: 1px dashed #000; } td { padding-top: 4px; } .text-right { text-align: right; } .text-center { text-align: center; } .font-bold { font-weight: bold; } .font-semibold { font-weight: 600; } .text-xl { font-size: 16px; } .text-lg { font-size: 14px; } .border-t { border-top: 1px dashed #000; } .border-b { border-bottom: 1px dashed #000; } .border-y-2 { border-top: 2px dashed #000; border-bottom: 2px dashed #000; } .dashed { border-style: dashed; } .my-4 { margin: 10px 0; } .py-2 { padding: 5px 0; } .mt-1 { margin-top: 4px; } .mt-2 { margin-top: 8px; } .mt-3 { margin-top: 12px; }</style></head><body>');
                     win.document.write(printContent.innerHTML);
                     win.document.write('</body></html>');
                     win.document.close();
@@ -932,41 +939,34 @@ export function POSView() {
                   <Receipt size={18} /> Imprimir (Web)
                 </button>
               </div>
-              <button onClick={() => {
-                let text = "RAIMEN STORE\n";
-                text += "Sucursal Principal\n";
-                text += `Fecha: ${completedSale.date}\n`;
-                text += `Ticket: ${completedSale.id.substring(0,8).toUpperCase()}\n`;
-                text += "--------------------------------\n";
-                text += `Cliente: ${completedSale.customer?.name || 'Publico en General'}\n`;
-                text += "--------------------------------\n";
-                
-                if (completedSale.hasDiscount) {
-                  text += "*** ¡Descuento Aplicado! ***\n";
-                  text += `${completedSale.discountLabel || 'Obtuviste un 5% de descuento'}\n`;
-                  text += "--------------------------------\n";
-                }
-                
-                completedSale.items.forEach((item: any) => {
-                  text += `${item.qty}x ${item.name}\n$${(item.price * item.qty).toFixed(2)}\n`;
-                });
-                text += "--------------------------------\n";
-                
-                if (completedSale.hasDiscount) {
-                  text += `Subtotal: $${completedSale.sumProducts.toFixed(2)}\n`;
-                  text += `${completedSale.discountLabel || 'Descuento (5%)'}: -$${completedSale.discountAmount.toFixed(2)}\n`;
-                }
-
-                text += `TOTAL: $${completedSale.total.toFixed(2)}\n`;
-                text += "--------------------------------\n";
-                text += `PAGO EN: ${completedSale.payment_method.toUpperCase()}\n`;
-                text += "Para cualquier cambio o aclaracion\nes indispensable presentar este ticket.\n";
-                text += "Gracias por su compra!\n\n\n";
-
-                const encoded = encodeURI(text);
-                window.location.href = `intent:${encoded}#Intent;scheme=rawbt;package=ru.a402d.rawbtprinter;end;`;
-              }} className="w-full py-2 rounded-lg bg-secondary text-on-secondary hover:bg-on-secondary-fixed-variant transition-colors font-medium flex justify-center items-center gap-2">
-                <Receipt size={18} /> Imprimir Bluetooth (Móvil)
+              <button 
+                disabled={printingRawBT}
+                onClick={async () => {
+                  const printElement = document.getElementById('printable-ticket');
+                  if (!printElement || !completedSale) return;
+                  setPrintingRawBT(true);
+                  try {
+                    const canvas = await html2canvas(printElement, {
+                      scale: 2,
+                      backgroundColor: '#ffffff',
+                      useCORS: true,
+                      logging: false
+                    });
+                    const imgData = canvas.toDataURL('image/png');
+                    const base64Data = imgData.replace(/^data:image\/png;base64,/, '');
+                    const encoded = encodeURI(base64Data);
+                    window.location.href = `intent:${encoded}#Intent;scheme=rawbt:base64;package=ru.a402d.rawbtprinter;end;`;
+                  } catch (err) {
+                    console.error('Error al generar ticket para RawBT:', err);
+                    alert('Error al generar la imagen del ticket para impresión.');
+                  } finally {
+                    setPrintingRawBT(false);
+                  }
+                }} 
+                className="w-full py-2 rounded-lg bg-secondary text-on-secondary hover:bg-on-secondary-fixed-variant transition-colors font-medium flex justify-center items-center gap-2 disabled:opacity-50"
+              >
+                {printingRawBT ? <Loader2 size={18} className="animate-spin" /> : <Receipt size={18} />}
+                {printingRawBT ? 'Enviando a RawBT...' : 'Imprimir Bluetooth (Móvil)'}
               </button>
             </div>
           </div>
@@ -1493,7 +1493,12 @@ export function POSView() {
 
             <div className="p-6 overflow-y-auto flex-1 font-mono text-sm bg-white text-black" id="printable-layaway-pos-ticket">
               <div className="text-center mb-4 pb-4 border-b border-black/20 flex flex-col items-center">
-                <img src="/logo.png" alt="RAIMEN" className="w-14 h-14 object-contain mx-auto mb-2" />
+                <img 
+                  src="/logo.png" 
+                  alt="RAIMEN" 
+                  style={{ maxWidth: '60px', maxHeight: '60px', width: '60px', height: '60px', objectFit: 'contain', margin: '0 auto 8px auto', display: 'block' }}
+                  className="w-14 h-14 object-contain mx-auto mb-2" 
+                />
                 <h2 className="text-xl font-bold">RAIMEN STORE</h2>
                 <p className="font-bold text-sm">--- NOTA DE APARTADO ---</p>
                 <p>Folio: {completedLayaway.code}</p>
@@ -1550,9 +1555,9 @@ export function POSView() {
                 <button onClick={() => setCompletedLayaway(null)} className="py-2 px-3 rounded-lg border border-outline-variant text-on-surface hover:bg-surface-variant transition-colors font-medium">Nuevo</button>
                 <button onClick={() => {
                   const printContent = document.getElementById('printable-layaway-pos-ticket');
-                  const win = window.open('', '', 'width=300,height=600');
+                  const win = window.open('', '', 'width=320,height=600');
                   if (win && printContent) {
-                    win.document.write('<html><head><title>Imprimir Nota de Apartado</title><style>body { font-family: monospace; font-size: 12px; margin: 0; padding: 10px; } table { width: 100%; border-collapse: collapse; } th { text-align: left; border-bottom: 1px dashed #000; } td { padding-top: 4px; } .text-right { text-align: right; } .text-center { text-align: center; } .font-bold { font-weight: bold; } .font-semibold { font-weight: 600; } .text-xl { font-size: 16px; } .text-lg { font-size: 14px; } .border-t { border-top: 1px dashed #000; } .border-b { border-bottom: 1px dashed #000; }</style></head><body>');
+                    win.document.write('<html><head><title>Imprimir Nota de Apartado</title><style>@page { size: auto; margin: 0; } body { font-family: monospace; font-size: 12px; margin: 0; padding: 10px; } img { max-width: 60px !important; max-height: 60px !important; width: 60px !important; height: 60px !important; object-fit: contain !important; margin: 0 auto 8px auto !important; display: block !important; } table { width: 100%; border-collapse: collapse; } th { text-align: left; border-bottom: 1px dashed #000; } td { padding-top: 4px; } .text-right { text-align: right; } .text-center { text-align: center; } .font-bold { font-weight: bold; } .font-semibold { font-weight: 600; } .text-xl { font-size: 16px; } .text-lg { font-size: 14px; } .border-t { border-top: 1px dashed #000; } .border-b { border-bottom: 1px dashed #000; }</style></head><body>');
                     win.document.write(printContent.innerHTML);
                     win.document.write('</body></html>');
                     win.document.close();
@@ -1577,32 +1582,33 @@ export function POSView() {
                   <Share2 size={16} /> WhatsApp
                 </button>
               </div>
-              <button onClick={() => {
-                let text = "RAIMEN STORE\n";
-                text += "--- NOTA DE APARTADO ---\n";
-                text += `Folio: ${completedLayaway.code}\n`;
-                text += `Fecha: ${completedLayaway.date}\n`;
-                text += `Fecha Limite: ${completedLayaway.expiration_date}\n`;
-                text += "--------------------------------\n";
-                text += `Cliente: ${completedLayaway.customer_name}\n`;
-                if (completedLayaway.customer_phone) text += `Tel: ${completedLayaway.customer_phone}\n`;
-                text += "--------------------------------\n";
-
-                completedLayaway.items.forEach((item: any) => {
-                  text += `${item.qty}x ${item.name}\n$${(item.price * item.qty).toFixed(2)}\n`;
-                });
-                text += "--------------------------------\n";
-                text += `TOTAL COMPRA: $${completedLayaway.total.toFixed(2)}\n`;
-                text += `MONTO A CUENTA: $${completedLayaway.deposit.toFixed(2)}\n`;
-                text += `RESTA PENDIENTE: $${completedLayaway.remaining.toFixed(2)}\n`;
-                text += "--------------------------------\n";
-                text += "Tiene 1 mes a partir de expedicion\npara liquidar su apartado.\n";
-                text += "¡Gracias por su compra!\n\n\n";
-
-                const encoded = encodeURI(text);
-                window.location.href = `intent:${encoded}#Intent;scheme=rawbt;package=ru.a402d.rawbtprinter;end;`;
-              }} className="w-full py-2 rounded-lg bg-secondary text-on-secondary hover:bg-on-secondary-fixed-variant transition-colors font-medium flex justify-center items-center gap-2">
-                <Receipt size={18} /> Imprimir Bluetooth (Móvil)
+              <button 
+                disabled={printingRawBT}
+                onClick={async () => {
+                  const ticketEl = document.getElementById('printable-layaway-pos-ticket');
+                  if (!ticketEl) return;
+                  try {
+                    setPrintingRawBT(true);
+                    const canvas = await html2canvas(ticketEl, {
+                      scale: 2,
+                      backgroundColor: '#ffffff',
+                      useCORS: true,
+                      logging: false
+                    });
+                    const base64Data = canvas.toDataURL('image/png').replace(/^data:image\/png;base64,/, '');
+                    const encoded = encodeURI(base64Data);
+                    window.location.href = `intent:${encoded}#Intent;scheme=rawbt:base64;package=ru.a402d.rawbtprinter;end;`;
+                  } catch (err) {
+                    console.error('Error generando ticket gráfico para RawBT:', err);
+                    toast.error('Error al preparar ticket para RawBT');
+                  } finally {
+                    setPrintingRawBT(false);
+                  }
+                }} 
+                className="w-full py-2 rounded-lg bg-secondary text-on-secondary hover:bg-on-secondary-fixed-variant transition-colors font-medium flex justify-center items-center gap-2 disabled:opacity-50"
+              >
+                {printingRawBT ? <Loader2 size={18} className="animate-spin" /> : <Receipt size={18} />} 
+                {printingRawBT ? 'Enviando a RawBT...' : 'Imprimir Bluetooth (Móvil)'}
               </button>
             </div>
           </div>

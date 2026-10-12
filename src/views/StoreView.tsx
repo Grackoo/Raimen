@@ -376,7 +376,12 @@ export function StoreView() {
               {consultedLayaway && (
                 <div className="bg-white text-black p-4 rounded-xl border border-gray-300 font-mono text-xs shadow-sm space-y-3">
                   <div className="text-center pb-3 border-b border-black/20 flex flex-col items-center">
-                    <img src="/logo.png" alt="RAIMEN" className="w-14 h-14 object-contain mx-auto mb-1" />
+                    <img 
+                      src="/logo.png" 
+                      alt="RAIMEN" 
+                      style={{ maxWidth: '60px', maxHeight: '60px', width: '60px', height: '60px', objectFit: 'contain', margin: '0 auto 8px auto', display: 'block' }}
+                      className="w-14 h-14 object-contain mx-auto mb-1" 
+                    />
                     <h3 className="font-bold text-base">RAIMEN STORE</h3>
                     <p className="font-bold text-xs text-gray-700">--- NOTA DE APARTADO ---</p>
                     <p className="font-bold text-sm text-primary mt-1">Folio: {consultedLayaway.code}</p>

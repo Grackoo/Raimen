@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { Bookmark, Search, Calendar, User, DollarSign, Clock, CheckCircle2, AlertTriangle, Receipt, X, Loader2, PlusCircle, Trash2, Share2 } from 'lucide-react';
+import html2canvas from 'html2canvas';
 
 interface LayawayItem {
   id: string;
@@ -41,6 +42,7 @@ export function LayawaysView() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [printingRawBT, setPrintingRawBT] = useState(false);
 
   // Modal detail & payment state
   const [selectedLayaway, setSelectedLayaway] = useState<Layaway | null>(null);
@@ -237,9 +239,9 @@ export function LayawaysView() {
 
   const printTicket = () => {
     const printContent = document.getElementById('printable-layaway-ticket');
-    const win = window.open('', '', 'width=300,height=600');
+    const win = window.open('', '', 'width=320,height=600');
     if (win && printContent) {
-      win.document.write('<html><head><title>Imprimir Ticket de Apartado</title><style>body { font-family: monospace; font-size: 12px; margin: 0; padding: 10px; } table { width: 100%; border-collapse: collapse; } th { text-align: left; border-bottom: 1px dashed #000; } td { padding-top: 4px; } .text-right { text-align: right; } .text-center { text-align: center; } .font-bold { font-weight: bold; } .font-semibold { font-weight: 600; } .text-xl { font-size: 16px; } .text-lg { font-size: 14px; } .border-t { border-top: 1px dashed #000; } .border-b { border-bottom: 1px dashed #000; } .border-y-2 { border-top: 2px dashed #000; border-bottom: 2px dashed #000; }</style></head><body>');
+      win.document.write('<html><head><title>Imprimir Ticket de Apartado</title><style>@page { size: auto; margin: 0; } body { font-family: monospace; font-size: 12px; margin: 0; padding: 10px; } img { max-width: 60px !important; max-height: 60px !important; width: 60px !important; height: 60px !important; object-fit: contain !important; margin: 0 auto 8px auto !important; display: block !important; } table { width: 100%; border-collapse: collapse; } th { text-align: left; border-bottom: 1px dashed #000; } td { padding-top: 4px; } .text-right { text-align: right; } .text-center { text-align: center; } .font-bold { font-weight: bold; } .font-semibold { font-weight: 600; } .text-xl { font-size: 16px; } .text-lg { font-size: 14px; } .border-t { border-top: 1px dashed #000; } .border-b { border-bottom: 1px dashed #000; } .border-y-2 { border-top: 2px dashed #000; border-bottom: 2px dashed #000; }</style></head><body>');
       win.document.write(printContent.innerHTML);
       win.document.write('</body></html>');
       win.document.close();
@@ -248,31 +250,27 @@ export function LayawaysView() {
     }
   };
 
-  const printRawBT = () => {
+  const printRawBT = async () => {
     if (!selectedLayaway) return;
-    let text = "RAIMEN STORE\n";
-    text += "--- NOTA DE APARTADO ---\n";
-    text += `Folio: ${selectedLayaway.code}\n`;
-    text += `Fecha: ${new Date(selectedLayaway.created_at).toLocaleDateString('es-MX')}\n`;
-    text += `Vence: ${new Date(selectedLayaway.expiration_date).toLocaleDateString('es-MX')}\n`;
-    text += "--------------------------------\n";
-    text += `Cliente: ${selectedLayaway.customer_name}\n`;
-    if (selectedLayaway.customer_phone) text += `Tel: ${selectedLayaway.customer_phone}\n`;
-    text += "--------------------------------\n";
-
-    layawayItems.forEach((item) => {
-      text += `${item.quantity}x ${item.product_name}\n$${(item.price * item.quantity).toFixed(2)}\n`;
-    });
-    text += "--------------------------------\n";
-    text += `TOTAL COMPRA: $${selectedLayaway.total.toFixed(2)}\n`;
-    text += `MONTO A CUENTA: $${selectedLayaway.paid_amount.toFixed(2)}\n`;
-    text += `RESTA PENDIENTE: $${selectedLayaway.remaining_amount.toFixed(2)}\n`;
-    text += "--------------------------------\n";
-    text += "Tiene 1 mes a partir de expedicion\npara liquidar y recoger su apartado.\n";
-    text += "¡Gracias por su preferencia!\n\n\n";
-
-    const encoded = encodeURI(text);
-    window.location.href = `intent:${encoded}#Intent;scheme=rawbt;package=ru.a402d.rawbtprinter;end;`;
+    const ticketEl = document.getElementById('printable-layaway-ticket');
+    if (!ticketEl) return;
+    try {
+      setPrintingRawBT(true);
+      const canvas = await html2canvas(ticketEl, {
+        scale: 2,
+        backgroundColor: '#ffffff',
+        useCORS: true,
+        logging: false
+      });
+      const base64Data = canvas.toDataURL('image/png').replace(/^data:image\/png;base64,/, '');
+      const encoded = encodeURI(base64Data);
+      window.location.href = `intent:${encoded}#Intent;scheme=rawbt:base64;package=ru.a402d.rawbtprinter;end;`;
+    } catch (err) {
+      console.error('Error generando ticket gráfico para RawBT:', err);
+      alert('Error al preparar ticket para RawBT');
+    } finally {
+      setPrintingRawBT(false);
+    }
   };
 
   const shareWhatsApp = () => {
@@ -453,7 +451,12 @@ export function LayawaysView() {
               {/* Ticket printable content */}
               <div id="printable-layaway-ticket" className="bg-white p-4 text-black font-mono text-sm border border-gray-200 rounded-lg">
                 <div className="text-center mb-3 pb-3 border-b border-black/20 flex flex-col items-center">
-                  <img src="/logo.png" alt="RAIMEN" className="w-14 h-14 object-contain mx-auto mb-1.5" />
+                  <img 
+                    src="/logo.png" 
+                    alt="RAIMEN" 
+                    style={{ maxWidth: '60px', maxHeight: '60px', width: '60px', height: '60px', objectFit: 'contain', margin: '0 auto 8px auto', display: 'block' }}
+                    className="w-14 h-14 object-contain mx-auto mb-1.5" 
+                  />
                   <h2 className="text-xl font-bold">RAIMEN STORE</h2>
                   <p className="font-bold text-sm">--- NOTA DE APARTADO ---</p>
                   <p className="text-xs">Folio: {selectedLayaway.code}</p>
@@ -532,8 +535,13 @@ export function LayawaysView() {
                 <button onClick={printTicket} className="flex-1 py-2 bg-primary text-on-primary rounded-lg text-body-sm font-semibold hover:bg-primary/90 flex justify-center items-center gap-1.5">
                   <Receipt size={16} /> Web
                 </button>
-                <button onClick={printRawBT} className="flex-1 py-2 bg-secondary text-on-secondary rounded-lg text-body-sm font-semibold hover:bg-on-secondary-fixed-variant flex justify-center items-center gap-1.5">
-                  <Receipt size={16} /> Bluetooth
+                <button 
+                  disabled={printingRawBT}
+                  onClick={printRawBT} 
+                  className="flex-1 py-2 bg-secondary text-on-secondary rounded-lg text-body-sm font-semibold hover:bg-on-secondary-fixed-variant flex justify-center items-center gap-1.5 disabled:opacity-50"
+                >
+                  {printingRawBT ? <Loader2 size={16} className="animate-spin" /> : <Receipt size={16} />} 
+                  {printingRawBT ? 'Enviando...' : 'Bluetooth'}
                 </button>
                 <button onClick={shareWhatsApp} className="flex-1 py-2 bg-emerald-600 text-white rounded-lg text-body-sm font-semibold hover:bg-emerald-700 flex justify-center items-center gap-1.5 shadow-sm" title="Compartir apartado por WhatsApp">
                   <Share2 size={16} /> WhatsApp
