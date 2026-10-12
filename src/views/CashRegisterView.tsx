@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { Lock, Unlock, DollarSign, Calculator, Edit3, Calendar, Clock, Trash2, AlertTriangle } from 'lucide-react';
+import { Lock, Unlock, DollarSign, Calculator, Edit3, Calendar, Clock, Trash2, AlertTriangle, RefreshCw, TrendingUp, TrendingDown } from 'lucide-react';
 
 interface CashRegister {
   id: string;
@@ -14,6 +14,11 @@ interface CashRegister {
   status: string;
   opened_at: string;
   closed_at: string;
+  cash_sales?: number;
+  card_sales?: number;
+  transfer_sales?: number;
+  total_sales?: number;
+  cash_expenses?: number;
   owner_withdrawal?: number;
   next_opening_amount?: number;
 }
@@ -49,12 +54,18 @@ export function CashRegisterView() {
   const [editClosedOpeningAmount, setEditClosedOpeningAmount] = useState('');
   const [editClosedActualAmount, setEditClosedActualAmount] = useState('');
   const [editClosedNextOpeningAmount, setEditClosedNextOpeningAmount] = useState('');
+  const [editClosedCashSales, setEditClosedCashSales] = useState('0');
+  const [editClosedCardSales, setEditClosedCardSales] = useState('0');
+  const [editClosedTransferSales, setEditClosedTransferSales] = useState('0');
+  const [editClosedExpenses, setEditClosedExpenses] = useState('0');
   const [editClosedOpenedAt, setEditClosedOpenedAt] = useState('');
   const [editClosedClosedAt, setEditClosedClosedAt] = useState('');
   const [editClosedNotes, setEditClosedNotes] = useState('');
   const [editClosedAdminPin, setEditClosedAdminPin] = useState('');
   const [editClosedPinError, setEditClosedPinError] = useState('');
   const [savingClosedEdit, setSavingClosedEdit] = useState(false);
+  const [recalculatingFromDB, setRecalculatingFromDB] = useState(false);
+  const [recalculationNotice, setRecalculationNotice] = useState('');
 
   // Delete closed register states (eliminar cortes efectuados)
   const [registerToDelete, setRegisterToDelete] = useState<CashRegister | null>(null);
@@ -101,12 +112,68 @@ export function CashRegisterView() {
         ? reg.next_opening_amount.toString()
         : (reg.opening_amount !== undefined ? reg.opening_amount.toString() : '0')
     );
+    setEditClosedCashSales((reg.cash_sales !== undefined ? reg.cash_sales : 0).toString());
+    setEditClosedCardSales((reg.card_sales !== undefined ? reg.card_sales : 0).toString());
+    setEditClosedTransferSales((reg.transfer_sales !== undefined ? reg.transfer_sales : 0).toString());
+    setEditClosedExpenses((reg.cash_expenses !== undefined ? reg.cash_expenses : 0).toString());
     setEditClosedOpenedAt(formatISOForLocalDatetime(reg.opened_at));
     setEditClosedClosedAt(formatISOForLocalDatetime(reg.closed_at));
     setEditClosedNotes(reg.notes || '');
     setEditClosedAdminPin('');
     setEditClosedPinError('');
+    setRecalculationNotice('');
     setShowEditClosedModal(true);
+  };
+
+  const handleRecalculateClosedTotalsFromDB = async () => {
+    if (!editingClosedRegister || !editClosedOpenedAt || !editClosedClosedAt) return;
+    setRecalculatingFromDB(true);
+    setRecalculationNotice('');
+    try {
+      const openedAtISO = new Date(editClosedOpenedAt).toISOString();
+      const closedAtISO = new Date(editClosedClosedAt).toISOString();
+
+      const [salesRes, expRes] = await Promise.all([
+        supabase
+          .from('sales')
+          .select('total, payment_method')
+          .eq('branch_id', editingClosedRegister.branch_id)
+          .gte('created_at', openedAtISO)
+          .lte('created_at', closedAtISO),
+        supabase
+          .from('expenses')
+          .select('amount')
+          .eq('branch_id', editingClosedRegister.branch_id)
+          .gte('date', openedAtISO)
+          .lte('date', closedAtISO)
+      ]);
+
+      let cashSum = 0;
+      let cardSum = 0;
+      let transSum = 0;
+      if (salesRes.data) {
+        salesRes.data.forEach(s => {
+          const t = Number(s.total) || 0;
+          if (s.payment_method === 'Efectivo') cashSum += t;
+          else if (s.payment_method === 'Tarjeta') cardSum += t;
+          else if (s.payment_method === 'Transfer' || s.payment_method === 'Transferencia') transSum += t;
+          else cashSum += t;
+        });
+      }
+
+      const expSum = expRes.data?.reduce((acc, ex) => acc + (Number(ex.amount) || 0), 0) || 0;
+
+      setEditClosedCashSales(cashSum.toString());
+      setEditClosedCardSales(cardSum.toString());
+      setEditClosedTransferSales(transSum.toString());
+      setEditClosedExpenses(expSum.toString());
+      setRecalculationNotice(`Cálculo del sistema aplicado: ${salesRes.data?.length || 0} ventas (Efectivo: $${cashSum.toFixed(2)}) y ${expRes.data?.length || 0} gastos ($${expSum.toFixed(2)}) registrados en el periodo.`);
+    } catch (err: any) {
+      console.error('Error recalculando desde BD:', err);
+      setRecalculationNotice('Error al consultar ventas y gastos en el periodo.');
+    } finally {
+      setRecalculatingFromDB(false);
+    }
   };
 
   const handleSaveClosedRegisterEdit = async (e: React.FormEvent) => {
@@ -132,37 +199,26 @@ export function CashRegisterView() {
       const openingAmt = parseFloat(editClosedOpeningAmount) || 0;
       const actualAmt = parseFloat(editClosedActualAmount) || 0;
       const nextOpeningAmt = parseFloat(editClosedNextOpeningAmount) || 0;
+      const cashSalesAmt = parseFloat(editClosedCashSales) || 0;
+      const cardSalesAmt = parseFloat(editClosedCardSales) || 0;
+      const transferSalesAmt = parseFloat(editClosedTransferSales) || 0;
+      const expensesAmt = parseFloat(editClosedExpenses) || 0;
 
-      // Recalculate cash sales & expenses for this closed register's timeframe
-      const { data: sales } = await supabase
-        .from('sales')
-        .select('total, payment_method')
-        .eq('branch_id', editingClosedRegister.branch_id)
-        .gte('created_at', openedAtISO)
-        .lte('created_at', closedAtISO);
-
-      let cashSum = 0;
-      if (sales) {
-        sales.forEach(s => {
-          if (s.payment_method === 'Efectivo') cashSum += Number(s.total) || 0;
-        });
-      }
-
-      const { data: expenses } = await supabase
-        .from('expenses')
-        .select('amount')
-        .eq('branch_id', editingClosedRegister.branch_id)
-        .gte('date', openedAtISO)
-        .lte('date', closedAtISO);
-
-      const expSum = expenses?.reduce((acc, ex) => acc + (Number(ex.amount) || 0), 0) || 0;
-
-      const expectedAmt = openingAmt + cashSum - expSum;
+      const expectedAmt = openingAmt + cashSalesAmt - expensesAmt;
       const differenceAmt = actualAmt - expectedAmt;
       const withdrawalAmt = Math.max(0, actualAmt - nextOpeningAmt);
 
+      let finalNotes = editClosedNotes;
+      if (!finalNotes || finalNotes.includes('[Retiro de Negocio:')) {
+        finalNotes = `[Retiro de Negocio: $${withdrawalAmt.toFixed(2)} | Fondo Dejado: $${nextOpeningAmt.toFixed(2)}]`;
+      }
+
       const payload: any = {
         opening_amount: openingAmt,
+        cash_sales: cashSalesAmt,
+        card_sales: cardSalesAmt,
+        transfer_sales: transferSalesAmt,
+        cash_expenses: expensesAmt,
         actual_closing_amount: actualAmt,
         expected_closing_amount: expectedAmt,
         difference: differenceAmt,
@@ -170,7 +226,7 @@ export function CashRegisterView() {
         owner_withdrawal: withdrawalAmt,
         opened_at: openedAtISO,
         closed_at: closedAtISO,
-        notes: editClosedNotes
+        notes: finalNotes
       };
 
       const { error } = await supabase
@@ -585,6 +641,18 @@ export function CashRegisterView() {
     setShowCloseModal(false);
     fetchRegisters();
   };
+
+  const previewOpening = parseFloat(editClosedOpeningAmount) || 0;
+  const previewActual = parseFloat(editClosedActualAmount) || 0;
+  const previewNextOpening = parseFloat(editClosedNextOpeningAmount) || 0;
+  const previewCashSales = parseFloat(editClosedCashSales) || 0;
+  const previewCardSales = parseFloat(editClosedCardSales) || 0;
+  const previewTransferSales = parseFloat(editClosedTransferSales) || 0;
+  const previewTotalSales = previewCashSales + previewCardSales + previewTransferSales;
+  const previewExpenses = parseFloat(editClosedExpenses) || 0;
+  const previewExpected = previewOpening + previewCashSales - previewExpenses;
+  const previewDiff = previewActual - previewExpected;
+  const previewWithdrawal = Math.max(0, previewActual - previewNextOpening);
 
   if (selectedBranch === 'all' && branches.length > 0) {
     return (
@@ -1109,30 +1177,173 @@ export function CashRegisterView() {
       )}
 
       {showEditClosedModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
-          <div className="bg-surface-container-lowest w-full max-w-md rounded-2xl shadow-2xl overflow-hidden flex flex-col border border-outline-variant max-h-[90vh] overflow-y-auto">
-            <div className="p-4 bg-primary text-on-primary flex justify-between items-center sticky top-0 z-10">
-              <h3 className="font-bold text-title-md flex items-center gap-2">
-                <Edit3 size={20} /> Editar Corte Efectuado
-              </h3>
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[200] flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-surface-container-lowest w-full max-w-xl rounded-2xl shadow-2xl overflow-hidden flex flex-col border border-outline-variant max-h-[92vh]">
+            <div className="p-4 bg-primary text-on-primary flex justify-between items-center sticky top-0 z-10 shadow-sm">
+              <div className="flex items-center gap-2">
+                <Edit3 size={20} />
+                <div>
+                  <h3 className="font-bold text-title-md leading-tight">Editar Corte Efectuado</h3>
+                  <p className="text-[11px] opacity-80">Ajusta los fondos, ventas y gastos del turno</p>
+                </div>
+              </div>
               <button 
-                onClick={() => { setShowEditClosedModal(false); setEditClosedPinError(''); setEditClosedAdminPin(''); }}
-                className="hover:bg-primary-fixed hover:text-on-primary-fixed rounded-full p-1 transition-colors"
+                type="button"
+                onClick={() => { setShowEditClosedModal(false); setEditClosedPinError(''); setEditClosedAdminPin(''); setRecalculationNotice(''); }}
+                className="hover:bg-primary-fixed hover:text-on-primary-fixed rounded-full p-1.5 transition-colors cursor-pointer"
               >
                 ✕
               </button>
             </div>
 
-            <form onSubmit={handleSaveClosedRegisterEdit} className="p-6 flex flex-col gap-4">
+            <form onSubmit={handleSaveClosedRegisterEdit} className="p-4 sm:p-6 overflow-y-auto space-y-4">
               <p className="text-body-sm text-on-surface-variant">
-                Modifica los valores del corte efectuado. El total esperado, la diferencia y el retiro se recalcularán automáticamente. Requiere autorización del Administrador.
+                Modifica los datos del corte. Puedes ingresar las ventas y gastos manualmente o recalcularlos a partir de las fechas del turno. El total esperado y la diferencia se actualizan en vivo.
               </p>
 
-              <div className="grid grid-cols-2 gap-4">
+              {/* Sección 1: Periodo del Turno (Fechas) */}
+              <div className="p-3.5 bg-surface-container-low rounded-xl border border-outline-variant space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-on-surface flex items-center gap-1.5">
+                    <Calendar size={14} className="text-primary" /> Periodo del Turno
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleRecalculateClosedTotalsFromDB}
+                    disabled={recalculatingFromDB || !editClosedOpenedAt || !editClosedClosedAt}
+                    className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary text-[11px] font-bold transition-colors border border-primary/25 disabled:opacity-50 cursor-pointer"
+                    title="Consultar ventas y gastos en base de datos para este rango de fechas"
+                  >
+                    <RefreshCw size={12} className={recalculatingFromDB ? 'animate-spin' : ''} />
+                    {recalculatingFromDB ? 'Consultando...' : 'Recalcular del Sistema'}
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[11px] font-semibold text-on-surface-variant mb-1 block">Apertura *</label>
+                    <div className="relative">
+                      <Clock size={15} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-on-surface-variant" />
+                      <input
+                        type="datetime-local"
+                        required
+                        value={editClosedOpenedAt}
+                        onChange={(e) => setEditClosedOpenedAt(e.target.value)}
+                        className="w-full bg-surface border border-outline-variant rounded-lg h-9 pl-8 pr-2 text-xs font-medium outline-none focus:border-primary cursor-pointer"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-[11px] font-semibold text-on-surface-variant mb-1 block">Cierre *</label>
+                    <div className="relative">
+                      <Clock size={15} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-on-surface-variant" />
+                      <input
+                        type="datetime-local"
+                        required
+                        value={editClosedClosedAt}
+                        onChange={(e) => setEditClosedClosedAt(e.target.value)}
+                        className="w-full bg-surface border border-outline-variant rounded-lg h-9 pl-8 pr-2 text-xs font-medium outline-none focus:border-primary cursor-pointer"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {recalculationNotice && (
+                  <div className="text-[11px] text-primary bg-primary/10 p-2 rounded-lg border border-primary/20 font-medium">
+                    {recalculationNotice}
+                  </div>
+                )}
+              </div>
+
+              {/* Sección 2: Ventas y Gastos del Turno (Editables) */}
+              <div className="space-y-2">
+                <span className="text-xs font-bold text-on-surface block">
+                  Ventas y Gastos del Corte (Editables)
+                </span>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                  <div className="bg-emerald-500/5 border border-emerald-500/30 rounded-xl p-2.5">
+                    <label className="text-[10px] font-bold text-emerald-700 block mb-1">
+                      Ventas Efectivo ($) *
+                    </label>
+                    <div className="relative">
+                      <DollarSign size={14} className="absolute left-2 top-1/2 -translate-y-1/2 text-emerald-600" />
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        required
+                        value={editClosedCashSales}
+                        onChange={(e) => setEditClosedCashSales(e.target.value)}
+                        className="w-full bg-surface border border-emerald-500/40 rounded-lg h-9 pl-6 pr-2 text-xs font-bold text-emerald-600 font-mono outline-none focus:border-emerald-600"
+                        placeholder="0.00"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="bg-red-500/5 border border-red-500/30 rounded-xl p-2.5">
+                    <label className="text-[10px] font-bold text-red-700 block mb-1">
+                      Gastos del Día ($) *
+                    </label>
+                    <div className="relative">
+                      <DollarSign size={14} className="absolute left-2 top-1/2 -translate-y-1/2 text-red-600" />
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        required
+                        value={editClosedExpenses}
+                        onChange={(e) => setEditClosedExpenses(e.target.value)}
+                        className="w-full bg-surface border border-red-500/40 rounded-lg h-9 pl-6 pr-2 text-xs font-bold text-error font-mono outline-none focus:border-error"
+                        placeholder="0.00"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="bg-surface-container-low border border-outline-variant rounded-xl p-2.5">
+                    <label className="text-[10px] font-semibold text-on-surface-variant block mb-1">
+                      Tarjeta ($)
+                    </label>
+                    <div className="relative">
+                      <DollarSign size={14} className="absolute left-2 top-1/2 -translate-y-1/2 text-on-surface-variant" />
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={editClosedCardSales}
+                        onChange={(e) => setEditClosedCardSales(e.target.value)}
+                        className="w-full bg-surface border border-outline-variant rounded-lg h-9 pl-6 pr-2 text-xs font-semibold font-mono outline-none focus:border-primary"
+                        placeholder="0.00"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="bg-surface-container-low border border-outline-variant rounded-xl p-2.5">
+                    <label className="text-[10px] font-semibold text-on-surface-variant block mb-1">
+                      Transferencia ($)
+                    </label>
+                    <div className="relative">
+                      <DollarSign size={14} className="absolute left-2 top-1/2 -translate-y-1/2 text-on-surface-variant" />
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={editClosedTransferSales}
+                        onChange={(e) => setEditClosedTransferSales(e.target.value)}
+                        className="w-full bg-surface border border-outline-variant rounded-lg h-9 pl-6 pr-2 text-xs font-semibold font-mono outline-none focus:border-primary"
+                        placeholder="0.00"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Sección 3: Fondos y Conteo Físico */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
-                  <label className="text-label-caps text-on-surface-variant mb-1 block">Fondo Inicial ($) *</label>
+                  <label className="text-[11px] font-semibold text-on-surface-variant mb-1 block">Fondo Inicial ($) *</label>
                   <div className="relative">
-                    <DollarSign size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" />
+                    <DollarSign size={15} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-on-surface-variant" />
                     <input
                       type="number"
                       step="0.01"
@@ -1140,15 +1351,15 @@ export function CashRegisterView() {
                       required
                       value={editClosedOpeningAmount}
                       onChange={(e) => setEditClosedOpeningAmount(e.target.value)}
-                      className="w-full bg-surface border border-outline-variant rounded-lg h-10 pl-10 pr-3 text-body-md font-bold text-data-mono outline-none focus:border-primary"
+                      className="w-full bg-surface border border-outline-variant rounded-lg h-9 pl-7 pr-2 text-xs font-bold font-mono outline-none focus:border-primary"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="text-label-caps text-on-surface-variant mb-1 block">Conteo Real / Cierre ($) *</label>
+                  <label className="text-[11px] font-semibold text-on-surface-variant mb-1 block">Conteo Real / Cierre ($) *</label>
                   <div className="relative">
-                    <DollarSign size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" />
+                    <DollarSign size={15} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-on-surface-variant" />
                     <input
                       type="number"
                       step="0.01"
@@ -1156,69 +1367,89 @@ export function CashRegisterView() {
                       required
                       value={editClosedActualAmount}
                       onChange={(e) => setEditClosedActualAmount(e.target.value)}
-                      className="w-full bg-surface border border-outline-variant rounded-lg h-10 pl-10 pr-3 text-body-md font-bold text-data-mono outline-none focus:border-primary"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <label className="text-label-caps text-on-surface-variant mb-1 block">Fondo Dejado para Siguiente Apertura ($)</label>
-                <div className="relative">
-                  <DollarSign size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" />
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={editClosedNextOpeningAmount}
-                    onChange={(e) => setEditClosedNextOpeningAmount(e.target.value)}
-                    className="w-full bg-surface border border-outline-variant rounded-lg h-10 pl-10 pr-3 text-body-md font-semibold text-data-mono outline-none focus:border-primary"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="text-label-caps text-on-surface-variant mb-1 block">Fecha/Hora Apertura *</label>
-                  <div className="relative">
-                    <Clock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" />
-                    <input
-                      type="datetime-local"
-                      required
-                      value={editClosedOpenedAt}
-                      onChange={(e) => setEditClosedOpenedAt(e.target.value)}
-                      className="w-full bg-surface border border-outline-variant rounded-lg h-10 pl-9 pr-2 text-xs font-semibold outline-none focus:border-primary cursor-pointer"
+                      className="w-full bg-surface border border-outline-variant rounded-lg h-9 pl-7 pr-2 text-xs font-bold font-mono outline-none focus:border-primary"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="text-label-caps text-on-surface-variant mb-1 block">Fecha/Hora Cierre *</label>
+                  <label className="text-[11px] font-semibold text-on-surface-variant mb-1 block">Fondo Dejado Siguiente ($)</label>
                   <div className="relative">
-                    <Clock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" />
+                    <DollarSign size={15} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-on-surface-variant" />
                     <input
-                      type="datetime-local"
-                      required
-                      value={editClosedClosedAt}
-                      onChange={(e) => setEditClosedClosedAt(e.target.value)}
-                      className="w-full bg-surface border border-outline-variant rounded-lg h-10 pl-9 pr-2 text-xs font-semibold outline-none focus:border-primary cursor-pointer"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={editClosedNextOpeningAmount}
+                      onChange={(e) => setEditClosedNextOpeningAmount(e.target.value)}
+                      className="w-full bg-surface border border-outline-variant rounded-lg h-9 pl-7 pr-2 text-xs font-semibold font-mono outline-none focus:border-primary"
                     />
                   </div>
                 </div>
               </div>
 
+              {/* Sección 4: Resumen de Arqueo Calculado en Vivo */}
+              <div className="p-3 bg-surface-container-low rounded-xl border border-outline-variant/80 space-y-2 text-xs">
+                <div className="flex items-center justify-between border-b border-outline-variant/50 pb-1.5 font-semibold text-on-surface">
+                  <span className="flex items-center gap-1">
+                    <Calculator size={14} className="text-primary" /> Resumen de Arqueo Calculado:
+                  </span>
+                  <span className="text-[11px] text-on-surface-variant">
+                    Total Ventas Turno: <strong className="text-emerald-600">+${previewTotalSales.toFixed(2)}</strong>
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px]">
+                  <div className="flex flex-col">
+                    <span className="text-on-surface-variant">Fondo Inicial:</span>
+                    <span className="font-bold font-mono text-on-surface">${previewOpening.toFixed(2)}</span>
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-on-surface-variant">Ventas Efectivo:</span>
+                    <span className="font-bold font-mono text-emerald-600">+${previewCashSales.toFixed(2)}</span>
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-on-surface-variant">Gastos Turno:</span>
+                    <span className="font-bold font-mono text-error">-${previewExpenses.toFixed(2)}</span>
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-on-surface-variant">Total Esperado:</span>
+                    <span className="font-bold font-mono text-primary">${previewExpected.toFixed(2)}</span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2 pt-1.5 border-t border-outline-variant/50 text-[11px]">
+                  <div className="flex flex-col">
+                    <span className="text-on-surface-variant">Cierre Real:</span>
+                    <span className="font-bold font-mono text-on-surface">${previewActual.toFixed(2)}</span>
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-on-surface-variant">Diferencia:</span>
+                    <span className={`font-bold font-mono ${previewDiff === 0 ? 'text-secondary' : previewDiff > 0 ? 'text-emerald-600' : 'text-error'}`}>
+                      {previewDiff > 0 ? '+' : ''}{previewDiff.toFixed(2)} {previewDiff === 0 ? '(Exacto)' : previewDiff > 0 ? '(Sobrante)' : '(Faltante)'}
+                    </span>
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-on-surface-variant">Retiro Negocio:</span>
+                    <span className="font-bold font-mono text-primary">${previewWithdrawal.toFixed(2)}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Sección 5: Notas / Justificación */}
               <div>
-                <label className="text-label-caps text-on-surface-variant mb-1 block">Justificación / Notas</label>
+                <label className="text-[11px] font-semibold text-on-surface-variant mb-1 block">Justificación / Notas</label>
                 <textarea
                   value={editClosedNotes}
                   onChange={(e) => setEditClosedNotes(e.target.value)}
                   placeholder="Detalles de la corrección..."
-                  className="w-full bg-surface border border-outline-variant rounded-lg p-2.5 text-body-sm focus:ring-2 focus:ring-primary outline-none min-h-[70px]"
+                  className="w-full bg-surface border border-outline-variant rounded-lg p-2.5 text-xs focus:ring-2 focus:ring-primary outline-none min-h-[60px]"
                 />
               </div>
 
+              {/* Sección 6: PIN Administrador */}
               <div className="pt-2 border-t border-outline-variant">
-                <label className="text-label-caps text-error mb-1 block font-bold">PIN de Autorización Administrador *</label>
+                <label className="text-xs font-bold text-error mb-1 block">PIN de Autorización Administrador *</label>
                 <input
                   type="password"
                   required
@@ -1226,23 +1457,23 @@ export function CashRegisterView() {
                   onChange={(e) => setEditClosedAdminPin(e.target.value)}
                   placeholder="••••"
                   maxLength={6}
-                  className="w-full bg-surface border border-outline-variant rounded-lg h-12 px-3 text-center tracking-[1em] text-title-lg focus:ring-2 focus:ring-primary outline-none font-mono"
+                  className="w-full bg-surface border border-outline-variant rounded-lg h-11 px-3 text-center tracking-[1em] text-title-md focus:ring-2 focus:ring-primary outline-none font-mono"
                 />
-                {editClosedPinError && <p className="text-error text-body-sm mt-2 text-center font-bold">{editClosedPinError}</p>}
+                {editClosedPinError && <p className="text-error text-xs mt-1.5 text-center font-bold">{editClosedPinError}</p>}
               </div>
 
-              <div className="flex gap-3 mt-2">
+              <div className="flex gap-3 pt-1">
                 <button
                   type="button"
-                  onClick={() => { setShowEditClosedModal(false); setEditClosedPinError(''); setEditClosedAdminPin(''); }}
-                  className="flex-1 py-3 rounded-lg border border-outline-variant text-on-surface hover:bg-surface-variant font-medium transition-colors"
+                  onClick={() => { setShowEditClosedModal(false); setEditClosedPinError(''); setEditClosedAdminPin(''); setRecalculationNotice(''); }}
+                  className="flex-1 py-2.5 rounded-lg border border-outline-variant text-on-surface hover:bg-surface-variant text-xs font-semibold transition-colors cursor-pointer"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
                   disabled={savingClosedEdit || !editClosedOpeningAmount || !editClosedActualAmount || !editClosedAdminPin}
-                  className="flex-1 py-3 rounded-lg bg-primary text-on-primary hover:bg-primary/90 font-medium transition-colors shadow disabled:opacity-50"
+                  className="flex-1 py-2.5 rounded-lg bg-primary text-on-primary hover:bg-primary/90 text-xs font-semibold transition-colors shadow disabled:opacity-50 cursor-pointer"
                 >
                   {savingClosedEdit ? 'Guardando...' : 'Guardar Cambios'}
                 </button>
