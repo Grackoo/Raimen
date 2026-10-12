@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { Lock, Unlock, DollarSign, Calculator, Edit3, Calendar, Clock } from 'lucide-react';
+import { Lock, Unlock, DollarSign, Calculator, Edit3, Calendar, Clock, Trash2, AlertTriangle } from 'lucide-react';
 
 interface CashRegister {
   id: string;
@@ -53,7 +53,14 @@ export function CashRegisterView() {
   const [editClosedClosedAt, setEditClosedClosedAt] = useState('');
   const [editClosedNotes, setEditClosedNotes] = useState('');
   const [editClosedAdminPin, setEditClosedAdminPin] = useState('');
+  const [editClosedPinError, setEditClosedPinError] = useState('');
   const [savingClosedEdit, setSavingClosedEdit] = useState(false);
+
+  // Delete closed register states (eliminar cortes efectuados)
+  const [registerToDelete, setRegisterToDelete] = useState<CashRegister | null>(null);
+  const [deleteAdminPin, setDeleteAdminPin] = useState('');
+  const [deletePinError, setDeletePinError] = useState('');
+  const [deletingClosedRegister, setDeletingClosedRegister] = useState(false);
 
   // History filters to optimize queries and avoid overfetching
   const [historyPeriod, setHistoryPeriod] = useState('all'); // 'all', 'today', 'week', 'month', 'last_month_end_to_this_month_end', 'custom'
@@ -80,18 +87,19 @@ export function CashRegisterView() {
   const formatISOForLocalDatetime = (isoStr?: string) => {
     if (!isoStr) return '';
     const dt = new Date(isoStr);
+    if (isNaN(dt.getTime())) return '';
     const tzOffset = dt.getTimezoneOffset() * 60000;
     return new Date(dt.getTime() - tzOffset).toISOString().slice(0, 16);
   };
 
   const handleStartEditClosedRegister = (reg: CashRegister) => {
     setEditingClosedRegister(reg);
-    setEditClosedOpeningAmount(reg.opening_amount.toString());
-    setEditClosedActualAmount((reg.actual_closing_amount !== undefined ? reg.actual_closing_amount : 0).toString());
+    setEditClosedOpeningAmount(reg.opening_amount !== undefined ? reg.opening_amount.toString() : '0');
+    setEditClosedActualAmount((reg.actual_closing_amount !== undefined && reg.actual_closing_amount !== null ? reg.actual_closing_amount : 0).toString());
     setEditClosedNextOpeningAmount(
       (reg.next_opening_amount !== undefined && reg.next_opening_amount !== null)
         ? reg.next_opening_amount.toString()
-        : reg.opening_amount.toString()
+        : (reg.opening_amount !== undefined ? reg.opening_amount.toString() : '0')
     );
     setEditClosedOpenedAt(formatISOForLocalDatetime(reg.opened_at));
     setEditClosedClosedAt(formatISOForLocalDatetime(reg.closed_at));
@@ -109,9 +117,9 @@ export function CashRegisterView() {
 
     // Verify Admin PIN
     const { data: admins } = await supabase.from('users').select('pin').eq('role', 'admin');
-    const validPins = admins?.map(a => a.pin) || [];
+    const validPins = admins?.map(a => a.pin).filter(Boolean) || [];
 
-    if (!validPins.includes(editClosedAdminPin) && editClosedAdminPin !== '1234') {
+    if (!validPins.includes(editClosedAdminPin) && editClosedAdminPin !== '1234' && sessionUser?.pin !== editClosedAdminPin) {
       setEditClosedPinError('PIN incorrecto o no tienes permisos de administrador.');
       return;
     }
@@ -482,15 +490,33 @@ export function CashRegisterView() {
     }
   };
 
-  const handleDeleteClosedRegister = async (id: string) => {
-    if (!confirm('¿Estás seguro de eliminar este corte de caja del historial?')) return;
+  const handleConfirmDeleteClosedRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setDeletePinError('');
+    if (!registerToDelete) return;
+
+    // Verify Admin PIN
+    const { data: admins } = await supabase.from('users').select('pin').eq('role', 'admin');
+    const validPins = admins?.map(a => a.pin).filter(Boolean) || [];
+
+    if (!validPins.includes(deleteAdminPin) && deleteAdminPin !== '1234' && sessionUser?.pin !== deleteAdminPin) {
+      setDeletePinError('PIN incorrecto o no tienes permisos de administrador.');
+      return;
+    }
+
+    setDeletingClosedRegister(true);
     try {
-      const { error } = await supabase.from('cash_registers').delete().eq('id', id);
+      const { error } = await supabase.from('cash_registers').delete().eq('id', registerToDelete.id);
       if (error) throw error;
+      setRegisterToDelete(null);
+      setDeleteAdminPin('');
+      setDeletePinError('');
       fetchRegisters();
-    } catch (err) {
-      console.error(err);
-      alert('Error al eliminar el registro.');
+    } catch (err: any) {
+      console.error('Error al eliminar corte de caja:', err);
+      setDeletePinError('Error al eliminar el corte: ' + (err.message || 'Error desconocido'));
+    } finally {
+      setDeletingClosedRegister(false);
     }
   };
 
@@ -813,20 +839,30 @@ export function CashRegisterView() {
                         </div>
                       </div>
                       {sessionUser?.role === 'admin' && (
-                        <div className="absolute top-2 right-2 flex items-center gap-1">
+                        <div className="absolute top-2 right-2 flex items-center gap-1 z-10">
                           <button 
-                            onClick={() => handleStartEditClosedRegister(reg)}
-                            className="text-on-surface-variant hover:text-primary hover:bg-primary/10 p-1.5 rounded-lg transition-colors"
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleStartEditClosedRegister(reg);
+                            }}
+                            className="text-on-surface-variant hover:text-primary hover:bg-primary/10 p-1.5 rounded-lg transition-colors cursor-pointer"
                             title="Editar corte efectuado (Requiere PIN Admin)"
                           >
                             <Edit3 size={16} />
                           </button>
                           <button 
-                            onClick={() => handleDeleteClosedRegister(reg.id)}
-                            className="text-on-surface-variant hover:text-error hover:bg-error/10 p-1.5 rounded-lg transition-colors"
-                            title="Eliminar registro"
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setRegisterToDelete(reg);
+                              setDeleteAdminPin('');
+                              setDeletePinError('');
+                            }}
+                            className="text-on-surface-variant hover:text-error hover:bg-error/10 p-1.5 rounded-lg transition-colors cursor-pointer"
+                            title="Eliminar corte de caja (Requiere PIN Admin)"
                           >
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path></svg>
+                            <Trash2 size={16} />
                           </button>
                         </div>
                       )}
@@ -1209,6 +1245,93 @@ export function CashRegisterView() {
                   className="flex-1 py-3 rounded-lg bg-primary text-on-primary hover:bg-primary/90 font-medium transition-colors shadow disabled:opacity-50"
                 >
                   {savingClosedEdit ? 'Guardando...' : 'Guardar Cambios'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+      {registerToDelete && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
+          <div className="bg-surface-container-lowest w-full max-w-md rounded-2xl shadow-2xl overflow-hidden flex flex-col border border-error/30 animate-in fade-in zoom-in-95">
+            <div className="p-4 bg-error text-on-error flex justify-between items-center sticky top-0 z-10">
+              <h3 className="font-bold text-title-md flex items-center gap-2">
+                <Trash2 size={20} /> Eliminar Corte de Caja
+              </h3>
+              <button 
+                type="button"
+                onClick={() => { setRegisterToDelete(null); setDeletePinError(''); setDeleteAdminPin(''); }}
+                className="hover:bg-error-container hover:text-on-error-container rounded-full p-1 transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleConfirmDeleteClosedRegister} className="p-6 flex flex-col gap-4">
+              <div className="flex items-start gap-3 p-3 bg-error/10 border border-error/20 rounded-xl text-error">
+                <AlertTriangle size={24} className="shrink-0 mt-0.5" />
+                <div className="text-body-sm">
+                  <p className="font-bold">¿Estás seguro de eliminar este corte de caja?</p>
+                  <p className="text-xs opacity-90 mt-1">
+                    Esta acción removerá permanentemente este corte de caja del historial y no se puede deshacer.
+                  </p>
+                </div>
+              </div>
+
+              <div className="bg-surface-container-low p-3.5 rounded-xl border border-outline-variant space-y-2 text-xs">
+                {registerToDelete.opened_at && (
+                  <div className="flex justify-between">
+                    <span className="text-on-surface-variant font-medium">Apertura:</span>
+                    <span className="font-mono text-on-surface font-semibold">
+                      {new Date(registerToDelete.opened_at).toLocaleDateString('es-MX')} {new Date(registerToDelete.opened_at).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  </div>
+                )}
+                <div className="flex justify-between">
+                  <span className="text-on-surface-variant font-medium">Cierre:</span>
+                  <span className="font-mono text-on-surface font-semibold">
+                    {new Date(registerToDelete.closed_at).toLocaleDateString('es-MX')} {new Date(registerToDelete.closed_at).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                </div>
+                <div className="flex justify-between border-t border-outline-variant/60 pt-1.5">
+                  <span className="text-on-surface-variant font-medium">Fondo Inicial:</span>
+                  <span className="font-bold text-on-surface">${registerToDelete.opening_amount.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-on-surface-variant font-medium">Cierre Real:</span>
+                  <span className="font-bold text-emerald-600">${(registerToDelete.actual_closing_amount !== undefined ? registerToDelete.actual_closing_amount : 0).toFixed(2)}</span>
+                </div>
+              </div>
+
+              <div className="pt-2 border-t border-outline-variant">
+                <label className="text-label-caps text-error mb-1 block font-bold">PIN de Administrador para Confirmar *</label>
+                <input
+                  type="password"
+                  required
+                  value={deleteAdminPin}
+                  onChange={(e) => setDeleteAdminPin(e.target.value)}
+                  placeholder="••••"
+                  maxLength={6}
+                  autoFocus
+                  className="w-full bg-surface border border-outline-variant rounded-lg h-12 px-3 text-center tracking-[1em] text-title-lg focus:ring-2 focus:ring-error outline-none font-mono"
+                />
+                {deletePinError && <p className="text-error text-body-sm mt-2 text-center font-bold">{deletePinError}</p>}
+              </div>
+
+              <div className="flex gap-3 mt-2">
+                <button
+                  type="button"
+                  onClick={() => { setRegisterToDelete(null); setDeletePinError(''); setDeleteAdminPin(''); }}
+                  className="flex-1 py-3 rounded-lg border border-outline-variant text-on-surface hover:bg-surface-variant font-medium transition-colors cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={deletingClosedRegister || !deleteAdminPin}
+                  className="flex-1 py-3 rounded-lg bg-error text-on-error hover:bg-error/90 font-medium transition-colors shadow disabled:opacity-50 cursor-pointer"
+                >
+                  {deletingClosedRegister ? 'Eliminando...' : 'Eliminar Registro'}
                 </button>
               </div>
             </form>
