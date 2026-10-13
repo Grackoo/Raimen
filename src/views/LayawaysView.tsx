@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { Bookmark, Search, Calendar, User, DollarSign, Clock, CheckCircle2, AlertTriangle, Receipt, X, Loader2, PlusCircle, Trash2, Share2 } from 'lucide-react';
 import html2canvas from 'html2canvas';
+import { RAIMEN_LOGO_BASE64 } from '../lib/logoBase64';
 
 interface LayawayItem {
   id: string;
@@ -254,20 +255,63 @@ export function LayawaysView() {
     if (!selectedLayaway) return;
     const ticketEl = document.getElementById('printable-layaway-ticket');
     if (!ticketEl) return;
+    setPrintingRawBT(true);
+
+    const sendTextFallback = () => {
+      let text = "RAIMEN STORE\n";
+      text += "--- NOTA DE APARTADO ---\n";
+      text += `Folio: ${selectedLayaway.code}\n`;
+      text += `Fecha: ${new Date(selectedLayaway.created_at).toLocaleDateString('es-MX')}\n`;
+      text += `Vence: ${new Date(selectedLayaway.expiration_date).toLocaleDateString('es-MX')}\n`;
+      text += "--------------------------------\n";
+      text += `Cliente: ${selectedLayaway.customer_name}\n`;
+      if (selectedLayaway.customer_phone) text += `Tel: ${selectedLayaway.customer_phone}\n`;
+      text += "--------------------------------\n";
+      layawayItems.forEach((item) => {
+        text += `${item.quantity}x ${item.product_name}\n$${(item.price * item.quantity).toFixed(2)}\n`;
+      });
+      text += "--------------------------------\n";
+      text += `TOTAL COMPRA: $${selectedLayaway.total.toFixed(2)}\n`;
+      text += `MONTO A CUENTA: $${selectedLayaway.paid_amount.toFixed(2)}\n`;
+      text += `RESTA PENDIENTE: $${selectedLayaway.remaining_amount.toFixed(2)}\n`;
+      text += "--------------------------------\n";
+      text += "Tiene 1 mes a partir de expedicion\npara liquidar y recoger su apartado.\n";
+      text += "¡Gracias por su preferencia!\n\n\n";
+      const encoded = encodeURI(text);
+      window.location.href = `intent:${encoded}#Intent;scheme=rawbt;package=ru.a402d.rawbtprinter;end;`;
+    };
+
     try {
-      setPrintingRawBT(true);
       const canvas = await html2canvas(ticketEl, {
         scale: 2,
         backgroundColor: '#ffffff',
         useCORS: true,
-        logging: false
+        allowTaint: true,
+        logging: false,
+        scrollX: 0,
+        scrollY: 0,
+        windowWidth: document.documentElement.offsetWidth,
+        windowHeight: document.documentElement.offsetHeight,
+        onclone: (clonedDoc) => {
+          const el = clonedDoc.getElementById('printable-layaway-ticket');
+          if (el) {
+            el.style.overflow = 'visible';
+            el.style.maxHeight = 'none';
+            el.style.height = 'auto';
+            el.style.backgroundColor = '#ffffff';
+          }
+        }
       });
       const base64Data = canvas.toDataURL('image/png').replace(/^data:image\/png;base64,/, '');
       const encoded = encodeURI(base64Data);
       window.location.href = `intent:${encoded}#Intent;scheme=rawbt:base64;package=ru.a402d.rawbtprinter;end;`;
     } catch (err) {
       console.error('Error generando ticket gráfico para RawBT:', err);
-      alert('Error al preparar ticket para RawBT');
+      try {
+        sendTextFallback();
+      } catch (fallbackErr) {
+        alert('Error al preparar ticket para RawBT');
+      }
     } finally {
       setPrintingRawBT(false);
     }
@@ -452,7 +496,7 @@ export function LayawaysView() {
               <div id="printable-layaway-ticket" className="bg-white p-4 text-black font-mono text-sm border border-gray-200 rounded-lg">
                 <div className="text-center mb-3 pb-3 border-b border-black/20 flex flex-col items-center">
                   <img 
-                    src="/logo.png" 
+                    src={RAIMEN_LOGO_BASE64} 
                     alt="RAIMEN" 
                     style={{ maxWidth: '60px', maxHeight: '60px', width: '60px', height: '60px', objectFit: 'contain', margin: '0 auto 8px auto', display: 'block' }}
                     className="w-14 h-14 object-contain mx-auto mb-1.5" 

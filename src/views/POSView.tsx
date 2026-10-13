@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { Scanner } from '@yudiel/react-qr-scanner';
 import { AdminOverrideModal } from '../components/AdminOverrideModal';
 import html2canvas from 'html2canvas';
+import { RAIMEN_LOGO_BASE64 } from '../lib/logoBase64';
 
 interface Product {
   id: string;
@@ -854,7 +855,7 @@ export function POSView() {
             <div className="p-6 overflow-y-auto flex-1 font-mono text-sm bg-white text-black" id="printable-ticket">
               <div className="text-center mb-4 pb-4 border-b border-black/20 flex flex-col items-center">
                 <img 
-                  src="/logo.png" 
+                  src={RAIMEN_LOGO_BASE64} 
                   alt="RAIMEN" 
                   className="w-14 h-14 object-contain mx-auto mb-2" 
                   style={{ maxWidth: '60px', maxHeight: '60px', width: '60px', height: '60px', objectFit: 'contain', margin: '0 auto 8px auto', display: 'block' }}
@@ -945,12 +946,53 @@ export function POSView() {
                   const printElement = document.getElementById('printable-ticket');
                   if (!printElement || !completedSale) return;
                   setPrintingRawBT(true);
+
+                  const sendTextFallback = () => {
+                    let text = "RAIMEN STORE\n";
+                    text += "Sucursal Principal\n";
+                    text += `Fecha: ${completedSale.date}\n`;
+                    text += `Ticket: ${completedSale.id.substring(0,8).toUpperCase()}\n`;
+                    text += "--------------------------------\n";
+                    text += `Cliente: ${completedSale.customer?.name || 'Público en General'}\n`;
+                    if (completedSale.customer?.rfc && completedSale.customer.rfc !== 'XAXX010101000') text += `RFC: ${completedSale.customer.rfc}\n`;
+                    text += "--------------------------------\n";
+                    completedSale.items.forEach((item: any) => {
+                      text += `${item.qty}x ${item.name}\n$${(item.price * item.qty).toFixed(2)}\n`;
+                    });
+                    text += "--------------------------------\n";
+                    if (completedSale.hasDiscount) {
+                      text += `Subtotal: $${completedSale.sumProducts.toFixed(2)}\n`;
+                      text += `${completedSale.discountLabel || 'Descuento (5%)'}: -$${completedSale.discountAmount.toFixed(2)}\n`;
+                    }
+                    text += `TOTAL: $${completedSale.total.toFixed(2)}\n`;
+                    text += `PAGO: ${(completedSale.payment_method || 'EFECTIVO').toUpperCase()}\n`;
+                    text += "--------------------------------\n";
+                    text += "Para cambios presente este ticket.\n";
+                    text += "¡Gracias por su compra!\n\n\n";
+                    const encoded = encodeURI(text);
+                    window.location.href = `intent:${encoded}#Intent;scheme=rawbt;package=ru.a402d.rawbtprinter;end;`;
+                  };
+
                   try {
                     const canvas = await html2canvas(printElement, {
                       scale: 2,
                       backgroundColor: '#ffffff',
                       useCORS: true,
-                      logging: false
+                      allowTaint: true,
+                      logging: false,
+                      scrollX: 0,
+                      scrollY: 0,
+                      windowWidth: document.documentElement.offsetWidth,
+                      windowHeight: document.documentElement.offsetHeight,
+                      onclone: (clonedDoc) => {
+                        const el = clonedDoc.getElementById('printable-ticket');
+                        if (el) {
+                          el.style.overflow = 'visible';
+                          el.style.maxHeight = 'none';
+                          el.style.height = 'auto';
+                          el.style.backgroundColor = '#ffffff';
+                        }
+                      }
                     });
                     const imgData = canvas.toDataURL('image/png');
                     const base64Data = imgData.replace(/^data:image\/png;base64,/, '');
@@ -958,7 +1000,11 @@ export function POSView() {
                     window.location.href = `intent:${encoded}#Intent;scheme=rawbt:base64;package=ru.a402d.rawbtprinter;end;`;
                   } catch (err) {
                     console.error('Error al generar ticket para RawBT:', err);
-                    alert('Error al generar la imagen del ticket para impresión.');
+                    try {
+                      sendTextFallback();
+                    } catch (fallbackErr) {
+                      alert('Error al imprimir ticket con RawBT.');
+                    }
                   } finally {
                     setPrintingRawBT(false);
                   }
@@ -1494,7 +1540,7 @@ export function POSView() {
             <div className="p-6 overflow-y-auto flex-1 font-mono text-sm bg-white text-black" id="printable-layaway-pos-ticket">
               <div className="text-center mb-4 pb-4 border-b border-black/20 flex flex-col items-center">
                 <img 
-                  src="/logo.png" 
+                  src={RAIMEN_LOGO_BASE64} 
                   alt="RAIMEN" 
                   style={{ maxWidth: '60px', maxHeight: '60px', width: '60px', height: '60px', objectFit: 'contain', margin: '0 auto 8px auto', display: 'block' }}
                   className="w-14 h-14 object-contain mx-auto mb-2" 
@@ -1587,20 +1633,63 @@ export function POSView() {
                 onClick={async () => {
                   const ticketEl = document.getElementById('printable-layaway-pos-ticket');
                   if (!ticketEl) return;
+                  setPrintingRawBT(true);
+
+                  const sendTextFallback = () => {
+                    let text = "RAIMEN STORE\n";
+                    text += "--- NOTA DE APARTADO ---\n";
+                    text += `Folio: ${completedLayaway.code}\n`;
+                    text += `Fecha: ${completedLayaway.date}\n`;
+                    text += `Fecha Limite: ${completedLayaway.expiration_date}\n`;
+                    text += "--------------------------------\n";
+                    text += `Cliente: ${completedLayaway.customer_name}\n`;
+                    if (completedLayaway.customer_phone) text += `Tel: ${completedLayaway.customer_phone}\n`;
+                    text += "--------------------------------\n";
+                    completedLayaway.items.forEach((item: any) => {
+                      text += `${item.qty}x ${item.name}\n$${(item.price * item.qty).toFixed(2)}\n`;
+                    });
+                    text += "--------------------------------\n";
+                    text += `TOTAL COMPRA: $${completedLayaway.total.toFixed(2)}\n`;
+                    text += `MONTO A CUENTA: $${completedLayaway.deposit.toFixed(2)}\n`;
+                    text += `RESTA PENDIENTE: $${completedLayaway.remaining.toFixed(2)}\n`;
+                    text += "--------------------------------\n";
+                    text += "Tiene 1 mes a partir de expedicion\npara liquidar su apartado.\n";
+                    text += "¡Gracias por su compra!\n\n\n";
+                    const encoded = encodeURI(text);
+                    window.location.href = `intent:${encoded}#Intent;scheme=rawbt;package=ru.a402d.rawbtprinter;end;`;
+                  };
+
                   try {
-                    setPrintingRawBT(true);
                     const canvas = await html2canvas(ticketEl, {
                       scale: 2,
                       backgroundColor: '#ffffff',
                       useCORS: true,
-                      logging: false
+                      allowTaint: true,
+                      logging: false,
+                      scrollX: 0,
+                      scrollY: 0,
+                      windowWidth: document.documentElement.offsetWidth,
+                      windowHeight: document.documentElement.offsetHeight,
+                      onclone: (clonedDoc) => {
+                        const el = clonedDoc.getElementById('printable-layaway-pos-ticket');
+                        if (el) {
+                          el.style.overflow = 'visible';
+                          el.style.maxHeight = 'none';
+                          el.style.height = 'auto';
+                          el.style.backgroundColor = '#ffffff';
+                        }
+                      }
                     });
                     const base64Data = canvas.toDataURL('image/png').replace(/^data:image\/png;base64,/, '');
                     const encoded = encodeURI(base64Data);
                     window.location.href = `intent:${encoded}#Intent;scheme=rawbt:base64;package=ru.a402d.rawbtprinter;end;`;
                   } catch (err) {
                     console.error('Error generando ticket gráfico para RawBT:', err);
-                    toast.error('Error al preparar ticket para RawBT');
+                    try {
+                      sendTextFallback();
+                    } catch (fallbackErr) {
+                      toast.error('Error al preparar ticket para RawBT');
+                    }
                   } finally {
                     setPrintingRawBT(false);
                   }
