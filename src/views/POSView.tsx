@@ -852,7 +852,7 @@ export function POSView() {
               <h3 className="font-bold flex items-center gap-2"><Receipt size={20}/> Ticket de Venta</h3>
               <button onClick={() => setCompletedSale(null)} className="hover:bg-primary-fixed hover:text-on-primary-fixed rounded-full p-1"><X size={20}/></button>
             </div>
-            <div className="p-6 overflow-y-auto flex-1 font-mono text-sm bg-white text-black" id="printable-ticket">
+            <div className="p-6 overflow-y-auto flex-1 font-mono text-sm bg-white text-black notranslate" translate="no" id="printable-ticket">
               <div className="text-center mb-4 pb-4 border-b border-black/20 flex flex-col items-center">
                 <img 
                   src={RAIMEN_LOGO_BASE64} 
@@ -860,8 +860,8 @@ export function POSView() {
                   className="w-14 h-14 object-contain mx-auto mb-2" 
                   style={{ maxWidth: '60px', maxHeight: '60px', width: '60px', height: '60px', objectFit: 'contain', margin: '0 auto 8px auto', display: 'block' }}
                 />
-                <h2 className="text-xl font-bold">RAIMEN STORE</h2>
-                <p>Sucursal Principal</p>
+                <h2 className="text-xl font-bold notranslate" translate="no">RAIMEN STORE</h2>
+                <p className="notranslate" translate="no">Sucursal Principal</p>
                 <p>Fecha: {completedSale.date}</p>
                 <p>Ticket: {completedSale.id.substring(0,8).toUpperCase()}</p>
               </div>
@@ -886,7 +886,7 @@ export function POSView() {
               )}
 
               <div className="border-t border-b border-black/20 py-2 mb-4">
-                <table className="w-full">
+                <table className="w-full notranslate" translate="no">
                   <thead>
                     <tr className="text-left"><th className="pb-2">Cant</th><th className="pb-2">Descripción</th><th className="text-right pb-2">Importe</th></tr>
                   </thead>
@@ -916,7 +916,7 @@ export function POSView() {
               )}
 
               <div className="flex justify-between font-bold text-lg mt-2 pt-2 border-t border-black/20"><span>TOTAL:</span><span>${completedSale.total.toFixed(2)}</span></div>
-              <div className="text-center mt-6 text-xs text-black/60">
+              <div className="text-center mt-6 text-xs text-black/60 notranslate" translate="no">
                 <p>PAGO EN: {completedSale.payment_method.toUpperCase()}</p>
                 <p className="mt-3 font-semibold text-[11px] leading-tight text-black/80">Para cualquier cambio o aclaración es indispensable presentar este ticket.</p>
                 <p className="mt-2">¡Gracias por su compra!</p>
@@ -929,7 +929,7 @@ export function POSView() {
                   const printContent = document.getElementById('printable-ticket');
                   const win = window.open('', '', 'width=320,height=600');
                   if(win && printContent) {
-                    win.document.write('<html><head><title>Imprimir Ticket</title><style>@page { size: auto; margin: 0; } body { font-family: monospace; font-size: 12px; margin: 0; padding: 10px; max-width: 300px; margin: 0 auto; color: #000; background: #fff; } img { max-width: 60px !important; max-height: 60px !important; width: 60px !important; height: 60px !important; object-fit: contain !important; margin: 0 auto 8px auto !important; display: block !important; } table { width: 100%; border-collapse: collapse; } th { text-align: left; border-bottom: 1px dashed #000; } td { padding-top: 4px; } .text-right { text-align: right; } .text-center { text-align: center; } .font-bold { font-weight: bold; } .font-semibold { font-weight: 600; } .text-xl { font-size: 16px; } .text-lg { font-size: 14px; } .border-t { border-top: 1px dashed #000; } .border-b { border-bottom: 1px dashed #000; } .border-y-2 { border-top: 2px dashed #000; border-bottom: 2px dashed #000; } .dashed { border-style: dashed; } .my-4 { margin: 10px 0; } .py-2 { padding: 5px 0; } .mt-1 { margin-top: 4px; } .mt-2 { margin-top: 8px; } .mt-3 { margin-top: 12px; }</style></head><body>');
+                    win.document.write('<html lang="es" class="notranslate" translate="no"><head><title>Imprimir Ticket</title><meta name="google" content="notranslate"><style>@page { size: auto; margin: 0; } body { font-family: monospace; font-size: 12px; margin: 0; padding: 10px; max-width: 300px; margin: 0 auto; color: #000; background: #fff; } img { max-width: 60px !important; max-height: 60px !important; width: 60px !important; height: 60px !important; object-fit: contain !important; margin: 0 auto 8px auto !important; display: block !important; } table { width: 100%; border-collapse: collapse; } th { text-align: left; border-bottom: 1px dashed #000; } td { padding-top: 4px; } .text-right { text-align: right; } .text-center { text-align: center; } .font-bold { font-weight: bold; } .font-semibold { font-weight: 600; } .text-xl { font-size: 16px; } .text-lg { font-size: 14px; } .border-t { border-top: 1px dashed #000; } .border-b { border-bottom: 1px dashed #000; } .border-y-2 { border-top: 2px dashed #000; border-bottom: 2px dashed #000; } .dashed { border-style: dashed; } .my-4 { margin: 10px 0; } .py-2 { padding: 5px 0; } .mt-1 { margin-top: 4px; } .mt-2 { margin-top: 8px; } .mt-3 { margin-top: 12px; }</style></head><body class="notranslate" translate="no">');
                     win.document.write(printContent.innerHTML);
                     win.document.write('</body></html>');
                     win.document.close();
@@ -1537,7 +1537,7 @@ export function POSView() {
               <button onClick={() => setCompletedLayaway(null)} className="hover:bg-primary-fixed hover:text-on-primary-fixed rounded-full p-1"><X size={20}/></button>
             </div>
 
-            <div className="p-6 overflow-y-auto flex-1 font-mono text-sm bg-white text-black" id="printable-layaway-pos-ticket">
+            <div className="p-6 overflow-y-auto flex-1 font-mono text-sm bg-white text-black notranslate" translate="no" id="printable-layaway-pos-ticket">
               <div className="text-center mb-4 pb-4 border-b border-black/20 flex flex-col items-center">
                 <img 
                   src={RAIMEN_LOGO_BASE64} 
@@ -1545,8 +1545,8 @@ export function POSView() {
                   style={{ maxWidth: '60px', maxHeight: '60px', width: '60px', height: '60px', objectFit: 'contain', margin: '0 auto 8px auto', display: 'block' }}
                   className="w-14 h-14 object-contain mx-auto mb-2" 
                 />
-                <h2 className="text-xl font-bold">RAIMEN STORE</h2>
-                <p className="font-bold text-sm">--- NOTA DE APARTADO ---</p>
+                <h2 className="text-xl font-bold notranslate" translate="no">RAIMEN STORE</h2>
+                <p className="font-bold text-sm notranslate" translate="no">--- NOTA DE APARTADO ---</p>
                 <p>Folio: {completedLayaway.code}</p>
                 <p>Fecha: {completedLayaway.date}</p>
                 <p className="font-bold text-red-600">Fecha Límite: {completedLayaway.expiration_date}</p>
@@ -1558,7 +1558,7 @@ export function POSView() {
               </div>
 
               <div className="border-t border-b border-black/20 py-2 mb-4">
-                <table className="w-full text-xs">
+                <table className="w-full text-xs notranslate" translate="no">
                   <thead>
                     <tr className="text-left border-b border-black/20"><th className="pb-1">Cant</th><th className="pb-1">Producto</th><th className="text-right pb-1">Importe</th></tr>
                   </thead>
@@ -1589,7 +1589,7 @@ export function POSView() {
                 </div>
               </div>
 
-              <div className="text-center mt-4 text-[10px] text-black/80">
+              <div className="text-center mt-4 text-[10px] text-black/80 notranslate" translate="no">
                 <p className="font-bold">¡IMPORTANTE!</p>
                 <p>El cliente tiene 1 mes a partir de la fecha de expedición para liquidar su apartado.</p>
                 <p className="mt-2 font-semibold">¡Gracias por su compra!</p>
@@ -1603,7 +1603,7 @@ export function POSView() {
                   const printContent = document.getElementById('printable-layaway-pos-ticket');
                   const win = window.open('', '', 'width=320,height=600');
                   if (win && printContent) {
-                    win.document.write('<html><head><title>Imprimir Nota de Apartado</title><style>@page { size: auto; margin: 0; } body { font-family: monospace; font-size: 12px; margin: 0; padding: 10px; } img { max-width: 60px !important; max-height: 60px !important; width: 60px !important; height: 60px !important; object-fit: contain !important; margin: 0 auto 8px auto !important; display: block !important; } table { width: 100%; border-collapse: collapse; } th { text-align: left; border-bottom: 1px dashed #000; } td { padding-top: 4px; } .text-right { text-align: right; } .text-center { text-align: center; } .font-bold { font-weight: bold; } .font-semibold { font-weight: 600; } .text-xl { font-size: 16px; } .text-lg { font-size: 14px; } .border-t { border-top: 1px dashed #000; } .border-b { border-bottom: 1px dashed #000; }</style></head><body>');
+                    win.document.write('<html lang="es" class="notranslate" translate="no"><head><title>Imprimir Nota de Apartado</title><meta name="google" content="notranslate"><style>@page { size: auto; margin: 0; } body { font-family: monospace; font-size: 12px; margin: 0; padding: 10px; } img { max-width: 60px !important; max-height: 60px !important; width: 60px !important; height: 60px !important; object-fit: contain !important; margin: 0 auto 8px auto !important; display: block !important; } table { width: 100%; border-collapse: collapse; } th { text-align: left; border-bottom: 1px dashed #000; } td { padding-top: 4px; } .text-right { text-align: right; } .text-center { text-align: center; } .font-bold { font-weight: bold; } .font-semibold { font-weight: 600; } .text-xl { font-size: 16px; } .text-lg { font-size: 14px; } .border-t { border-top: 1px dashed #000; } .border-b { border-bottom: 1px dashed #000; }</style></head><body class="notranslate" translate="no">');
                     win.document.write(printContent.innerHTML);
                     win.document.write('</body></html>');
                     win.document.close();

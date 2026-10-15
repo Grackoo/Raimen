@@ -242,7 +242,7 @@ export function LayawaysView() {
     const printContent = document.getElementById('printable-layaway-ticket');
     const win = window.open('', '', 'width=320,height=600');
     if (win && printContent) {
-      win.document.write('<html><head><title>Imprimir Ticket de Apartado</title><style>@page { size: auto; margin: 0; } body { font-family: monospace; font-size: 12px; margin: 0; padding: 10px; } img { max-width: 60px !important; max-height: 60px !important; width: 60px !important; height: 60px !important; object-fit: contain !important; margin: 0 auto 8px auto !important; display: block !important; } table { width: 100%; border-collapse: collapse; } th { text-align: left; border-bottom: 1px dashed #000; } td { padding-top: 4px; } .text-right { text-align: right; } .text-center { text-align: center; } .font-bold { font-weight: bold; } .font-semibold { font-weight: 600; } .text-xl { font-size: 16px; } .text-lg { font-size: 14px; } .border-t { border-top: 1px dashed #000; } .border-b { border-bottom: 1px dashed #000; } .border-y-2 { border-top: 2px dashed #000; border-bottom: 2px dashed #000; }</style></head><body>');
+      win.document.write('<html lang="es" class="notranslate" translate="no"><head><title>Imprimir Ticket de Apartado</title><meta name="google" content="notranslate"><style>@page { size: auto; margin: 0; } body { font-family: monospace; font-size: 12px; margin: 0; padding: 10px; } img { max-width: 60px !important; max-height: 60px !important; width: 60px !important; height: 60px !important; object-fit: contain !important; margin: 0 auto 8px auto !important; display: block !important; } table { width: 100%; border-collapse: collapse; } th { text-align: left; border-bottom: 1px dashed #000; } td { padding-top: 4px; } .text-right { text-align: right; } .text-center { text-align: center; } .font-bold { font-weight: bold; } .font-semibold { font-weight: 600; } .text-xl { font-size: 16px; } .text-lg { font-size: 14px; } .border-t { border-top: 1px dashed #000; } .border-b { border-bottom: 1px dashed #000; } .border-y-2 { border-top: 2px dashed #000; border-bottom: 2px dashed #000; }</style></head><body class="notranslate" translate="no">');
       win.document.write(printContent.innerHTML);
       win.document.write('</body></html>');
       win.document.close();
@@ -493,7 +493,7 @@ export function LayawaysView() {
 
             <div className="p-6 overflow-y-auto flex-1 space-y-6">
               {/* Ticket printable content */}
-              <div id="printable-layaway-ticket" className="bg-white p-4 text-black font-mono text-sm border border-gray-200 rounded-lg">
+              <div id="printable-layaway-ticket" className="bg-white p-4 text-black font-mono text-sm border border-gray-200 rounded-lg notranslate" translate="no">
                 <div className="text-center mb-3 pb-3 border-b border-black/20 flex flex-col items-center">
                   <img 
                     src={RAIMEN_LOGO_BASE64} 
@@ -501,11 +501,11 @@ export function LayawaysView() {
                     style={{ maxWidth: '60px', maxHeight: '60px', width: '60px', height: '60px', objectFit: 'contain', margin: '0 auto 8px auto', display: 'block' }}
                     className="w-14 h-14 object-contain mx-auto mb-1.5" 
                   />
-                  <h2 className="text-xl font-bold">RAIMEN STORE</h2>
-                  <p className="font-bold text-sm">--- NOTA DE APARTADO ---</p>
-                  <p className="text-xs">Folio: {selectedLayaway.code}</p>
-                  <p className="text-xs">Fecha: {new Date(selectedLayaway.created_at).toLocaleString('es-MX')}</p>
-                  <p className="text-xs font-bold text-red-600">Fecha Límite: {new Date(selectedLayaway.expiration_date).toLocaleDateString('es-MX')}</p>
+                  <h2 className="text-xl font-bold notranslate" translate="no">RAIMEN STORE</h2>
+                  <p className="font-bold text-sm notranslate" translate="no">--- NOTA DE APARTADO ---</p>
+                  <p>Folio: {selectedLayaway.code}</p>
+                  <p>Fecha: {new Date(selectedLayaway.created_at).toLocaleString('es-MX')}</p>
+                  <p className="font-bold text-red-600">Fecha Límite: {new Date(selectedLayaway.expiration_date).toLocaleDateString('es-MX')}</p>
                 </div>
 
                 <div className="mb-3 pb-3 border-b border-black/20 text-xs">
@@ -514,7 +514,7 @@ export function LayawaysView() {
                 </div>
 
                 <div className="border-b border-black/20 pb-3 mb-3">
-                  <table className="w-full text-xs">
+                  <table className="w-full text-xs notranslate" translate="no">
                     <thead>
                       <tr className="text-left border-b border-black/20"><th className="pb-1">Cant</th><th className="pb-1">Producto</th><th className="text-right pb-1">Importe</th></tr>
                     </thead>
@@ -545,7 +545,7 @@ export function LayawaysView() {
                   </div>
                 </div>
 
-                <div className="text-center text-[10px] text-black/70 leading-tight">
+                <div className="text-center text-[10px] text-black/70 leading-tight notranslate" translate="no">
                   <p className="font-bold">¡IMPORTANTE!</p>
                   <p>El cliente tiene 1 mes a partir de la fecha de expedición para liquidar su apartado.</p>
                   <p className="mt-1 font-semibold">¡Gracias por su preferencia!</p>
