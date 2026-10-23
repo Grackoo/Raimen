@@ -120,7 +120,7 @@ export function InventoryView() {
     win.document.write('<html><head><title>Generando...</title></head><body>Cargando etiqueta...</body></html>');
     
     try {
-      const canvas = await html2canvas(element, { scale: 2, backgroundColor: '#ffffff' });
+      const canvas = await html2canvas(element, { scale: 3, backgroundColor: '#ffffff' });
       const imgData = canvas.toDataURL('image/png');
       
       win.document.open();
@@ -144,7 +144,7 @@ export function InventoryView() {
     if (!element) return;
     
     try {
-      const canvas = await html2canvas(element, { scale: 2, backgroundColor: '#ffffff' });
+      const canvas = await html2canvas(element, { scale: 3, backgroundColor: '#ffffff' });
       const imgData = canvas.toDataURL('image/png');
       
       const base64Data = imgData.replace('data:image/png;base64,', '');
@@ -161,7 +161,7 @@ export function InventoryView() {
     const element = document.getElementById('qr-preview-container');
     if (!element) return;
     try {
-      const canvas = await html2canvas(element, { scale: 2, backgroundColor: '#ffffff' });
+      const canvas = await html2canvas(element, { scale: 3, backgroundColor: '#ffffff' });
       const imgData = canvas.toDataURL('image/jpeg', 1.0);
       const pdf = new jsPDF({
         orientation: 'portrait',
@@ -353,27 +353,54 @@ export function InventoryView() {
             <span className="text-label-caps text-on-surface-variant bg-surface-variant px-2 py-1 rounded">3x3 cm</span>
           </div>
           <div className="p-6 flex-1 flex flex-col items-center justify-center bg-surface relative">
-            <div id="qr-preview-container" className="w-48 h-48 shadow-md p-3 flex flex-col items-center justify-between" style={{ backgroundColor: '#ffffff', borderColor: '#76777d', borderWidth: '1px', borderStyle: 'solid' }}>
-              <div className="text-center w-full" style={{ padding: '2px 0' }}>
-                <h4 className="text-title-md font-bold tracking-tighter leading-none mb-1" style={{ color: '#000000' }}>RAIMEN</h4>
+            <div 
+              id="qr-preview-container" 
+              className="w-48 h-48 shadow-md flex flex-col items-center justify-between" 
+              style={{ 
+                backgroundColor: '#ffffff', 
+                borderColor: '#76777d', 
+                borderWidth: '1px', 
+                borderStyle: 'solid',
+                padding: '8px 8px 6px 8px',
+                boxSizing: 'border-box'
+              }}
+            >
+              <div className="text-center w-full" style={{ padding: '0 2px' }}>
+                <h4 className="font-extrabold tracking-tight leading-none mb-1" style={{ color: '#000000', fontSize: '13px' }}>
+                  RAIMEN
+                </h4>
                 <div className="w-full h-px mb-1" style={{ backgroundColor: '#000000', opacity: 0.2 }}></div>
                 <div style={{ width: '100%', overflow: 'hidden' }}>
-                  <p style={{ color: '#000000', fontSize: '10px', lineHeight: '14px', whiteSpace: 'nowrap', padding: '1px 0' }}>
+                  <p style={{ color: '#000000', fontSize: '9.5px', fontWeight: 600, lineHeight: '13px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', margin: 0 }}>
                     {selectedProduct ? selectedProduct.name : 'Selecciona un producto'}
                   </p>
-                  <p style={{ color: 'rgba(0, 0, 0, 0.6)', fontSize: '9px', fontFamily: 'monospace', lineHeight: '12px', whiteSpace: 'nowrap', padding: '1px 0' }}>
+                  <p style={{ color: 'rgba(0, 0, 0, 0.65)', fontSize: '8.5px', fontFamily: 'monospace', lineHeight: '11px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', margin: 0 }}>
                     {selectedProduct ? selectedProduct.sku : '---'}
                   </p>
                 </div>
               </div>
-              <div className="w-20 h-20 p-1" style={{ backgroundColor: '#ffffff' }}>
+              <div style={{ width: '72px', height: '72px', padding: '2px', backgroundColor: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 {selectedProduct ? (
-                  <QRCode value={selectedProduct.sku} size={80} style={{ height: "auto", maxWidth: "100%", width: "100%" }} viewBox={`0 0 80 80`} />
+                  <QRCode 
+                    value={selectedProduct.sku} 
+                    size={68} 
+                    style={{ height: "auto", maxWidth: "100%", width: "100%" }} 
+                  />
                 ) : (
                   <QrCode className="w-full h-full" style={{ color: 'rgba(0, 0, 0, 0.2)' }} />
                 )}
               </div>
-              <div className="text-data-mono text-title-md font-bold leading-none mt-1" style={{ color: '#000000' }}>
+              <div 
+                className="font-black leading-none text-center" 
+                style={{ 
+                  color: '#000000', 
+                  fontSize: '28px', 
+                  fontWeight: 900, 
+                  letterSpacing: '-0.02em',
+                  fontFamily: 'Inter, system-ui, -apple-system, sans-serif',
+                  whiteSpace: 'nowrap'
+                }}
+              >
                 ${selectedProduct ? selectedProduct.price : '0.00'}
               </div>
             </div>
