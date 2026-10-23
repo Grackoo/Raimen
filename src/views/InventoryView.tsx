@@ -361,7 +361,7 @@ export function InventoryView() {
                 borderColor: '#76777d', 
                 borderWidth: '1px', 
                 borderStyle: 'solid',
-                padding: '8px 8px 6px 8px',
+                padding: '6px 8px 14px 8px',
                 boxSizing: 'border-box'
               }}
             >
@@ -371,19 +371,19 @@ export function InventoryView() {
                 </h4>
                 <div className="w-full h-px mb-1" style={{ backgroundColor: '#000000', opacity: 0.2 }}></div>
                 <div style={{ width: '100%', overflow: 'hidden' }}>
-                  <p style={{ color: '#000000', fontSize: '9.5px', fontWeight: 600, lineHeight: '13px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', margin: 0 }}>
+                  <p style={{ color: '#000000', fontSize: '9px', fontWeight: 600, lineHeight: '12px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', margin: 0 }}>
                     {selectedProduct ? selectedProduct.name : 'Selecciona un producto'}
                   </p>
-                  <p style={{ color: 'rgba(0, 0, 0, 0.65)', fontSize: '8.5px', fontFamily: 'monospace', lineHeight: '11px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', margin: 0 }}>
+                  <p style={{ color: 'rgba(0, 0, 0, 0.65)', fontSize: '8px', fontFamily: 'monospace', lineHeight: '10px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', margin: 0 }}>
                     {selectedProduct ? selectedProduct.sku : '---'}
                   </p>
                 </div>
               </div>
-              <div style={{ width: '72px', height: '72px', padding: '2px', backgroundColor: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div style={{ width: '62px', height: '62px', padding: '1px', backgroundColor: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 {selectedProduct ? (
                   <QRCode 
                     value={selectedProduct.sku} 
-                    size={68} 
+                    size={58} 
                     style={{ height: "auto", maxWidth: "100%", width: "100%" }} 
                   />
                 ) : (
@@ -394,11 +394,12 @@ export function InventoryView() {
                 className="font-black leading-none text-center" 
                 style={{ 
                   color: '#000000', 
-                  fontSize: '28px', 
+                  fontSize: '22px', 
                   fontWeight: 900, 
                   letterSpacing: '-0.02em',
                   fontFamily: 'Inter, system-ui, -apple-system, sans-serif',
-                  whiteSpace: 'nowrap'
+                  whiteSpace: 'nowrap',
+                  paddingBottom: '2px'
                 }}
               >
                 ${selectedProduct ? selectedProduct.price : '0.00'}
