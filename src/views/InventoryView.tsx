@@ -20,17 +20,17 @@ interface Product {
   image: string;
 }
 
-function LabelCard({ product, id }: { product: Product | null; id?: string }) {
+function LabelCard({ product, id, forPrint = false }: { product: Product | null; id?: string; forPrint?: boolean }) {
   return (
     <div 
       id={id} 
-      className="shadow-md flex flex-col items-center justify-between" 
+      className={`flex flex-col items-center justify-between ${forPrint ? '' : 'shadow-md'}`} 
       style={{ 
         width: '260px', 
         minHeight: '280px', 
         backgroundColor: '#ffffff', 
-        borderColor: '#76777d', 
-        borderWidth: '1px', 
+        borderColor: forPrint ? 'transparent' : '#76777d', 
+        borderWidth: forPrint ? '0px' : '1px', 
         borderStyle: 'solid',
         padding: '14px 14px 22px 14px',
         boxSizing: 'border-box'
@@ -40,7 +40,7 @@ function LabelCard({ product, id }: { product: Product | null; id?: string }) {
         <h4 className="font-black tracking-wider leading-none mb-1.5" style={{ color: '#000000', fontSize: '15px' }}>
           RAIMEN
         </h4>
-        <div className="w-full h-px mb-2" style={{ backgroundColor: '#000000', opacity: 0.25 }}></div>
+        <div className="w-full mb-2" style={{ backgroundColor: '#000000', height: '1.5px', opacity: 0.85 }}></div>
         <div style={{ width: '100%' }}>
           <p 
             style={{ 
@@ -61,10 +61,10 @@ function LabelCard({ product, id }: { product: Product | null; id?: string }) {
           </p>
           <p 
             style={{ 
-              color: 'rgba(0, 0, 0, 0.65)', 
+              color: '#000000', 
               fontSize: '11px', 
               fontFamily: 'monospace', 
-              fontWeight: 600,
+              fontWeight: 700,
               lineHeight: '14px', 
               textAlign: 'center', 
               margin: '3px 0 0 0' 
@@ -120,7 +120,7 @@ function canvasToEscPosRaster(canvas: HTMLCanvasElement): string {
   ctx.fillStyle = '#ffffff';
   ctx.fillRect(0, 0, PRINTER_WIDTH_DOTS, canvas.height);
 
-  // Center horizontally
+  // Center horizontally within 576-dot canvas (576 - 520) / 2 = 28 dots margin on each side
   const offsetX = Math.max(0, Math.floor((PRINTER_WIDTH_DOTS - canvas.width) / 2));
   ctx.drawImage(canvas, offsetX, 0);
 
@@ -150,11 +150,11 @@ function canvasToEscPosRaster(canvas: HTMLCanvasElement): string {
 
   // ESC/POS Commands:
   // 1B 40 : ESC @ (Initialize printer)
-  // 1B 61 01 : ESC a 1 (Center alignment)
+  // 1B 61 00 : ESC a 0 (Left alignment: start at dot 0 so the 576-dot centered canvas aligns symmetrically on 80mm roll)
   // 1D 76 30 00 xL xH yL yH : GS v 0 0 (Raster bit image normal mode)
   const header = new Uint8Array([
     0x1B, 0x40,
-    0x1B, 0x61, 0x01,
+    0x1B, 0x61, 0x00,
     0x1D, 0x76, 0x30, 0x00,
     PRINTER_WIDTH_BYTES & 0xFF,
     (PRINTER_WIDTH_BYTES >> 8) & 0xFF,
@@ -317,19 +317,37 @@ export function InventoryView() {
     }
   };
 
-  const generateAllLabelCanvases = async (scale: number = 2.5): Promise<HTMLCanvasElement[]> => {
+  const generateAllLabelCanvases = async (scale: number = 2): Promise<HTMLCanvasElement[]> => {
     const canvases: HTMLCanvasElement[] = [];
     for (const p of productsToPrint) {
       const el = document.getElementById(`batch-label-${p.id}`);
       if (el) {
-        const canvas = await html2canvas(el, { scale, backgroundColor: '#ffffff' });
+        const canvas = await html2canvas(el, { 
+          scale, 
+          backgroundColor: '#ffffff',
+          x: 0,
+          y: 0,
+          width: 260,
+          scrollX: 0,
+          scrollY: 0,
+          useCORS: true
+        });
         canvases.push(canvas);
       }
     }
     if (canvases.length === 0) {
       const el = document.getElementById('qr-preview-container');
       if (el) {
-        const canvas = await html2canvas(el, { scale, backgroundColor: '#ffffff' });
+        const canvas = await html2canvas(el, { 
+          scale, 
+          backgroundColor: '#ffffff',
+          x: 0,
+          y: 0,
+          width: 260,
+          scrollX: 0,
+          scrollY: 0,
+          useCORS: true
+        });
         canvases.push(canvas);
       }
     }
@@ -349,7 +367,7 @@ export function InventoryView() {
     win.document.write('<html><head><title>Generando...</title></head><body style="font-family:sans-serif;text-align:center;padding:40px 20px;"><h3>Generando etiquetas (80mm)...</h3><p>Por favor espera un momento.</p></body></html>');
 
     try {
-      const canvases = await generateAllLabelCanvases();
+      const canvases = await generateAllLabelCanvases(2);
       const imagesHtml = canvases.map(c => `
         <div class="label-page">
           <img src="${c.toDataURL('image/png')}" />
@@ -374,7 +392,7 @@ export function InventoryView() {
           .label-page { 
             width: 80mm; 
             margin: 0 auto; 
-            padding: 2mm 0 6mm 0; 
+            padding: 3mm 0 6mm 0; 
             box-sizing: border-box; 
             page-break-after: always; 
             break-after: page; 
@@ -387,11 +405,10 @@ export function InventoryView() {
             break-after: avoid; 
           }
           img { 
-            width: 100%; 
-            max-width: 80mm; 
+            width: 65mm; 
             height: auto; 
-            object-fit: contain; 
             display: block; 
+            margin: 0 auto;
           }
         }
         @media screen {
@@ -409,10 +426,12 @@ export function InventoryView() {
             width: 80mm; 
             background: #fff; 
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); 
-            padding: 2mm 0 6mm 0; 
+            padding: 4mm 0 6mm 0; 
             box-sizing: border-box; 
+            display: flex;
+            justify-content: center;
           }
-          img { width: 100%; height: auto; display: block; }
+          img { width: 65mm; height: auto; display: block; margin: 0 auto; }
         }
       </style></head><body>${imagesHtml}</body></html>`);
       win.document.close();
@@ -461,10 +480,10 @@ export function InventoryView() {
             if (idx < canvases.length - 1) {
               ctx.strokeStyle = '#000000';
               ctx.lineWidth = 2;
-              ctx.setLineDash([10, 10]);
+              ctx.setLineDash([8, 8]);
               ctx.beginPath();
-              ctx.moveTo(16, currentY + separatorHeight / 2);
-              ctx.lineTo(w - 16, currentY + separatorHeight / 2);
+              ctx.moveTo(20, currentY + separatorHeight / 2);
+              ctx.lineTo(w - 20, currentY + separatorHeight / 2);
               ctx.stroke();
               ctx.setLineDash([]);
               currentY += separatorHeight;
@@ -504,7 +523,7 @@ export function InventoryView() {
     if (productsToPrint.length === 0) return;
     setIsPrinting(true);
     try {
-      const canvases = await generateAllLabelCanvases();
+      const canvases = await generateAllLabelCanvases(2);
       if (canvases.length === 0) return;
 
       const pdf = new jsPDF({
@@ -516,7 +535,10 @@ export function InventoryView() {
       canvases.forEach((canvas, idx) => {
         if (idx > 0) pdf.addPage([80, 88], 'portrait');
         const imgData = canvas.toDataURL('image/jpeg', 1.0);
-        pdf.addImage(imgData, 'JPEG', 0, 0, 80, 88);
+        const imgWidthMm = 65;
+        const imgHeightMm = (canvas.height / canvas.width) * imgWidthMm;
+        const offsetX = (80 - imgWidthMm) / 2; // 7.5mm
+        pdf.addImage(imgData, 'JPEG', offsetX, 5, imgWidthMm, imgHeightMm);
       });
 
       const filename = productsToPrint.length === 1 
@@ -836,9 +858,9 @@ export function InventoryView() {
       )}
 
       {/* Hidden batch container for off-screen label generation */}
-      <div style={{ position: 'fixed', left: '-9999px', top: '-9999px', pointerEvents: 'none', zIndex: -1 }}>
+      <div style={{ position: 'absolute', top: 0, left: 0, opacity: 0, pointerEvents: 'none', zIndex: -9999, width: '260px' }}>
         {productsToPrint.map(p => (
-          <LabelCard key={p.id} product={p} id={`batch-label-${p.id}`} />
+          <LabelCard key={p.id} product={p} id={`batch-label-${p.id}`} forPrint={true} />
         ))}
       </div>
 
