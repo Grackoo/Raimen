@@ -106,6 +106,87 @@ function LabelCard({ product, id }: { product: Product | null; id?: string }) {
   );
 }
 
+function canvasToEscPosRaster(canvas: HTMLCanvasElement): string {
+  const PRINTER_WIDTH_DOTS = 576; // 80mm printer standard (72mm printable width at 203 DPI)
+  const PRINTER_WIDTH_BYTES = 72; // 576 / 8
+
+  const offscreen = document.createElement('canvas');
+  offscreen.width = PRINTER_WIDTH_DOTS;
+  offscreen.height = canvas.height;
+  const ctx = offscreen.getContext('2d');
+  if (!ctx) return '';
+
+  // Background white
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, PRINTER_WIDTH_DOTS, canvas.height);
+
+  // Center horizontally
+  const offsetX = Math.max(0, Math.floor((PRINTER_WIDTH_DOTS - canvas.width) / 2));
+  ctx.drawImage(canvas, offsetX, 0);
+
+  const imgData = ctx.getImageData(0, 0, PRINTER_WIDTH_DOTS, canvas.height);
+  const pixels = imgData.data;
+  const height = canvas.height;
+
+  const rasterBytes = new Uint8Array(PRINTER_WIDTH_BYTES * height);
+
+  for (let y = 0; y < height; y++) {
+    const rowOffset = y * PRINTER_WIDTH_DOTS;
+    const byteRowOffset = y * PRINTER_WIDTH_BYTES;
+    for (let x = 0; x < PRINTER_WIDTH_DOTS; x++) {
+      const idx = (rowOffset + x) * 4;
+      const r = pixels[idx];
+      const g = pixels[idx + 1];
+      const b = pixels[idx + 2];
+      const a = pixels[idx + 3];
+
+      // Grayscale luminance threshold (true if dark / black)
+      const isBlack = a > 128 && (0.299 * r + 0.587 * g + 0.114 * b) < 185;
+      if (isBlack) {
+        rasterBytes[byteRowOffset + (x >> 3)] |= (1 << (7 - (x & 7)));
+      }
+    }
+  }
+
+  // ESC/POS Commands:
+  // 1B 40 : ESC @ (Initialize printer)
+  // 1B 61 01 : ESC a 1 (Center alignment)
+  // 1D 76 30 00 xL xH yL yH : GS v 0 0 (Raster bit image normal mode)
+  const header = new Uint8Array([
+    0x1B, 0x40,
+    0x1B, 0x61, 0x01,
+    0x1D, 0x76, 0x30, 0x00,
+    PRINTER_WIDTH_BYTES & 0xFF,
+    (PRINTER_WIDTH_BYTES >> 8) & 0xFF,
+    height & 0xFF,
+    (height >> 8) & 0xFF
+  ]);
+
+  // Feed 5 lines so the printout clears the tear bar / cutter
+  // 1B 64 05 : ESC d 5
+  // 1D 56 42 00 : GS V 66 0 (Cut if cutter present)
+  const footer = new Uint8Array([
+    0x1B, 0x64, 0x05,
+    0x1D, 0x56, 0x42, 0x00
+  ]);
+
+  const totalLength = header.length + rasterBytes.length + footer.length;
+  const fullPacket = new Uint8Array(totalLength);
+  fullPacket.set(header, 0);
+  fullPacket.set(rasterBytes, header.length);
+  fullPacket.set(footer, header.length + rasterBytes.length);
+
+  // Convert binary Uint8Array to base64
+  let binary = '';
+  const chunkSize = 8192;
+  for (let i = 0; i < fullPacket.length; i += chunkSize) {
+    const chunk = fullPacket.subarray(i, Math.min(i + chunkSize, fullPacket.length));
+    binary += String.fromCharCode.apply(null, Array.from(chunk));
+  }
+
+  return btoa(binary);
+}
+
 export function InventoryView() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
@@ -236,19 +317,19 @@ export function InventoryView() {
     }
   };
 
-  const generateAllLabelCanvases = async (): Promise<HTMLCanvasElement[]> => {
+  const generateAllLabelCanvases = async (scale: number = 2.5): Promise<HTMLCanvasElement[]> => {
     const canvases: HTMLCanvasElement[] = [];
     for (const p of productsToPrint) {
       const el = document.getElementById(`batch-label-${p.id}`);
       if (el) {
-        const canvas = await html2canvas(el, { scale: 3, backgroundColor: '#ffffff' });
+        const canvas = await html2canvas(el, { scale, backgroundColor: '#ffffff' });
         canvases.push(canvas);
       }
     }
     if (canvases.length === 0) {
       const el = document.getElementById('qr-preview-container');
       if (el) {
-        const canvas = await html2canvas(el, { scale: 3, backgroundColor: '#ffffff' });
+        const canvas = await html2canvas(el, { scale, backgroundColor: '#ffffff' });
         canvases.push(canvas);
       }
     }
@@ -350,8 +431,12 @@ export function InventoryView() {
     setIsPrinting(true);
 
     try {
-      const canvases = await generateAllLabelCanvases();
-      if (canvases.length === 0) return;
+      // Usar scale: 2 para ancho exacto de 520px (ideal para 576 dots de papel 80mm)
+      const canvases = await generateAllLabelCanvases(2);
+      if (canvases.length === 0) {
+        alert('No se pudieron generar las etiquetas.');
+        return;
+      }
 
       let finalCanvas: HTMLCanvasElement;
 
@@ -359,7 +444,7 @@ export function InventoryView() {
         finalCanvas = canvases[0];
       } else {
         const w = canvases[0].width;
-        const separatorHeight = 24;
+        const separatorHeight = 36;
         const totalHeight = canvases.reduce((acc, c) => acc + c.height + separatorHeight, 0);
         
         finalCanvas = document.createElement('canvas');
@@ -374,26 +459,42 @@ export function InventoryView() {
             ctx.drawImage(c, 0, currentY);
             currentY += c.height;
             if (idx < canvases.length - 1) {
-              ctx.strokeStyle = '#cccccc';
+              ctx.strokeStyle = '#000000';
               ctx.lineWidth = 2;
-              ctx.setLineDash([8, 8]);
+              ctx.setLineDash([10, 10]);
               ctx.beginPath();
               ctx.moveTo(16, currentY + separatorHeight / 2);
               ctx.lineTo(w - 16, currentY + separatorHeight / 2);
               ctx.stroke();
+              ctx.setLineDash([]);
               currentY += separatorHeight;
             }
           });
         }
       }
 
-      const imgData = finalCanvas.toDataURL('image/png');
-      const base64Data = imgData.replace('data:image/png;base64,', '');
-      const encoded = encodeURI(base64Data);
-      window.location.href = `intent:${encoded}#Intent;scheme=rawbt:base64;package=ru.a402d.rawbtprinter;end;`;
+      // Convertir la imagen directamente a comandos raster ESC/POS en base64
+      const base64EscPos = canvasToEscPosRaster(finalCanvas);
+      if (!base64EscPos) {
+        alert('Error al procesar la imagen para la impresora.');
+        return;
+      }
+
+      // Protocolo nativo de RawBT para comandos ESC/POS binarios:
+      const intentUrl = `intent:base64,${base64EscPos}#Intent;scheme=rawbt;package=ru.a402d.rawbtprinter;end;`;
+
+      const link = document.createElement('a');
+      link.href = intentUrl;
+      document.body.appendChild(link);
+      link.click();
+      setTimeout(() => {
+        if (document.body.contains(link)) {
+          document.body.removeChild(link);
+        }
+      }, 1000);
     } catch (err) {
       console.error('Error al generar etiquetas para RawBT:', err);
-      alert('Error al generar las etiquetas.');
+      alert('Error al generar las etiquetas para Bluetooth.');
     } finally {
       setIsPrinting(false);
     }
