@@ -319,38 +319,45 @@ export function InventoryView() {
 
   const generateAllLabelCanvases = async (scale: number = 2): Promise<HTMLCanvasElement[]> => {
     const canvases: HTMLCanvasElement[] = [];
-    for (const p of productsToPrint) {
-      const el = document.getElementById(`batch-label-${p.id}`);
-      if (el) {
-        const canvas = await html2canvas(el, { 
-          scale, 
-          backgroundColor: '#ffffff',
-          x: 0,
-          y: 0,
-          width: 260,
-          scrollX: 0,
-          scrollY: 0,
-          useCORS: true
-        });
-        canvases.push(canvas);
+
+    // Contenedor temporal aislado montado directamente en document.body
+    // para garantizar posición fija (0,0) sin desfases de scroll ni márgenes en móviles
+    const tempContainer = document.createElement('div');
+    tempContainer.style.position = 'fixed';
+    tempContainer.style.top = '0px';
+    tempContainer.style.left = '0px';
+    tempContainer.style.width = '260px';
+    tempContainer.style.margin = '0';
+    tempContainer.style.padding = '0';
+    tempContainer.style.zIndex = '-99999';
+    tempContainer.style.opacity = '0';
+    tempContainer.style.pointerEvents = 'none';
+    tempContainer.style.backgroundColor = '#ffffff';
+    document.body.appendChild(tempContainer);
+
+    try {
+      for (const p of productsToPrint) {
+        const sourceEl = document.getElementById(`batch-label-${p.id}`) || document.getElementById('qr-preview-container');
+        if (sourceEl) {
+          const clone = sourceEl.cloneNode(true) as HTMLElement;
+          tempContainer.innerHTML = '';
+          tempContainer.appendChild(clone);
+
+          const canvas = await html2canvas(clone, { 
+            scale, 
+            backgroundColor: '#ffffff',
+            useCORS: true,
+            logging: false
+          });
+          canvases.push(canvas);
+        }
+      }
+    } finally {
+      if (document.body.contains(tempContainer)) {
+        document.body.removeChild(tempContainer);
       }
     }
-    if (canvases.length === 0) {
-      const el = document.getElementById('qr-preview-container');
-      if (el) {
-        const canvas = await html2canvas(el, { 
-          scale, 
-          backgroundColor: '#ffffff',
-          x: 0,
-          y: 0,
-          width: 260,
-          scrollX: 0,
-          scrollY: 0,
-          useCORS: true
-        });
-        canvases.push(canvas);
-      }
-    }
+
     return canvases;
   };
 
@@ -492,15 +499,15 @@ export function InventoryView() {
         }
       }
 
-      // Convertir la imagen directamente a comandos raster ESC/POS en base64
-      const base64EscPos = canvasToEscPosRaster(finalCanvas);
-      if (!base64EscPos) {
-        alert('Error al procesar la imagen para la impresora.');
-        return;
-      }
+      // 1. Obtener imagen PNG limpia del lienzo compuesto
+      const dataUrl = finalCanvas.toDataURL('image/png');
+      const cleanBase64 = dataUrl.replace(/^data:image\/png;base64,/, '');
 
-      // Protocolo nativo de RawBT para comandos ESC/POS binarios:
-      const intentUrl = `intent:base64,${base64EscPos}#Intent;scheme=rawbt;package=ru.a402d.rawbtprinter;end;`;
+      // 2. Protocolo oficial de RawBT para imprimir imágenes gráficas (Bitmap):
+      // A diferencia de rawbt:base64 (que abre el PRN Viewer para código binario ESC/POS),
+      // rawbt:data:image/png;base64 abre el motor de imagen de RawBT,
+      // el cual detecta el ancho del papel de la impresora (80mm) y centra automáticamente la imagen sin desbordes.
+      const intentUrl = `intent:data:image/png;base64,${cleanBase64}#Intent;scheme=rawbt;package=ru.a402d.rawbtprinter;end;`;
 
       const link = document.createElement('a');
       link.href = intentUrl;
